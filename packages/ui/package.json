@@ -1,5 +1,5 @@
 {
-  "name": "@finspace-loyalty/ui",
+  "name": "@amilrubasinghe/loyalty-ui",
   "version": "0.1.0",
   "type": "module",
   "repository": {
@@ -76,6 +76,6 @@
     "wawoff2": "2.0.1"
   },
   "dependencies": {
-    "@finspace-loyalty/tokens": "workspace:*"
+    "@amilrubasinghe/loyalty-tokens": "workspace:*"
   }
 }
