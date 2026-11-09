@@ -3,7 +3,7 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@finspace-loyalty/ui": ["../../packages/ui/src/index.ts"]
+      "@amilrubasinghe/loyalty-ui": ["../../packages/ui/src/index.ts"]
     },
     "types": [
       "vite/client"

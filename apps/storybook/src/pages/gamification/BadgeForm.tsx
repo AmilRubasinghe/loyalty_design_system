@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { FinFileUpload, FinListToggleFilled, FinSideSheet, FinTextField, type FinFileUploadState } from '@finspace-loyalty/ui';
+﻿import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { FinFileUpload, FinListToggleFilled, FinSideSheet, FinTextField, type FinFileUploadState } from '@amilrubasinghe/loyalty-ui';
 import { ConnectionError, SaveError } from '../common/PageStates';
 import type { Badge, BadgeIcon } from './badgeModel';
 import styles from './Badges.module.css';

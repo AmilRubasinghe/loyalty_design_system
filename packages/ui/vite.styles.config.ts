@@ -1,10 +1,10 @@
-import { defineConfig } from 'vite';
+﻿import { defineConfig } from 'vite';
 
 // The global stylesheets are built separately from the library: library mode inlines every font as base64, so this
 // plain build writes them as files instead. Runs after the library build (index.css takes dist/components.css).
 // Output, with dist/fonts/:
-//   dist/styles.css  foundations: tokens, fonts, reset     → @finspace-loyalty/ui/styles.css
-//   dist/index.css   all-in-one: styles.css + components   → @finspace-loyalty/ui/index.css
+//   dist/styles.css  foundations: tokens, fonts, reset     → @amilrubasinghe/loyalty-ui/styles.css
+//   dist/index.css   all-in-one: styles.css + components   → @amilrubasinghe/loyalty-ui/index.css
 export default defineConfig({
   base: './', // font URLs relative to the stylesheet, wherever the app serves it
   build: {

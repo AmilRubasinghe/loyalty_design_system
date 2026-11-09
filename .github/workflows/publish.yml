@@ -24,10 +24,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build tokens
-        run: pnpm --filter @finspace-loyalty/tokens build
+        run: pnpm --filter @amilrubasinghe/loyalty-tokens build
 
       - name: Build ui
-        run: pnpm --filter @finspace-loyalty/ui build
+        run: pnpm --filter @amilrubasinghe/loyalty-ui build
 
       - name: Pack tokens
         working-directory: packages/tokens

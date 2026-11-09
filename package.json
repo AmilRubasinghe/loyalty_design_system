@@ -7,19 +7,19 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
-    "start": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
+    "dev": "pnpm --filter @amilrubasinghe/loyalty-tokens build && pnpm --filter @amilrubasinghe/loyalty-ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
+    "start": "pnpm --filter @amilrubasinghe/loyalty-tokens build && pnpm --filter @amilrubasinghe/loyalty-ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
     "build": "pnpm -r --if-present build",
-    "release": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui build && pnpm --filter @finspace-loyalty/tokens publish --no-git-checks && pnpm --filter @finspace-loyalty/ui publish --no-git-checks",
-    "storybook": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
-    "build-storybook": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook build-storybook",
+    "release": "pnpm --filter @amilrubasinghe/loyalty-tokens build && pnpm --filter @amilrubasinghe/loyalty-ui build && pnpm --filter @amilrubasinghe/loyalty-tokens publish --no-git-checks && pnpm --filter @amilrubasinghe/loyalty-ui publish --no-git-checks",
+    "storybook": "pnpm --filter @amilrubasinghe/loyalty-tokens build && pnpm --filter @amilrubasinghe/loyalty-ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
+    "build-storybook": "pnpm --filter @amilrubasinghe/loyalty-tokens build && pnpm --filter @amilrubasinghe/loyalty-ui icons && pnpm --filter @finspace-loyalty/storybook build-storybook",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm --filter @finspace-loyalty/tokens build && pnpm -r --if-present test",
-    "test:a11y": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook test:a11y",
+    "test": "pnpm --filter @amilrubasinghe/loyalty-tokens build && pnpm -r --if-present test",
+    "test:a11y": "pnpm --filter @amilrubasinghe/loyalty-tokens build && pnpm --filter @amilrubasinghe/loyalty-ui icons && pnpm --filter @finspace-loyalty/storybook test:a11y",
     "lint": "eslint .",
     "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
-    "icons": "pnpm --filter @finspace-loyalty/ui icons",
-    "payment-icons": "pnpm --filter @finspace-loyalty/ui payment-icons"
+    "icons": "pnpm --filter @amilrubasinghe/loyalty-ui icons",
+    "payment-icons": "pnpm --filter @amilrubasinghe/loyalty-ui payment-icons"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

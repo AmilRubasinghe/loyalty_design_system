@@ -1,5 +1,5 @@
-import type { CSSProperties, HTMLAttributes } from 'react';
-import { finColor } from '@finspace-loyalty/tokens';
+﻿import type { CSSProperties, HTMLAttributes } from 'react';
+import { finColor } from '@amilrubasinghe/loyalty-tokens';
 import { finIcons, type FinIconName } from './finIcons';
 import * as styles from './FinIcon.styles';
 

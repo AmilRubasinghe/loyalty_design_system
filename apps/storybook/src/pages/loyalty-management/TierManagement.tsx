@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import {
   FinAppShell,
   FinDialog,
@@ -8,7 +8,7 @@ import {
   FinTable,
   type FinTableColumn,
   type FinTableFilters,
-} from '@finspace-loyalty/ui';
+} from '@amilrubasinghe/loyalty-ui';
 import { PAGE_TABLE_VARIANT, usePageSideNav } from '../pageShell';
 import { PendingLink } from '../PendingLink';
 import { RecordDetails } from '../RecordDetails';

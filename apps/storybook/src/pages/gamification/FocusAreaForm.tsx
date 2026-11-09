@@ -1,5 +1,5 @@
-import { useId, type FormEvent } from 'react';
-import { FinListToggleFilled, FinSelectField, FinSideSheet, FinTextArea, FinTextField } from '@finspace-loyalty/ui';
+﻿import { useId, type FormEvent } from 'react';
+import { FinListToggleFilled, FinSelectField, FinSideSheet, FinTextArea, FinTextField } from '@amilrubasinghe/loyalty-ui';
 import { ConnectionError, SaveError } from '../common/PageStates';
 import { DiscardDialog } from './DiscardDialog';
 import { BADGES, padded, type FocusArea } from './focusAreaModel';

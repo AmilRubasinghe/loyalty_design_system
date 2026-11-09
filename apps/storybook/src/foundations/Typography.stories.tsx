@@ -1,6 +1,6 @@
-import type { CSSProperties } from 'react';
+﻿import type { CSSProperties } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { finFont } from '@finspace-loyalty/tokens';
+import { finFont } from '@amilrubasinghe/loyalty-tokens';
 import { Page } from './Foundations';
 import { useComputed } from './useComputed';
 import { varName } from './resolve';

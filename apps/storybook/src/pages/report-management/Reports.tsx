@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import {
   FinAppShell,
   FinAssistChip,
@@ -9,7 +9,7 @@ import {
   FinTable,
   type FinTableColumn,
   type FinTableFilters,
-} from '@finspace-loyalty/ui';
+} from '@amilrubasinghe/loyalty-ui';
 import { NOT_AVAILABLE } from '../common/format';
 import { useBackOnline, usePageLoad, usePageNotices, type PageApi } from '../common/pageApi';
 import { ConnectionError, LoadError, PageNotices } from '../common/PageStates';

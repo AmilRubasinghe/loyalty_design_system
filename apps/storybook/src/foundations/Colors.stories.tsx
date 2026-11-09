@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { finColor } from '@finspace-loyalty/tokens';
+﻿import type { Meta, StoryObj } from '@storybook/react-vite';
+import { finColor } from '@amilrubasinghe/loyalty-tokens';
 import { Page, Section, Swatch } from './Foundations';
 import styles from './Foundations.module.css';
 

@@ -1,4 +1,4 @@
-import type { FinAppShellProps, FinSideNavSection, FinSideNavTheme, FinSideNavThemeItem, FinTableVariant } from '@finspace-loyalty/ui';
+﻿import type { FinAppShellProps, FinSideNavSection, FinSideNavTheme, FinSideNavThemeItem, FinTableVariant } from '@amilrubasinghe/loyalty-ui';
 import type { Decorator } from '@storybook/react-vite';
 import { createContext, useContext } from 'react';
 import { useEffect, useGlobals, useState } from 'storybook/preview-api';

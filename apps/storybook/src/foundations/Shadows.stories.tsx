@@ -1,9 +1,9 @@
-import type { CSSProperties } from 'react';
+﻿import type { CSSProperties } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Page } from './Foundations';
 import styles from './Foundations.module.css';
 
-// Shadows are Figma effect styles, hand-written in @finspace-loyalty/tokens/styles.css (DESIGN.md §4.2).
+// Shadows are Figma effect styles, hand-written in @amilrubasinghe/loyalty-tokens/styles.css (DESIGN.md §4.2).
 const SHADOWS = [
   ['Shadow/Resting_cards', '--fin-shadow-resting-cards', '0 1 3 0, black 5%', 'Cards and surfaces at rest'],
   ['Shadow/Panel_sheets', '--fin-shadow-panel-sheets', '0 2 10 0, black 4%', 'Panels on the page. Not Dialog box or Side sheet: they sit on FinOverlay.'],

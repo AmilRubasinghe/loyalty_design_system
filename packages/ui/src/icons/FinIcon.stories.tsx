@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { finColor } from '@finspace-loyalty/tokens';
+﻿import type { Meta, StoryObj } from '@storybook/react-vite';
+import { finColor } from '@amilrubasinghe/loyalty-tokens';
 import { FinIcon, type FinFgColor, type FinIconSize } from './FinIcon';
 import { finIcons } from './finIcons';
 import styles from './FinIcon.stories.module.css';

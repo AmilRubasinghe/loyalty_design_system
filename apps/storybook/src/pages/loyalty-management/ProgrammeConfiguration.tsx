@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FinAppShell, FinDialog, FinEmptyState, FinTable, type FinTableColumn, type FinTableFilters } from '@finspace-loyalty/ui';
+﻿import { useState } from 'react';
+import { FinAppShell, FinDialog, FinEmptyState, FinTable, type FinTableColumn, type FinTableFilters } from '@amilrubasinghe/loyalty-ui';
 import { useBackOnline, useFlakyCall, usePageLoad, usePageNotices, type PageApi } from '../common/pageApi';
 import { NOT_AVAILABLE } from '../common/format';
 import { ConnectionError, LoadError, PageNotices } from '../common/PageStates';

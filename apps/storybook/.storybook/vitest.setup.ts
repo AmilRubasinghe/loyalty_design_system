@@ -1,9 +1,9 @@
-import * as a11yAnnotations from '@storybook/addon-a11y/preview';
+﻿import * as a11yAnnotations from '@storybook/addon-a11y/preview';
 import { setProjectAnnotations } from '@storybook/react-vite';
 import { inject } from 'vitest';
 import * as projectAnnotations from './preview';
 
-import type { FinBrand, FinTheme } from '@finspace-loyalty/tokens';
+import type { FinBrand, FinTheme } from '@amilrubasinghe/loyalty-tokens';
 
 declare module 'vitest' {
   export interface ProvidedContext {

@@ -1,5 +1,5 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
-import { FinSelectField, FinSideSheet, FinTextBox, FinTextField } from '@finspace-loyalty/ui';
+﻿import { useId, useRef, useState, type FormEvent } from 'react';
+import { FinSelectField, FinSideSheet, FinTextBox, FinTextField } from '@amilrubasinghe/loyalty-ui';
 import { TIER_LEVELS, type Tier, type TierLevel } from './tiers';
 import styles from './TierManagement.module.css';
 

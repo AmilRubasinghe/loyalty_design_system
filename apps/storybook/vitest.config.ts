@@ -1,7 +1,7 @@
-import { defineConfig } from 'vitest/config';
+﻿import { defineConfig } from 'vitest/config';
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 import { playwright } from '@vitest/browser-playwright';
-import { finBrands, finThemes, type FinBrand, type FinTheme } from '@finspace-loyalty/tokens';
+import { finBrands, finThemes, type FinBrand, type FinTheme } from '@amilrubasinghe/loyalty-tokens';
 
 // Runs every story in a real browser with the a11y check (WCAG 2.2 AA), once per brand × theme
 // (DESIGN.md §3.10). Uses the installed Google Chrome, so no Playwright browser download is needed.

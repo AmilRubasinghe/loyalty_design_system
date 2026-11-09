@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { finBreakpoint } from '@finspace-loyalty/tokens/breakpoints';
+import { finBreakpoint } from '@amilrubasinghe/loyalty-tokens/breakpoints';
 import { Fragment, useEffect, useId, useState, type ElementType, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 import { FinIcon } from '../../icons/FinIcon';
 import type { FinIconName } from '../../icons/finIcons';

@@ -1,4 +1,4 @@
-import type { FinBrand, FinTheme } from '@finspace-loyalty/tokens';
+﻿import type { FinBrand, FinTheme } from '@amilrubasinghe/loyalty-tokens';
 
 /**
  * Brand contrast exceptions (DESIGN.md §3.10 rule, §10): each one is a token pair for one brand and theme, accepted by

@@ -1,5 +1,5 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
-import { FinListToggleFilled, FinSelectField, FinSideSheet, FinTextBox, FinTextField } from '@finspace-loyalty/ui';
+﻿import { useId, useRef, useState, type FormEvent } from 'react';
+import { FinListToggleFilled, FinSelectField, FinSideSheet, FinTextBox, FinTextField } from '@amilrubasinghe/loyalty-ui';
 import { ConnectionError, SaveError } from '../common/PageStates';
 import type { ProgrammeConfig } from './ProgrammeConfiguration';
 import styles from './ProgrammeConfiguration.module.css';

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Token build: tokens/design.tokens.json (TokensBrücke export) → packages/tokens/dist/.
  * Spec: DESIGN.md §3.8 (naming, scoping) and §3.9 (export quirks).
  *
@@ -371,7 +371,7 @@ async function render(
 
 /**
  * Palette and alias colors for the Storybook "Palette (reference only)" page.
- * A separate entry point (`@finspace-loyalty/tokens/reference`) so components never import them.
+ * A separate entry point (`@amilrubasinghe/loyalty-tokens/reference`) so components never import them.
  */
 function referenceFile(): string {
   const cssName = (l: Layer, key: string) => `--${PREFIX}-${l}-${key}`;

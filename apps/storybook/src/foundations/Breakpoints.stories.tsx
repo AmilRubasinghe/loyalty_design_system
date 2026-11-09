@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { finBreakpoint } from '@finspace-loyalty/tokens/breakpoints';
+import { finBreakpoint } from '@amilrubasinghe/loyalty-tokens/breakpoints';
 import { Page } from './Foundations';
 import styles from './Foundations.module.css';
 import bp from './Breakpoints.module.css';

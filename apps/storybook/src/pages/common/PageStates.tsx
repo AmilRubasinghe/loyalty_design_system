@@ -1,4 +1,4 @@
-import { FinEmptyState, FinNotificationBanner, FinSnackbar, FinSnackbarRegion } from '@finspace-loyalty/ui';
+﻿import { FinEmptyState, FinNotificationBanner, FinSnackbar, FinSnackbarRegion } from '@amilrubasinghe/loyalty-ui';
 import type { PageNotice } from './pageApi';
 
 /**

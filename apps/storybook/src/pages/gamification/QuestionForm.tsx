@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
+﻿import { useId, useRef, useState, type FormEvent } from 'react';
 import {
   FinButton,
   FinHelperText,
@@ -11,7 +11,7 @@ import {
   FinTextArea,
   FinTextBox,
   FinTextField,
-} from '@finspace-loyalty/ui';
+} from '@amilrubasinghe/loyalty-ui';
 import { ConnectionError, SaveError } from '../common/PageStates';
 import { DiscardDialog } from './DiscardDialog';
 import { TIERS, nextId, type AnswerOption, type Question } from './focusAreaModel';

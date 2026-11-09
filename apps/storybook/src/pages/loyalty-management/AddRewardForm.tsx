@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+﻿import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import {
   FinButton,
   FinDateField,
@@ -17,7 +17,7 @@ import {
   FinTextArea,
   FinTextField,
   type FinTableColumn,
-} from '@finspace-loyalty/ui';
+} from '@amilrubasinghe/loyalty-ui';
 import { ConnectionError, SaveError } from '../common/PageStates';
 import {
   ALL_SEGMENTS,

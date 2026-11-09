@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { finAliasReference, finPaletteReference } from '@finspace-loyalty/tokens/reference';
+﻿import type { Meta, StoryObj } from '@storybook/react-vite';
+import { finAliasReference, finPaletteReference } from '@amilrubasinghe/loyalty-tokens/reference';
 import { Notice, Page, Section, Swatch } from './Foundations';
 import styles from './Foundations.module.css';
 

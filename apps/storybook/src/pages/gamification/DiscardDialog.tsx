@@ -1,4 +1,4 @@
-import { FinDialog } from '@finspace-loyalty/ui';
+﻿import { FinDialog } from '@amilrubasinghe/loyalty-ui';
 
 /**
  * Cancel, Esc or a scrim click on a side sheet with changes asks first (decided 28 Oct 2026, as Add reward): Keep

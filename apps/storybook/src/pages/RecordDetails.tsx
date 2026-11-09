@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { FinBadge, FinSideSheet, FinTable, type FinTableColumn } from '@finspace-loyalty/ui';
+﻿import type { ReactNode } from 'react';
+import { FinBadge, FinSideSheet, FinTable, type FinTableColumn } from '@amilrubasinghe/loyalty-ui';
 
 export interface RecordDetailsProps<Row> {
   /** The record shown; `null` closes the sheet. */

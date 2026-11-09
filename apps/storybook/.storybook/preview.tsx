@@ -1,5 +1,5 @@
-import type { Decorator, Preview } from '@storybook/react-vite';
-import { finBrands, finThemes, type FinBrand, type FinTheme } from '@finspace-loyalty/tokens';
+﻿import type { Decorator, Preview } from '@storybook/react-vite';
+import { finBrands, finThemes, type FinBrand, type FinTheme } from '@amilrubasinghe/loyalty-tokens';
 // The same stylesheet apps get (tokens, fonts, reset), from source so changes reload live.
 import '../../../packages/ui/src/styles/index.css';
 // The Tailwind utilities of the components, stories and pages (DESIGN.md §3.11).

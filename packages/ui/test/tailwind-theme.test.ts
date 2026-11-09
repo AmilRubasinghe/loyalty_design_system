@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+﻿import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
@@ -47,8 +47,8 @@ describe('Tailwind theme', () => {
   });
 
   it('covers every semantic colour, space, size, radius, shadow and text style token', () => {
-    const tokens = readFileSync(require.resolve('@finspace-loyalty/tokens/tokens.css'), 'utf8');
-    const shadows = readFileSync(require.resolve('@finspace-loyalty/tokens/styles.css'), 'utf8');
+    const tokens = readFileSync(require.resolve('@amilrubasinghe/loyalty-tokens/tokens.css'), 'utf8');
+    const shadows = readFileSync(require.resolve('@amilrubasinghe/loyalty-tokens/styles.css'), 'utf8');
     const expected = [...new Set([...`${tokens}\n${shadows}`.matchAll(/^\s*(--fin-(?:bg|text|border|fg|alpha|space|size|radius|shadow)-[a-z0-9-]+|--fin-font-[a-z0-9-]+):/gm)].map((m) => m[1]!))].filter(
       (t) => !/^--fin-font-.+-(size|weight|line-height|family|letter-spacing)$/.test(t),
     );

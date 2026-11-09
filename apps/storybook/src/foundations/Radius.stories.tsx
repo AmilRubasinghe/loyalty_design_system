@@ -1,6 +1,6 @@
-import type { CSSProperties } from 'react';
+﻿import type { CSSProperties } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { finRadius } from '@finspace-loyalty/tokens';
+import { finRadius } from '@amilrubasinghe/loyalty-tokens';
 import { Page } from './Foundations';
 import { varName } from './resolve';
 import styles from './Foundations.module.css';

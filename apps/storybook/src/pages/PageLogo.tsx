@@ -1,4 +1,4 @@
-import { FinIcon, FinLogo } from '@finspace-loyalty/ui';
+﻿import { FinIcon, FinLogo } from '@amilrubasinghe/loyalty-ui';
 import styles from './PageLogo.module.css';
 
 /**
