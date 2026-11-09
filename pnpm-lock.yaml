@@ -205,10 +205,10 @@ importers:
 
   apps/storybook:
     dependencies:
-      '@finspace-loyalty/tokens':
+      '@amilrubasinghe/loyalty-tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
-      '@finspace-loyalty/ui':
+      '@amilrubasinghe/loyalty-ui':
         specifier: workspace:*
         version: link:../../packages/ui
       react:
@@ -281,7 +281,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@finspace-loyalty/tokens':
+      '@amilrubasinghe/loyalty-tokens':
         specifier: workspace:*
         version: link:../tokens
     devDependencies:
