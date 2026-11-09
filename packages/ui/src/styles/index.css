@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Foundations: @finspace-loyalty/ui/styles.css (tokens, fonts, reset). The all-in-one index.css adds the components.
  * Order matters: tokens first, then fonts, then the reset that uses both.
  * Breakpoints aren't here: @custom-media only works where component CSS imports it.
@@ -8,7 +8,7 @@
  */
 @layer fin.base, fin.utilities;
 
-@import url("@finspace-loyalty/tokens/tokens.css");
-@import url("@finspace-loyalty/tokens/styles.css");
+@import url("@amilrubasinghe/loyalty-tokens/tokens.css");
+@import url("@amilrubasinghe/loyalty-tokens/styles.css");
 @import url("./fonts.css");
 @import url("./reset.css") layer(fin.base);

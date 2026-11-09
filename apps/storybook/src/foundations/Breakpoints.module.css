@@ -1,5 +1,5 @@
-/* Uses the custom media queries the way component CSS will, so this page also checks the PostCSS setup. */
-@import url("@finspace-loyalty/tokens/breakpoints.css");
+﻿/* Uses the custom media queries the way component CSS will, so this page also checks the PostCSS setup. */
+@import url("@amilrubasinghe/loyalty-tokens/breakpoints.css");
 
 .cssReadout {
   font: var(--fin-font-title-medium);
