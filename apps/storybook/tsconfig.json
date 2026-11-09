@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@finspace-loyalty/ui": ["../../packages/ui/src/index.ts"]
+    },
+    "types": [
+      "vite/client"
+    ]
+  },
+  "include": [
+    "src",
+    ".storybook",
+    "vitest.config.ts"
+  ]
+}

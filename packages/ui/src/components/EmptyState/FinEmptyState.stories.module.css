@@ -1,0 +1,16 @@
+/* Layout for the FinEmptyState stories only (not part of the component). */
+
+/* Figma's drawing frame: the variants one under the other, with room around them. */
+.figma {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fin-space-12xl);
+  padding: var(--fin-space-6xl) var(--fin-space-3xl);
+}
+
+/* A wide, tall area (480), to show the empty state centred in it across and down. */
+.area {
+  height: calc(4 * var(--fin-size-120));
+  border: 1px solid var(--fin-border-subtle);
+  border-radius: var(--fin-radius-m);
+}

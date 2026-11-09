@@ -1,0 +1,567 @@
+/*
+ * The Tailwind setup shared by the library build and Storybook (DESIGN.md §3.11). It scans nothing on its own:
+ * components.css (library) and Storybook's tailwind.css say which files to scan.
+ *
+ * - Prefix `fin`: every utility is fin:<name> (fin:bg-primary), so an app's own Tailwind never clashes with ours.
+ * - Layers: everything we ship sits in @layer fin (the reset in fin.base, utilities in fin.utilities). Any app style
+ *   that isn't in a layer beats ours without !important; that's how an app's className wins.
+ * - No preflight: the reset is ours (reset.css).
+ */
+@layer fin.base, fin.utilities;
+
+@import "tailwindcss/utilities.css" layer(fin.utilities) source(none);
+@import "./theme.css" prefix(fin);
+
+/*
+ * What utilities can't express (CLAUDE.md "Tokens and styling" rule 9): named variants and utilities, each with the
+ * component it's for. Values are still tokens, except artwork ratios and the spinner's turn (raw until motion tokens
+ * exist, §5).
+ */
+
+/*
+ * A part inside the element that follows a hidden native input (fin:peer): FinToggle's handle, FinRadio's dot.
+ * Tailwind's peer-* reaches the input's later siblings only; these reach inside them. :where() keeps the peer's
+ * class out of the specificity, as peer-* does.
+ */
+@custom-variant inside-peer-checked (&:is(:where(.fin\:peer):checked ~ * *));
+@custom-variant inside-peer-disabled (&:is(:where(.fin\:peer):disabled ~ * *));
+
+/* FinCheckboxBase's icons: the check only when checked and not indeterminate, the dash when indeterminate. */
+@custom-variant inside-peer-checked-only (&:is(:where(.fin\:peer):checked:not(:indeterminate) ~ * *));
+@custom-variant inside-peer-indeterminate (&:is(:where(.fin\:peer):indeterminate ~ * *));
+
+/* A native range input's parts (FinSlider), in Chrome / Safari and Firefox. The thumb's margin is WebKit only. */
+@custom-variant range-track {
+  &::-webkit-slider-runnable-track {
+    @slot;
+  }
+
+  &::-moz-range-track {
+    @slot;
+  }
+}
+
+@custom-variant range-thumb {
+  &::-webkit-slider-thumb {
+    @slot;
+  }
+
+  &::-moz-range-thumb {
+    @slot;
+  }
+}
+
+@custom-variant webkit-range-thumb (&::-webkit-slider-thumb);
+
+/* FinSlider: the fill runs to the handle's centre, which travels from 12px to (width - 12px); --fraction (0-1) is set from TSX. */
+@utility slider-fill {
+  background: linear-gradient(
+    to right,
+    var(--fin-fg-brand) calc(var(--fin-size-12) + var(--fraction, 0) * (100% - var(--fin-size-24))),
+    var(--fin-bg-active-hover) calc(var(--fin-size-12) + var(--fraction, 0) * (100% - var(--fin-size-24)))
+  );
+}
+
+@utility slider-fill-disabled {
+  background: linear-gradient(
+    to right,
+    var(--fin-fg-disabled) calc(var(--fin-size-12) + var(--fraction, 0) * (100% - var(--fin-size-24))),
+    var(--fin-border-disabled) calc(var(--fin-size-12) + var(--fraction, 0) * (100% - var(--fin-size-24)))
+  );
+}
+
+/*
+ * FinIcon: the Material Symbols glyph (never a text font fallback), outlined or filled; sized by a Size-* token.
+ * line-height 1 is here, not `leading-none`: our space token `none` takes that name over (0px).
+ */
+@utility icon-glyph {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  direction: ltr;
+  font-variation-settings: "FILL" 0;
+}
+
+@utility icon-glyph-filled {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  direction: ltr;
+  font-variation-settings: "FILL" 1;
+}
+
+@utility icon-* {
+  width: --value(--size-*);
+  height: --value(--size-*);
+  font-size: --value(--size-*);
+}
+
+/* FinIcon's `color` prop, set from TSX as --icon-color (a fg-* token); otherwise it inherits. */
+@utility icon-color {
+  color: var(--icon-color, currentcolor);
+}
+
+/*
+ * FinDivider's 1px line: a hairline border (there's no Size-1). --divider-color lets a parent in a state set the
+ * line's token (FinInputBase, FinListStandard); default border-default. The <hr>'s own border is cleared.
+ */
+@utility divider-line-h {
+  border: 0;
+  border-block-start: 1px solid var(--divider-color, var(--fin-border-default));
+}
+
+@utility divider-line-v {
+  border: 0;
+  border-inline-start: 1px solid var(--divider-color, var(--fin-border-default));
+}
+
+/* FinProgressBar's fill, --progress set from TSX. */
+@utility progress-fill {
+  width: var(--progress, 0%);
+}
+
+/* FinSpinner: the ring starts at 12 o'clock (a transform, as the turn animates it); the arc is --arc of 100, flat ends. */
+@utility spinner-start {
+  transform: rotate(-90deg);
+}
+
+@utility spinner-arc {
+  stroke-dasharray: var(--arc) 100;
+  stroke-linecap: butt;
+}
+
+@utility animate-spinner-turn {
+  animation: fin-spinner-turn 1s linear infinite;
+}
+
+@keyframes fin-spinner-turn {
+  from {
+    transform: rotate(-90deg);
+  }
+
+  to {
+    transform: rotate(270deg);
+  }
+}
+
+/*
+ * FinHelperText: with the icon, Figma centres the 18px line on the 20px icon (a 1px offset, half of Space-XXS); when
+ * the text wraps, the first line keeps it.
+ */
+@utility helper-text-offset {
+  padding-top: calc(var(--fin-space-xxs) / 2);
+}
+
+/* FinCheckboxBase's 18px box: the 24px frame minus Space-S (no 18 token; decided 19 Oct 2026). */
+@utility checkbox-box-size {
+  width: calc(var(--fin-size-24) - var(--fin-space-s));
+  height: calc(var(--fin-size-24) - var(--fin-space-s));
+}
+
+/*
+ * FinSideNavSubItem's tree lines (the side nav's `variant="tree"`, 2 Nov 2026): decorative, no text, no pointer events.
+ * The line sits under the section's icon centre (the header's Space-L padding + half its 20 icon), 1px border-default.
+ * Each sub item draws, from the gap above it (Space-XS), the line down to its middle and a connector curving
+ * (Radius-S) right to Space-XS before its text (Space-6XL in); every sub item but the last carries the line on below,
+ * from where its corner starts curving (a ├ with a rounded branch). Over a selected item's fill too.
+ */
+@utility sidenav-tree-lines {
+  position: relative;
+
+  &::before,
+  &::after {
+    position: absolute;
+    left: calc(var(--fin-space-l) + var(--fin-size-20) / 2 - 1px);
+    border-left: 1px solid var(--fin-border-default);
+    content: "";
+    pointer-events: none;
+  }
+
+  &::before {
+    top: calc(-1 * var(--fin-space-xs));
+    bottom: 50%;
+    width: calc(var(--fin-space-6xl) - var(--fin-space-xs) - (var(--fin-space-l) + var(--fin-size-20) / 2 - 1px));
+    border-bottom: 1px solid var(--fin-border-default);
+    border-bottom-left-radius: var(--fin-radius-s);
+  }
+
+  &::after {
+    top: calc(50% - var(--fin-radius-s));
+    bottom: 0;
+  }
+
+  &:last-child::after {
+    content: none;
+  }
+}
+
+/*
+ * FinBarWithText, FinSpinnerWithText: the middle 6 of the 12 grid columns of the container, from the grid tokens
+ * (608 in a 1240-wide content area; decided 15 Oct 2026).
+ */
+@utility w-grid-6 {
+  width: calc(
+    (100% - (var(--fin-grid-columns) - 1) * var(--fin-grid-gutter)) / var(--fin-grid-columns) * 6 + 5 * var(--fin-grid-gutter)
+  );
+}
+
+/*
+ * FinPageIndicator, clickable: each dot's 24px-tall hit area already holds 2px either side; negative margins keep
+ * the footprint the Figma size (dots flush with the edges, 6 tall) while the hit areas reach past it.
+ */
+@utility page-indicator-hit-margins {
+  margin: calc((var(--fin-size-6) - var(--fin-size-24)) / 2) calc(-1 * var(--fin-space-xxs));
+}
+
+/* FinProfileImage: Figma's 100 × 100 frame, the 96 avatar plus the badge sticking out by 4 (no Size-100). */
+@utility profile-image-size {
+  width: calc(var(--fin-size-96) + var(--fin-space-xs));
+  height: calc(var(--fin-size-96) + var(--fin-space-xs));
+}
+
+/*
+ * FinSideNavItem, minimized: the icon only, as tall as Full (one line of the label plus its padding), so the items
+ * don't move when the nav collapses (decided 29 Oct 2026).
+ */
+@utility sidenav-minimized-height {
+  min-block-size: calc(1lh + 2 * var(--fin-space-m));
+}
+
+/* FinTableCell's link: the underline where the font puts it. */
+@utility underline-from-font {
+  text-underline-position: from-font;
+}
+
+/* FinTableHeaderCell: a <th> keeps its row's text (not the browser's bold), and the sort button the cell's. */
+@utility font-weight-inherit {
+  font-weight: inherit;
+}
+
+@utility font-inherit {
+  font: inherit;
+}
+
+/*
+ * FinTooltip: placed by Floating UI through --tooltip-x / --tooltip-y (set from TSX); at most 343 of text plus its
+ * Space-XL sides, and never wider than the window minus Space-M each side. Rich: always that width.
+ */
+@utility tooltip-place {
+  /* Read by FinTooltip.tsx for Floating UI: 4 (Space-XS) from the trigger, Space-M from the window's edge. */
+  --tooltip-gap: var(--fin-space-xs);
+  --tooltip-edge: var(--fin-space-m);
+
+  /* One declaration, so no other utility sets inset (the popover's own inset: 0 is replaced as a whole). */
+  inset: var(--tooltip-y) auto auto var(--tooltip-x);
+}
+
+@utility tooltip-max-w {
+  max-width: min(calc(var(--fin-size-343) + 2 * var(--fin-space-xl)), calc(100vw - 2 * var(--tooltip-edge)));
+}
+
+@utility tooltip-rich-w {
+  width: calc(var(--fin-size-343) + 2 * var(--fin-space-xl));
+}
+
+/* An element with the `hidden` attribute (FinTooltip's popover sets display: flex, which would win over it). */
+@custom-variant hidden-attr (&[hidden]);
+
+/*
+ * The text fields' states (FinInputBase and every field on it, FinTextArea; DESIGN.md §9.58, §9.78). The parts are
+ * marked with named groups / a peer, as inside-peer-* does: fin:group/field-root (the whole field, with data-error /
+ * data-disabled / data-filled), fin:group/field-box (the box), fin:group/field-content (the row inside it),
+ * fin:group/field-accessory (a leading / trailing slot) and fin:peer/field-value (the input or textarea). :where()
+ * keeps the markers out of the specificity.
+ *
+ * Focused: the input (or a `control`) has focus, not a button in an accessory slot (the password eye); a button
+ * `control` (FinSelectField) only while its menu is open or it has keyboard focus (it sets data-quiet until the
+ * keyboard is used on it). Filled: data-filled, or the value isn't the placeholder. Complete: filled, not focused, no
+ * error, not disabled. Hovered (on the box): only an empty field that isn't focused.
+ */
+@custom-variant field-focused (&:is(:where(.fin\:group\/field-box):has(:where(.fin\:group\/field-content) > :not(:where(.fin\:group\/field-accessory), button):focus-within, :where(.fin\:group\/field-content) > button:is(:focus-visible:not([data-quiet]), [aria-expanded="true"])) *));
+@custom-variant field-filled (&:is(:where(.fin\:group\/field-root):is([data-filled], :has(:where(.fin\:peer\/field-value):not(:placeholder-shown))) *));
+@custom-variant field-complete (&:is(:where(.fin\:group\/field-root):is([data-filled], :has(:where(.fin\:peer\/field-value):not(:placeholder-shown))):not([data-error], [data-disabled], :has(:where(.fin\:group\/field-content) > :not(:where(.fin\:group\/field-accessory), button):focus-within, :where(.fin\:group\/field-content) > button:is(:focus-visible:not([data-quiet]), [aria-expanded="true"]))) *));
+@custom-variant field-hover (&:is(:where(.fin\:group\/field-root):not([data-disabled], [data-filled], :has(:where(.fin\:peer\/field-value):not(:placeholder-shown))) *):hover:not(:has(:where(.fin\:group\/field-content) > :not(:where(.fin\:group\/field-accessory), button):focus-within, :where(.fin\:group\/field-content) > button:is(:focus-visible:not([data-quiet]), [aria-expanded="true"]))));
+
+/* FinDateField's mask: hidden while the placeholder shows (empty and not focused); it follows the input. */
+@custom-variant field-mask-idle (&:is(:where(.fin\:peer\/field-value):placeholder-shown:not(:focus) ~ *));
+
+/* A search input (FinSearchField) uses its own clear button, not the browser's. */
+@utility search-plain {
+  &::-webkit-search-cancel-button,
+  &::-webkit-search-decoration {
+    appearance: none;
+  }
+}
+
+/*
+ * The field's border, ring and halo: fieldsets laid over the box (each cut by the label's notch). Ring and halo sit
+ * outside the 1px border: the ring 2px over it, the halo 2px beyond (hairline widths, as the focus rings elsewhere).
+ * The padding puts the notch Space-XL in from the edge, minus or plus the border.
+ */
+@utility field-outline-box {
+  inset: 0;
+  padding: 0 calc(var(--fin-space-xl) - 1px);
+  border-radius: var(--fin-radius-m);
+}
+
+@utility field-ring-box {
+  inset: -1px;
+  padding: 0 calc(var(--fin-space-xl) - 1px);
+  border-radius: calc(var(--fin-radius-m) + 1px);
+}
+
+@utility field-halo-box {
+  inset: -3px;
+  padding: 0 calc(var(--fin-space-xl) + 1px);
+  border-radius: calc(var(--fin-radius-m) + 3px);
+}
+
+/* The field's label on the top border: Space-XL in, never wider than the box, centred on the line. */
+@utility field-label-place {
+  max-width: calc(100% - 2 * var(--fin-space-xl));
+  transform: translateY(-50%);
+}
+
+/* FinInputBase (mobile number): the divider takes the border's colour (FinDivider reads --divider-color). */
+@utility divider-color-default {
+  --divider-color: var(--fin-border-default);
+}
+
+@utility divider-color-strong {
+  --divider-color: var(--fin-border-strong);
+}
+
+@utility divider-color-error {
+  --divider-color: var(--fin-border-error);
+}
+
+@utility divider-color-disabled {
+  --divider-color: var(--fin-border-disabled);
+}
+
+/* FinTextArea: `rows` lines tall, growing to `maxRows`, then it scrolls (--text-area-rows / -max-rows set from TSX). */
+@utility textarea-rows {
+  min-height: calc(var(--text-area-rows) * 1lh);
+  max-height: calc(var(--text-area-max-rows) * 1lh);
+}
+
+/* FinSelectField's trigger: open (its menu) or keyboard-focused (not data-quiet); its placeholder hides then. */
+@custom-variant select-open (&:is(:where(.fin\:group\/trigger):is(:focus-visible:not([data-quiet]), [aria-expanded="true"]) *));
+
+/* FinFileUpload: Figma's stroke is inside the box, so the 1px border comes out of the Space-XL padding. */
+@utility upload-padding {
+  padding: calc(var(--fin-space-xl) - 1px);
+}
+
+/*
+ * Artwork boxes, sized before the file loads so nothing moves: the width is the height (a Size-* token) times the
+ * artwork's ratio. FinFlag rectangles 4:3; FinLogo's mark 300 × 318 and with text 770 × 275; FinPaymentIcon 38 × 24.
+ */
+@utility flag-w-* {
+  width: calc(--value(--size-*) * 4 / 3);
+}
+
+@utility logo-mark-w-* {
+  width: calc(--value(--size-*) * 300 / 318);
+}
+
+@utility logo-text-w-* {
+  width: calc(--value(--size-*) * 770 / 275);
+}
+
+@utility payment-w-* {
+  width: calc(--value(--size-*) * 38 / 24);
+}
+
+/*
+ * A parent's placement class that must beat the converted child's own value of the same property (both in @layer
+ * fin, so otherwise Tailwind's rule order would decide). Doubles the class's specificity. Used only where the parent
+ * overrides a property the child sets (stage 3e): FinTableToolbar's search width over FinSearchField's full width,
+ * FinButtonDock's `fill` over FinButtonBase's flex-none.
+ */
+@custom-variant placement {
+  && {
+    @slot;
+  }
+}
+
+/*
+ * FinTable (DESIGN.md §9). The select column (a 24 checkbox, Space-XL either side) and the ⋮ column (a 32 button,
+ * Space-XL either side), for the <col> widths, the sticky start offset and the table's minimum width. The minimum is
+ * the columns' (--fin-table-min-width, set from TSX) plus those two columns when shown.
+ */
+@utility table-grid {
+  --table-narrow-column: calc(var(--fin-size-24) + 2 * var(--fin-space-xl));
+  --table-actions-column: calc(var(--fin-size-32) + 2 * var(--fin-space-xl));
+}
+
+@utility table-min-w {
+  min-width: calc(var(--fin-table-min-width) + var(--table-select, var(--fin-size-0)) + var(--table-actions, var(--fin-size-0)));
+}
+
+@utility table-select-column {
+  --table-select: var(--table-narrow-column);
+}
+
+@utility table-actions-column {
+  --table-actions: var(--table-actions-column);
+}
+
+@utility table-narrow-w {
+  width: var(--table-narrow-column);
+}
+
+@utility table-actions-w {
+  width: var(--table-actions-column);
+}
+
+/* A fixed-width column: --fin-table-column-width set from TSX. */
+@utility table-column-w {
+  width: var(--fin-table-column-width);
+}
+
+/* The ⋮ column fixed at the start, after the select column. */
+@utility table-sticky-after-select {
+  left: var(--table-narrow-column);
+}
+
+/*
+ * A body cell fixed while the table scrolls sideways: the row's fill (--fin-table-row-bg, set by FinTableRow;
+ * bg-primary otherwise), half a pixel short at the top and bottom so the table's own 1px row line shows through.
+ */
+@utility table-sticky-fill {
+  background:
+    linear-gradient(var(--fin-table-row-bg, var(--fin-bg-primary)), var(--fin-table-row-bg, var(--fin-bg-primary)))
+    center / 100% calc(100% - 1px) no-repeat;
+}
+
+/*
+ * The fixed column's Shadow/Sticky, only while content passes under it: the scroll area, marked
+ * fin:group/table-scroll, gets data-hidden-start / data-hidden-end from FinTable.tsx as it scrolls, read by the
+ * table-scrolled / table-scrolled-both variants. Table cells can't cast a shadow in a collapsed-border table, so an
+ * empty layer the cell's size does, clipped to that side.
+ */
+@custom-variant table-scrolled (&:is(:where(.fin\:group\/table-scroll)[data-hidden-start] *));
+@custom-variant table-scrolled-both (&:is(:where(.fin\:group\/table-scroll)[data-hidden-start][data-hidden-end] *));
+
+@utility table-sticky-shadow-end {
+  &::before {
+    position: absolute;
+    z-index: -1;
+    content: "";
+    inset: 0;
+    box-shadow: var(--fin-shadow-sticky-end);
+    clip-path: inset(0 0 0 calc(-1 * var(--fin-space-3xl)));
+  }
+}
+
+@utility table-sticky-shadow-start {
+  &::before {
+    position: absolute;
+    z-index: -1;
+    content: "";
+    inset: 0;
+    box-shadow: var(--fin-shadow-sticky-start);
+    clip-path: inset(0 calc(-1 * var(--fin-space-3xl)) 0 0);
+  }
+}
+
+/*
+ * FinTableRow: the line under the row (none under the last) and the fill, both also kept in variables
+ * (--fin-table-row-line, --fin-table-row-bg) for the fixed cells. One utility per state, picked in TSX.
+ */
+@utility table-row-line {
+  --fin-table-row-line: var(--fin-border-default);
+
+  border-bottom: 1px solid var(--fin-table-row-line);
+
+  &:last-child {
+    --fin-table-row-line: transparent;
+
+    border-bottom: 0;
+  }
+}
+
+@utility table-row-hover {
+  &:hover {
+    --fin-table-row-bg: var(--fin-bg-secondary);
+
+    background-color: var(--fin-table-row-bg);
+  }
+}
+
+@utility table-row-selected {
+  --fin-table-row-bg: var(--fin-bg-active);
+
+  background-color: var(--fin-table-row-bg);
+}
+
+@utility table-row-selected-hover {
+  --fin-table-row-bg: var(--fin-bg-active);
+
+  background-color: var(--fin-table-row-bg);
+
+  &:hover {
+    --fin-table-row-bg: var(--fin-bg-active-hover);
+  }
+}
+
+/*
+ * FinTableRowActions: while its menu is open, bg-action-secondary with fg-action, unless hovered or pressed (those
+ * states win, as before).
+ */
+@custom-variant menu-open-idle (&[aria-expanded="true"]:not(:hover, :active));
+
+/* FinButtonDock `width="fill"`: equal shares of the width left after the Tertiary button. */
+@utility dock-fill {
+  flex: 1 1 0;
+}
+
+/*
+ * FinMenu: placed by Floating UI through --menu-x / --menu-y (set from TSX), in one inset declaration; Space-XS from
+ * the trigger and Space-M from the window's edge (--menu-gap / --menu-edge, read by FinMenu.tsx). Its height never
+ * passes the room left in the window (--menu-available-height) or a fixed limit (--menu-max-height); its width fits
+ * the content but not narrower than the trigger, is the trigger's, or a given length (--menu-width).
+ */
+@utility menu-place {
+  --menu-gap: var(--fin-space-xs);
+  --menu-edge: var(--fin-space-m);
+
+  inset: var(--menu-y) auto auto var(--menu-x);
+}
+
+@utility menu-max-h {
+  max-height: var(--menu-available-height);
+}
+
+@utility menu-max-h-limit {
+  max-height: min(var(--menu-max-height), var(--menu-available-height));
+}
+
+@utility menu-min-w-trigger {
+  min-width: var(--menu-trigger-width);
+}
+
+@utility menu-w-trigger {
+  width: var(--menu-trigger-width);
+}
+
+@utility menu-w-custom {
+  width: var(--menu-width);
+}
+
+/*
+ * FinEmptyState: one column of the window's layout grid (--fin-empty-state-column), and the content 4 columns wide,
+ * never wider than the container.
+ */
+@utility empty-state-column {
+  --fin-empty-state-column: calc(
+    (100vw - 2 * var(--fin-grid-margin) - (var(--fin-grid-columns) - 1) * var(--fin-grid-gutter)) / var(--fin-grid-columns)
+  );
+}
+
+@utility empty-state-w {
+  width: min(100%, 4 * var(--fin-empty-state-column) + 3 * var(--fin-grid-gutter));
+}

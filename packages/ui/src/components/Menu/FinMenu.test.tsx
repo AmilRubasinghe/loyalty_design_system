@@ -1,0 +1,252 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import { FinButton } from '../Button';
+import { FinListCheckbox, FinListCheckboxGroup } from '../ListCheckbox';
+import { FinListStandard } from '../ListStandard';
+import { FinMenu, FinMenuDivider } from './FinMenu';
+
+function ActionMenu({ onEdit = () => {}, defaultOpen = false }: { onEdit?: () => void; defaultOpen?: boolean }) {
+  return (
+    <>
+      <FinMenu defaultOpen={defaultOpen} trigger={<FinButton>Actions</FinButton>}>
+        <FinListStandard as="li" behavior="menuitem" title="View" />
+        <FinListStandard as="li" behavior="menuitem" title="Edit" onClick={onEdit} />
+        <FinMenuDivider />
+        <FinListStandard as="li" behavior="menuitem" title="Delete" disabled />
+        <FinListStandard as="li" behavior="menuitem" title="Archive" />
+      </FinMenu>
+      <button type="button">After</button>
+    </>
+  );
+}
+
+describe('FinMenu', () => {
+  it('opens from its trigger as a menu named by the trigger; a click focuses the menu itself (no ring on a row)', async () => {
+    const user = userEvent.setup();
+    render(<ActionMenu />);
+    const trigger = screen.getByRole('button', { name: 'Actions' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('menu')).toBeNull();
+    await user.click(trigger);
+    const menu = screen.getByRole('menu', { name: 'Actions' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(trigger).toHaveAttribute('aria-controls', menu.id);
+    expect(menu).toHaveFocus();
+    expect(screen.getByRole('separator')).toBeInTheDocument();
+  });
+
+  it('opened with Enter or Space, focuses the first action', async () => {
+    const user = userEvent.setup();
+    render(<ActionMenu />);
+    screen.getByRole('button', { name: 'Actions' }).focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('menuitem', { name: 'View' })).toHaveFocus();
+    await user.keyboard('{Escape} ');
+    expect(screen.getByRole('menuitem', { name: 'View' })).toHaveFocus();
+  });
+
+  it('moves between actions with the arrow keys, Home and End, skipping disabled ones', async () => {
+    const user = userEvent.setup();
+    render(<ActionMenu />);
+    await user.click(screen.getByRole('button', { name: 'Actions' }));
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'View' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'View' })).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toHaveFocus();
+    await user.keyboard('{Home}{ArrowUp}');
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toHaveFocus();
+  });
+
+  it('opens with ArrowUp on the last action', async () => {
+    const user = userEvent.setup();
+    render(<ActionMenu />);
+    screen.getByRole('button', { name: 'Actions' }).focus();
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toHaveFocus();
+  });
+
+  it('runs a chosen action, closes and returns focus to the trigger', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    render(<ActionMenu onEdit={onEdit} />);
+    const trigger = screen.getByRole('button', { name: 'Actions' });
+    await user.click(trigger);
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('closes with Escape (focus back on the trigger) and with a click outside', async () => {
+    const user = userEvent.setup();
+    render(<ActionMenu />);
+    const trigger = screen.getByRole('button', { name: 'Actions' });
+    await user.click(trigger);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(trigger).toHaveFocus();
+    await user.click(trigger);
+    await user.click(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes when the trigger is pressed again', async () => {
+    const user = userEvent.setup();
+    render(<ActionMenu defaultOpen />);
+    await user.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('is a navigation of links that closes when one is chosen; opened with the keyboard, the current page has focus', async () => {
+    const user = userEvent.setup();
+    render(
+      <FinMenu kind="navigation" trigger={<FinButton>Programme</FinButton>}>
+        <FinListStandard as="li" behavior="link" href="#a" title="Overview" />
+        <FinListStandard as="li" behavior="link" href="#b" title="Rewards" selected />
+      </FinMenu>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Programme' });
+    expect(trigger).not.toHaveAttribute('aria-haspopup');
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('navigation', { name: 'Programme' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Rewards' })).toHaveFocus();
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveFocus();
+    await user.click(screen.getByRole('link', { name: 'Overview' }));
+    expect(screen.queryByRole('navigation')).toBeNull();
+  });
+
+  it('is a filter dialog that stays open while controls change, with a footer, closed by the app', async () => {
+    const user = userEvent.setup();
+    function Filters() {
+      const [open, setOpen] = useState(false);
+      const [tiers, setTiers] = useState<string[]>([]);
+      return (
+        <>
+          <FinMenu
+            kind="filter"
+            open={open}
+            onOpenChange={setOpen}
+            label="Member filters"
+            trigger={<FinButton>Filters</FinButton>}
+            footer={<FinButton onClick={() => setOpen(false)}>Apply</FinButton>}
+          >
+            <FinListCheckboxGroup label="Tier" value={tiers} onValueChange={setTiers}>
+              <FinListCheckbox value="gold" title="Gold" />
+              <FinListCheckbox value="silver" title="Silver" />
+            </FinListCheckboxGroup>
+          </FinMenu>
+          <p>Chosen: {tiers.join(', ')}</p>
+        </>
+      );
+    }
+    render(<Filters />);
+    const trigger = screen.getByRole('button', { name: 'Filters' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Member filters' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('checkbox', { name: 'Gold' })).toHaveFocus();
+    await user.keyboard(' ');
+    await user.click(screen.getByRole('checkbox', { name: 'Silver' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Chosen: gold, silver')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes a filter menu when focus leaves it', async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <FinMenu kind="filter" defaultOpen label="Filters" trigger={<FinButton>Filters</FinButton>} footer={<FinButton>Apply</FinButton>}>
+          <p>Options</p>
+        </FinMenu>
+        <button type="button">After</button>
+      </>,
+    );
+    // Wait for the menu to take focus once it's placed, then Tab out from its last button.
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveFocus());
+    screen.getByRole('button', { name: 'Apply' }).focus();
+    await user.tab();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('keeps the trigger\'s own handlers and ref, and calls onOpenChange', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    const onOpenChange = vi.fn();
+    let node: HTMLButtonElement | null = null;
+    render(
+      <FinMenu onOpenChange={onOpenChange} trigger={<FinButton ref={(n) => { node = n; }} onClick={onClick}>Actions</FinButton>}>
+        <FinListStandard as="li" behavior="menuitem" title="View" />
+      </FinMenu>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+    expect(node).toBe(screen.getByRole('button', { name: 'Actions' }));
+  });
+
+  it('takes a trigger render function, a label, width and maxHeight', () => {
+    render(
+      <FinMenu defaultOpen label="Row actions" width="trigger" maxHeight="200px" trigger={(props) => <button type="button" {...props}>More</button>}>
+        <FinListStandard as="li" behavior="menuitem" title="View" />
+      </FinMenu>,
+    );
+    expect(screen.getByRole('button', { name: 'More' })).toHaveAttribute('aria-expanded', 'true');
+    const menu = screen.getByRole('menu', { name: 'Row actions' });
+    const surface = menu.closest('[data-kind]')!;
+    expect(surface).toHaveAttribute('data-width', 'trigger');
+    expect(surface).toHaveAttribute('data-max-height');
+    expect(surface).toHaveAttribute('popover', 'manual');
+  });
+
+  it('treats a group of menu item radios as one stop (the checked one); picking one keeps the menu open', async () => {
+    const user = userEvent.setup();
+    function Themed() {
+      const [theme, setTheme] = useState('light');
+      return (
+        <FinMenu label="Account" trigger={<FinButton>Account</FinButton>} header={<p>Olivia James</p>} headerPadding="none">
+          <FinListStandard as="li" behavior="menuitem" title="Settings" />
+          <li role="none">
+            <div role="group" aria-label="Theme">
+              {['light', 'dark'].map((t) => (
+                <button key={t} type="button" role="menuitemradio" tabIndex={-1} aria-checked={theme === t} onClick={() => setTheme(t)}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </li>
+          <FinListStandard as="li" behavior="menuitem" title="Log out" />
+        </FinMenu>
+      );
+    }
+    render(<Themed />);
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    const menu = screen.getByRole('menu', { name: 'Account' });
+    expect(menu).toHaveAccessibleDescription('Olivia James');
+    expect(document.querySelector('[data-menu-header]')).toHaveAttribute('data-padding', 'none');
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    expect(screen.getByRole('menuitemradio', { name: 'light' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Log out' })).toHaveFocus();
+    await user.click(screen.getByRole('menuitemradio', { name: 'dark' }));
+    expect(screen.getByRole('menuitemradio', { name: 'dark' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    // From an unchecked radio, the arrows go on from the group's stop.
+    screen.getByRole('menuitemradio', { name: 'light' }).focus();
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveFocus();
+  });
+});

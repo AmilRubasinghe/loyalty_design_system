@@ -1,0 +1,39 @@
+/* Layout for the FinLabel stories only (not part of the component). */
+
+.table {
+  display: grid;
+  grid-template-columns: auto repeat(2, auto);
+  gap: var(--fin-space-xl) var(--fin-space-3xl);
+  place-items: center start;
+  font: var(--fin-font-label-small);
+  color: var(--fin-text-secondary);
+}
+
+.rowLabel {
+  justify-self: start;
+}
+
+.usage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fin-space-3xl);
+  align-items: flex-start;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fin-space-xl);
+}
+
+/* The field, 343 wide, as Figma. */
+.input {
+  width: calc(var(--fin-size-56) * 6 + var(--fin-space-s) + var(--fin-space-xxs) / 2);
+}
+
+.narrow {
+  display: flex;
+  width: var(--fin-size-120);
+  padding: var(--fin-space-s);
+  border: 1px dashed var(--fin-border-default);
+}

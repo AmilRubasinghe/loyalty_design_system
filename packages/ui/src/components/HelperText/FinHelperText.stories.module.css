@@ -1,0 +1,24 @@
+/* Layout for the FinHelperText stories only (not part of the component). */
+
+.frame {
+  width: calc(var(--fin-size-120) * 3);
+}
+
+.table {
+  display: grid;
+  grid-template-columns: auto repeat(2, 1fr);
+  gap: var(--fin-space-l) var(--fin-space-3xl);
+  align-items: center;
+  font: var(--fin-font-label-small);
+  color: var(--fin-text-secondary);
+}
+
+.rowLabel {
+  justify-self: start;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fin-space-s);
+}

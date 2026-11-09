@@ -1,0 +1,17 @@
+/* Layout for the FinBarWithText stories only (not part of the component). */
+
+/*
+ * A page content area like a real screen: the full window width minus the grid's side margins, outlined so the
+ * 6-column span is visible. Resize the window: the component stays centred on the middle 6 of 12 columns.
+ */
+.contentArea {
+  margin: var(--fin-grid-margin);
+  padding-block: var(--fin-space-3xl);
+  outline: 1px dashed var(--fin-border-default);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fin-space-6xl);
+}

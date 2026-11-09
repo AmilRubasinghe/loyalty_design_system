@@ -1,0 +1,13 @@
+/* Layout for the FinCountrySelector stories only (not part of the component). */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fin-space-xl);
+  align-items: center;
+}
+
+/* Room below the selector for its menu. */
+.stage {
+  min-height: calc(var(--fin-size-120) * 5);
+}

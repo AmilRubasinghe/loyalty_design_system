@@ -1,0 +1,12 @@
+/* Layout for the FinMenu stories only (not part of the component): room around the trigger for the menu. */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(var(--fin-size-120) * 5);
+}
+
+/* Placement top: the trigger at the bottom of the stage, so the menu has room above. */
+.bottom {
+  margin-top: auto;
+}

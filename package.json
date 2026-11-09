@@ -1,0 +1,38 @@
+{
+  "name": "finspace-loyalty",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
+    "start": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
+    "build": "pnpm -r --if-present build",
+    "release": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui build && pnpm --filter @finspace-loyalty/tokens publish --no-git-checks && pnpm --filter @finspace-loyalty/ui publish --no-git-checks",
+    "storybook": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook storybook",
+    "build-storybook": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook build-storybook",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @finspace-loyalty/tokens build && pnpm -r --if-present test",
+    "test:a11y": "pnpm --filter @finspace-loyalty/tokens build && pnpm --filter @finspace-loyalty/ui icons && pnpm --filter @finspace-loyalty/storybook test:a11y",
+    "lint": "eslint .",
+    "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
+    "icons": "pnpm --filter @finspace-loyalty/ui icons",
+    "payment-icons": "pnpm --filter @finspace-loyalty/ui payment-icons"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-plugin-better-tailwindcss": "4.10.0",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.13.0",
+    "stylelint": "17.16.0",
+    "stylelint-config-css-modules": "4.6.0",
+    "stylelint-config-standard": "40.0.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2"
+  }
+}

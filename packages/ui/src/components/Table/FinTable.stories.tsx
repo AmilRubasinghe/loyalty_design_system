@@ -1,0 +1,416 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { useState, type CSSProperties } from 'react';
+import { FinAssistChip } from '../AssistChip';
+import { FinEmptyState } from '../EmptyState';
+import { FinListStandard } from '../ListStandard';
+import { FinMenu } from '../Menu';
+import { FinTable, type FinTableColumn, type FinTableRowId, type FinTableVariant } from './FinTable';
+import styles from './FinTable.stories.module.css';
+
+interface Member {
+  id: number;
+  name: string;
+  card: string;
+  tier: 'Silver' | 'Gold' | 'Platinum';
+  status: 'Active' | 'Inactive' | 'Pending';
+  points: number;
+}
+
+const NAMES = ['Ann Perera', 'Ravi Fernando', 'Mala Silva', 'Kasun Jayasinghe', 'Nimali Dias', 'Tharindu Weerasinghe', 'Dilini Gunawardena'];
+const TIERS = ['Silver', 'Gold', 'Platinum'] as const;
+const STATUSES = ['Active', 'Inactive', 'Pending'] as const;
+
+const makeMembers = (count: number): Member[] =>
+  Array.from({ length: count }, (_, index) => ({
+    id: index + 1,
+    name: `${NAMES[index % NAMES.length] ?? ''}${index >= NAMES.length ? ` ${Math.floor(index / NAMES.length) + 1}` : ''}`,
+    card: `4532 •••• •••• ${String(1000 + ((index * 379) % 9000)).padStart(4, '0')}`,
+    tier: TIERS[index % 3] ?? 'Silver',
+    status: STATUSES[index % 5 === 0 ? 2 : index % 4 === 0 ? 1 : 0] ?? 'Active',
+    points: (index * 1373) % 25000,
+  }));
+
+const TONES = { Active: 'success', Inactive: 'neutral', Pending: 'warning' } as const;
+
+const columns = (onEditTier: (m: Member) => void = () => undefined): FinTableColumn<Member>[] => [
+  { key: 'name', header: 'Customer', minWidth: 160, sortable: true },
+  { key: 'card', header: 'Card number', minWidth: 160 },
+  { key: 'status', header: 'Status', type: 'badge', badgeTone: (m) => TONES[m.status], width: 160, filter: {} },
+  {
+    key: 'tier',
+    header: 'Tier',
+    width: 200,
+    sortable: true,
+    sortValue: (m) => TIERS.indexOf(m.tier),
+    filter: { multiple: false },
+    action: { label: (m) => `Edit ${m.name}'s tier`, onAction: onEditTier },
+  },
+  { key: 'points', header: 'Points', width: 140, sortable: true, sortValue: (m) => m.points, value: (m) => m.points.toLocaleString('en-US') },
+  { key: 'profile', header: 'Profile', type: 'link', width: 180, value: () => 'View profile', href: (m) => `#member-${m.id}` },
+];
+
+/**
+ * Accepted contrast exceptions (DESIGN.md §10 #3): Grey header titles in Dark, a link on a Selected row, and the
+ * current page in the pagination. Only those are left out of the a11y check.
+ */
+const KNOWN_CONTRAST_ISSUES = [
+  'html[data-brand="finspace"][data-theme="dark"] th[data-type="grey"] [data-size]',
+  'html[data-brand="finspace"] tr[data-selected] a',
+  'html[data-brand="finspace"] nav [data-selected]',
+];
+
+interface Args {
+  rowCount: number;
+  rowsPerPage: number;
+  selectable: boolean;
+  clickable: boolean;
+  variant: FinTableVariant;
+}
+
+/**
+ * A complete table: Header row, Table rows and the Table footer with pagination, from columns and rows as data
+ * (DESIGN.md §9). Click a row to open it; once a row is ticked, clicking rows selects them instead.
+ */
+const meta: Meta<Args> = {
+  title: 'Components/Table',
+  args: { rowCount: 45, rowsPerPage: 10, selectable: true, clickable: true, variant: 'default' },
+  argTypes: {
+    rowCount: { control: { type: 'number', min: 0, max: 500 }, description: 'Rows in the table' },
+    rowsPerPage: { control: { type: 'number', min: 1, max: 50 }, description: 'Rows per page at the start (`defaultRowsPerPage`; the footer menu changes it)' },
+    selectable: { control: 'boolean', description: 'Select cells and "select all" (Figma `Select Cell`)' },
+    clickable: { control: 'boolean', description: 'onRowClick set: a row click opens its details' },
+    variant: {
+      control: 'inline-radio',
+      options: ['default', 'bordered'],
+      description: '`variant` (code only): `bordered` draws a 1px border-subtle line with Radius-S (8) round the header and rows',
+    },
+  },
+  parameters: { layout: 'padded', a11y: { context: { include: ['body'], exclude: KNOWN_CONTRAST_ISSUES } } },
+  render: function Playground({ rowCount, rowsPerPage, selectable, clickable, variant }) {
+    const [opened, setOpened] = useState('none');
+    return (
+      <>
+        <FinTable
+          key={`${rowCount}-${rowsPerPage}`}
+          label="Members"
+          columns={columns()}
+          rows={makeMembers(rowCount)}
+          getRowId={(m) => m.id}
+          defaultRowsPerPage={rowsPerPage}
+          selectable={selectable}
+          variant={variant}
+          {...(clickable ? { onRowClick: (m: Member) => setOpened(m.name) } : {})}
+        />
+        <p className={styles.readout}>Details opened (a side sheet would open): {opened}</p>
+      </>
+    );
+  },
+};
+export default meta;
+
+type Story = StoryObj<Args>;
+
+export const Playground: Story = {};
+
+/**
+ * Everything together: tick rows (kept across pages), "select all" for the page, click a row to open it (or, while
+ * rows are ticked, to select it), edit a tier, follow a profile link.
+ */
+export const Members: Story = {
+  render: function Members() {
+    const [selected, setSelected] = useState<FinTableRowId[]>([]);
+    const [opened, setOpened] = useState('none');
+    const [edited, setEdited] = useState('none');
+    return (
+      <>
+        <FinTable
+          label="Members"
+          columns={columns((m) => setEdited(m.name))}
+          rows={makeMembers(45)}
+          getRowId={(m) => m.id}
+          getRowLabel={(m) => m.name}
+          selectedIds={selected}
+          onSelectionChange={setSelected}
+          onRowClick={(m) => setOpened(m.name)}
+        />
+        <p className={styles.readout}>
+          Selected: {selected.length} · Details opened: {opened} · Tier edited: {edited}
+        </p>
+      </>
+    );
+  },
+};
+
+/**
+ * With a toolbar (`toolbar`, Figma Table Header, §9.67): a search (here it narrows the rows by name), a filter slot
+ * (a Large Assist chip with a select menu) and the main action, 16 above the table.
+ */
+export const WithToolbar: Story = {
+  name: 'With toolbar',
+  parameters: { controls: { disable: true } },
+  render: function WithToolbar() {
+    const [query, setQuery] = useState('');
+    const [status, setStatus] = useState('All statuses');
+    const all = makeMembers(45);
+    const rows = all.filter(
+      (m) => m.name.toLowerCase().includes(query.trim().toLowerCase()) && (status === 'All statuses' || m.status === status),
+    );
+    return (
+      <FinTable
+        label="Members"
+        columns={columns()}
+        rows={rows}
+        getRowId={(m) => m.id}
+        getRowLabel={(m) => m.name}
+        toolbar={{
+          search: { label: 'Search members', placeholder: 'Search member', value: query, onChange: (e) => setQuery(e.target.value) },
+          filters: (
+            <FinMenu
+              kind="select"
+              label="Status"
+              placement="bottom-end"
+              trigger={(menuProps) => (
+                <FinAssistChip {...menuProps} size="large" dropdown expanded={menuProps['aria-expanded']}>
+                  {status}
+                </FinAssistChip>
+              )}
+            >
+              {['All statuses', ...STATUSES].map((s) => (
+                <FinListStandard key={s} as="li" size="small" behavior="option" divider={false} title={s} selected={s === status} onClick={() => setStatus(s)} />
+              ))}
+            </FinMenu>
+          ),
+          actionLabel: 'Add member',
+        }}
+      />
+    );
+  },
+};
+
+/**
+ * Sort and filter (code first, 22 Oct 2026): click Customer, Tier or Points to sort (ascending, descending, off; the
+ * icon turns purple). The down arrow on Status (checkboxes) and Tier (radios) opens the column's filter menu; Apply
+ * filters the rows, and the arrow stays purple while a filter is applied. Both go back to page 1.
+ */
+export const SortAndFilter: Story = {
+  name: 'Sort and filter',
+  parameters: { controls: { disable: true } },
+  render: function SortAndFilter() {
+    const [sort, setSort] = useState('none');
+    const [filters, setFilters] = useState('none');
+    return (
+      <>
+        <FinTable
+          label="Members"
+          columns={columns()}
+          rows={makeMembers(45)}
+          getRowId={(m) => m.id}
+          getRowLabel={(m) => m.name}
+          onSortChange={(next) => setSort(next ? `${next.key} ${next.direction}` : 'none')}
+          onFiltersChange={(next) =>
+            setFilters(
+              Object.entries(next)
+                .filter(([, values]) => values.length > 0)
+                .map(([key, values]) => `${key}: ${values.join(', ')}`)
+                .join(' · ') || 'none',
+            )
+          }
+        />
+        <p className={styles.readout}>
+          Sort: {sort} · Filters: {filters}
+        </p>
+      </>
+    );
+  },
+};
+
+/**
+ * Row actions (code first, 22 Oct 2026): a ⋮ column whose button opens the row's action menu. The actions can differ
+ * per row (here, Reactivate only for inactive members, and Deactivate unavailable for pending ones). The column is
+ * last by default or first (after the select column); it stays in place while the table scrolls sideways (narrow the
+ * width control to see it). Clicking ⋮ never opens or selects the row.
+ */
+export const RowActions: StoryObj<{ position: 'start' | 'end'; width: number }> = {
+  name: 'Row actions',
+  args: { position: 'end', width: 900 },
+  argTypes: {
+    position: { control: 'inline-radio', options: ['end', 'start'], description: '`rowActionsPosition`' },
+    width: { control: { type: 'range', min: 480, max: 1400, step: 20 }, description: 'The container width (px, story only)' },
+  },
+  render: function RowActions({ position, width }) {
+    const [done, setDone] = useState('none');
+    return (
+      <>
+        <div className={styles.widthBox} style={{ '--story-width': `${width}px` } as CSSProperties}>
+          <FinTable
+            label="Members"
+            columns={columns()}
+            rows={makeMembers(45)}
+            getRowId={(m) => m.id}
+            getRowLabel={(m) => m.name}
+            onRowClick={(m) => setDone(`opened ${m.name}`)}
+            rowActionsPosition={position}
+            rowActions={(m) => [
+              { label: 'View details', icon: 'visibility', onSelect: () => setDone(`View details: ${m.name}`) },
+              { label: 'Edit member', icon: 'edit', onSelect: () => setDone(`Edit member: ${m.name}`) },
+              { label: 'Assign tier', icon: 'assignment', onSelect: () => setDone(`Assign tier: ${m.name}`) },
+              ...(m.status === 'Inactive'
+                ? [{ label: 'Reactivate', icon: 'check_circle' as const, onSelect: () => setDone(`Reactivate: ${m.name}`), separator: true }]
+                : [
+                    {
+                      label: 'Deactivate',
+                      icon: 'cancel' as const,
+                      onSelect: () => setDone(`Deactivate: ${m.name}`),
+                      disabled: m.status === 'Pending',
+                      separator: true,
+                      destructive: true,
+                    },
+                  ]),
+            ]}
+          />
+        </div>
+        <p className={styles.readout}>Last: {done}</p>
+      </>
+    );
+  },
+};
+
+/** Server pagination: the table shows one page of rows and the total comes from the server. */
+export const ServerPagination: Story = {
+  name: 'Server pagination',
+  render: function ServerPagination() {
+    const all = makeMembers(240);
+    const [page, setPage] = useState(1);
+    return (
+      <FinTable
+        label="Members"
+        columns={columns()}
+        rows={all.slice((page - 1) * 10, page * 10)}
+        totalRows={all.length}
+        page={page}
+        onPageChange={setPage}
+        getRowId={(m) => m.id}
+      />
+    );
+  },
+};
+
+/** In a narrow container (480) the columns keep their widths and minimums, so the table scrolls sideways. */
+export const Narrow: Story = {
+  render: () => (
+    <div className={styles.narrow}>
+      <FinTable label="Members" columns={columns()} rows={makeMembers(12)} getRowId={(m) => m.id} />
+    </div>
+  ),
+};
+
+/**
+ * Code only: no footer (`footer={false}`) and no Hovered fill (`hover={false}`), for a short table that only shows
+ * data, such as a details table in a side sheet.
+ */
+export const NoFooter: Story = {
+  name: 'No footer, no hover',
+  render: () => (
+    <FinTable label="Members" columns={columns()} rows={makeMembers(6)} getRowId={(m) => m.id} selectable={false} footer={false} hover={false} />
+  ),
+};
+
+/** No rows: the header and "Showing 0 of 0 entries" (an empty state comes with the Empty state component). */
+export const NoRows: Story = {
+  name: 'No rows',
+  render: () => <FinTable label="Members" columns={columns()} rows={[]} getRowId={(m) => m.id} />,
+};
+
+/**
+ * Loading (code first): the header stays, a page of skeleton rows (FinSkeleton) replaces the rows and the footer goes,
+ * until the rows arrive. Turn **loading** off to see them. The table is busy for screen readers and says "Loading
+ * members".
+ */
+export const Loading: StoryObj<{ loading: boolean }> = {
+  args: { loading: true },
+  argTypes: { loading: { control: 'boolean', description: '`loading`' } },
+  render: ({ loading }) => (
+    <FinTable
+      label="Members"
+      columns={columns()}
+      rows={loading ? [] : makeMembers(23)}
+      getRowId={(m) => m.id}
+      getRowLabel={(m) => m.name}
+      rowActions={[{ label: 'View details', icon: 'visibility', onSelect: () => undefined }]}
+      loading={loading}
+    />
+  ),
+};
+
+/**
+ * The two styles (code only, 3 Nov 2026; `variant`): `default`, no outer border, and `bordered`, a 1px `border-subtle`
+ * line with Radius-S (8) round the header and rows. The toolbar and footer stay outside the border, 16 from it.
+ */
+export const DefaultAndBordered: Story = {
+  name: 'Default and bordered',
+  render: () => (
+    <div className={styles.styles}>
+      {(['default', 'bordered'] as const).map((variant) => (
+        <figure key={variant} className={styles.figure}>
+          <figcaption className={styles.caption}>{variant === 'default' ? 'Default' : 'Bordered'}</figcaption>
+          <FinTable
+            label={`Members (${variant})`}
+            columns={columns()}
+            rows={makeMembers(23)}
+            getRowId={(m) => m.id}
+            defaultRowsPerPage={5}
+            toolbar={{ search: { label: 'Search members', placeholder: 'Search members' }, actionLabel: 'Add member' }}
+            variant={variant}
+          />
+        </figure>
+      ))}
+    </div>
+  ),
+};
+
+/**
+ * The bordered style's hard cases: scrolling sideways in a narrow (480) container, with the ⋮ column fixed at the end
+ * and its shadow inside the border; ticked rows (their fill follows the corners); the empty state inside the frame;
+ * and loading. Hover a row to see its fill at the corners.
+ */
+export const Bordered: Story = {
+  render: function Bordered() {
+    const [selected, setSelected] = useState<FinTableRowId[]>([1, 3]);
+    const action = [{ label: 'View details', icon: 'visibility' as const, onSelect: () => undefined }];
+    return (
+      <div className={styles.styles}>
+        <figure className={styles.figure}>
+          <figcaption className={styles.caption}>Scrolling sideways, rows ticked</figcaption>
+          <div className={styles.narrow}>
+            <FinTable
+              label="Members (scrolling)"
+              columns={columns()}
+              rows={makeMembers(6)}
+              getRowId={(m) => m.id}
+              getRowLabel={(m) => m.name}
+              selectedIds={selected}
+              onSelectionChange={setSelected}
+              rowActions={action}
+              variant="bordered"
+            />
+          </div>
+        </figure>
+        <figure className={styles.figure}>
+          <figcaption className={styles.caption}>Empty</figcaption>
+          <FinTable
+            label="Members (empty)"
+            columns={columns()}
+            rows={[]}
+            getRowId={(m) => m.id}
+            variant="bordered"
+            empty={<FinEmptyState icon="search" size="small" heading="No members match the filter" description="Change or clear the filter." />}
+          />
+        </figure>
+        <figure className={styles.figure}>
+          <figcaption className={styles.caption}>Loading</figcaption>
+          <FinTable label="Members (loading)" columns={columns()} rows={[]} getRowId={(m) => m.id} rowActions={action} variant="bordered" loading />
+        </figure>
+      </div>
+    );
+  },
+};

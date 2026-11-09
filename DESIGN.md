@@ -1,0 +1,4657 @@
+# Finspace Loyalty — Design System
+
+> **Status:** Draft v0.2 · Last synced with Figma: 13 Oct 2026
+> **Platform:** Web, React + TypeScript (desktop only)
+> **Owner:** Design (Sathila)
+
+This file is the **single source of truth** for the Finspace Loyalty design system. It describes **what** the system is: tokens, styles, icons and components. How Claude Code should work in this repo is in [`CLAUDE.md`](./CLAUDE.md).
+
+If this file and Figma disagree, **Figma wins**. Flag the difference so this file can be updated.
+
+---
+
+## Contents
+
+1. [Sources of truth](#1-sources-of-truth)
+2. [Core rules](#2-core-rules)
+3. [Foundations: tokens](#3-foundations-tokens)
+4. [Foundations: styles (not variables)](#4-foundations-styles-not-variables)
+5. [Motion](#5-motion)
+6. [Icons](#6-icons)
+7. [Component architecture](#7-component-architecture)
+8. [Component inventory and build status](#8-component-inventory-and-build-status)
+9. [Component specs](#9-component-specs)
+10. [Known issues and open decisions](#10-known-issues-and-open-decisions)
+11. [Changelog](#11-changelog)
+
+---
+
+## 1. Sources of truth
+
+| What | Where | Figma file key |
+|---|---|---|
+| Foundations (variables, text/effect/grid styles) | [Foundation – Loyalty](https://www.figma.com/design/q4UmuwbvxJng9Y0AKZ4IGW/Foundation---Loyalty) | `q4UmuwbvxJng9Y0AKZ4IGW` |
+| Components | [Component library – Loyalty](https://www.figma.com/design/vD9CL5tZQo4D26fUN3vKHT/Component-library---Loyalty) | `vD9CL5tZQo4D26fUN3vKHT` |
+| Icons | [Material Symbols Rounded](https://fonts.google.com/icons?icon.set=Material+Symbols&icon.style=Rounded), npm package `material-symbols` (self-hosted) | — |
+| Token values (exported) | `tokens/design.tokens.json` | — |
+
+**Token export:** Figma variables are exported with the **TokensBrücke** plugin (DTCG 2025.10 format, colors as hex). To update, re-export, replace `tokens/design.tokens.json`, and rerun the token build. Never edit the generated files by hand.
+
+**Out of scope:** In the component file, ignore every page below **🔒 Do not use** (Cards, Notes, Image ratios, Tabs). The **Overlay** `Mobile` variant is also out of scope.
+
+---
+
+## 2. Core rules
+
+1. **Tokens only.** Components never contain raw hex values, pixel numbers or font sizes. Every color, space, radius, text style and shadow comes from a token. The only exceptions are artwork colors inside logos, flags, payment icons and illustrations.
+2. **Use semantic colors in components.** Components use the `Color collection` tokens (`bg-*`, `text-*`, `border-*`, `fg-*`, `Alpha-*`). Primitive and alias colors exist only so semantic tokens can point to them.
+3. **Light, dark and brand.** Every semantic color has a Light and a Dark value. Components must look correct in both. Theme and brand are set on `<html>` with `data-theme="light|dark"` and `data-brand="finspace|burgundy"` (§3.10). Never branch on theme or brand inside a component; read the token.
+4. **Desktop layout.** The product is desktop only. No mobile layouts.
+
+   | Rule | Value | Token |
+   |---|---|---|
+   | Grid | 12 columns, stretch | — |
+   | Gutter | 24 | `Space-3XL` |
+   | Page margin (left and right) | 24 | `Space-3XL` |
+   | Narrowest supported width | 1024 | `Size-1024` |
+   | Side nav | Collapsed by default below 1280, expanded from 1280 | `Size-1280` |
+
+   - Below 1024 the page scrolls horizontally. Nothing reflows.
+   - 1440 and 1920 currently use the same layout. The breakpoints exist for later.
+   - **Spacing rules (page padding, section gap, card padding…) aren't defined yet.** Design will add them after the first UIs are built (§10). Until then, copy spacing from Figma using the spacing tokens (§3.5), and **report any value that isn't on the scale or isn't bound to a spacing variable** instead of copying it silently.
+   - **Stacked input fields: 24 apart** (`Space-3XL`, decided 21 Oct 2026). When input fields sit one under another (a form), the gap between them is 24, measured from the bottom of one field (its helper text, when shown) to the top of the next field's box, as the components' bounds in Figma. The floating label, which sits on the top border, stays inside that gap. Applies to every field built on Input field-base and the text area (§8 #52–57, #52a).
+5. **Slots take design-system components.** A slot (for example the body of a Side sheet) accepts any React node, so it must only be filled with design-system components, never one-off layouts. **The container owns the outer padding and scrolling**, and slot content must not add its own outer padding, so spacing stays correct when content is swapped. See [§7.3](#73-figma-properties--react-props).
+6. **Match Figma names.** Code names come from Figma names, converted to code style with the `Fin` prefix (see [§3.8](#38-figma--code-naming)). Don't invent new names.
+7. **Accessibility: WCAG 2.2 AA.** Full keyboard support, visible focus (`border-focused`), native elements first, labels on icon-only controls, pointer targets at least 24 × 24, and respect for `prefers-reduced-motion` (see [§5](#5-motion)).
+8. **Sentence case for all text** (decided 22 Oct 2026). Labels, titles, headings, buttons, menu items, placeholders, helper text, messages and default strings start with a capital only on the first word and on proper names (people, places, brands, acronyms): "Add programme configuration", "Loyalty management". Figma screens that use Title Case are written in sentence case in code (§10 #65).
+9. **Portable code.** Styles are CSS Modules that only use token variables, so the styling approach can change later without touching component logic. Components must also work under Next.js. The rules are in [`CLAUDE.md`](./CLAUDE.md) (Hard rules) and [§7.4](#74-code-conventions).
+
+---
+
+## 3. Foundations: tokens
+
+Source: `tokens/design.tokens.json`, with 645 variables in 5 collections (4 Nov 2026; was 528 on 3 Nov, 434 before).
+
+| Collection | Count | Modes | Purpose |
+|---|---|---|---|
+| `Primitives` | 337 | — | Raw color scales, type scale, sizes. Includes the `Burgundy theme` group (87): the Burgundy scale plus 77 copies of the Fintech scales, which aren't generated (§3.1, §3.9); the `Sampath` group (97), Sampath's own scales (§3.1); and the Sampath font family `Font style/Sampath` (§3.4) |
+| `Alias Typography` | 92 | **`Finspace`, `Burgundy theme`, `Sampath`** (brands; since 4 Nov 2026) | Text style building blocks (family, weight, size, line height). **Only the font family differs** between brands (§3.4) |
+| `Alias Colors` | 103 | **`Finspace`, `Burgundy theme`, `Sampath`** (brands) | Role names for primitive scales. **This is the brand layer.** 77 + the 7 Primary dark aliases (3 Nov 2026) + 14 Neutral dark and 5 Neutral light aliases (4 Nov 2026, §3.2) |
+| `Color collection` | 88 | **Light / Dark** | **Semantic colors that components use** |
+| `Alias Spacing & Radius` | 25 | — | Spacing and radius scales |
+
+### 3.0 How the layers work
+
+```
+Primitives (raw hex)  →  Alias Colors (brand modes: Finspace, Burgundy, Sampath)  →  Color collection (Light / Dark)  →  components
+```
+
+| Layer | Figma collection | Modes | Code scoping |
+|---|---|---|---|
+| 1. Primitives | `Primitives` | none | `:root` |
+| 2. Alias (brand) | `Alias Colors` | **one mode per brand** (today: `Finspace`, `Burgundy theme`, `Sampath`) | `[data-brand="…"]`; Finspace also on `:root` |
+| 2. Alias typography | `Alias Typography` | **one mode per brand** since 4 Nov 2026 (only the font family differs) | Font families in `[data-brand="…"]`; sizes, weights, line heights and the text-style shorthands on `:root` |
+| 3. Semantic (theme) | `Color collection` | **Light / Dark** | `[data-theme="light|dark"]` |
+
+- **Brands live in the alias layer as modes.** Each brand mode points the same alias names (`Primary-500`, `Secondary-500`…) at that brand's primitives. Adding a brand = adding a mode in `Alias Colors` (and its primitives); semantic tokens and components don't change.
+- **Light and Dark live in the semantic layer as modes.** Semantic tokens point at alias names, so every brand gets Light and Dark automatically.
+- **In code** the two attributes combine freely on `<html>`: `data-brand` picks the alias values, `data-theme` picks the semantic mapping.
+- **`data-brand` goes on `<html>` only** (decided 14 Oct 2026; restated 4 Nov 2026 for the per-brand font). Semantic colors and the text-style shorthands are computed where `data-theme` and `:root` set them, so a `data-brand` further down the page would change the alias variables but **not** the semantic colors or the font in the `--fin-font-*` shorthands: half a brand. Never set it on an inner element, not even in a preview. `data-theme` may also be set on an inner element (for example side-by-side Light/Dark previews in Storybook).
+- The token build reads the `Alias Colors` modes from the export and writes one `[data-brand]` block per mode: `data-brand="finspace"` (the default, also on `:root`), `"burgundy"` and `"sampath"`. Since 4 Nov 2026 `Alias Typography` has the same brand modes; the build writes only the **font families** per brand and stops if any size, weight or line height differs between brands (§3.4). See §3.10.
+
+### 3.1 Primitive colors
+
+_Collection `Primitives` → `Colors/Fintech`, plus each extra brand's own scales (`Colors/Burgundy theme/Burgundy`, added 3 Nov 2026; `Colors/Sampath/*`, added 4 Nov 2026). Never use these directly in components; use the semantic tokens below._
+
+| Scale | 50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Electric Indigo (`Electric-Indigo-*`) | `#efefff` | `#ceccff` | `#b7b4ff` | `#9691ff` | `#817cff` | `#625bff` | `#5953e8` | `#4641b5` | `#36328c` | `#29266b` |
+| Gray (`Gray-*`) | `#e8e8e8` | `#b8b8b8` | `#959596` | `#656566` | `#474748` | `#19191a` | `#171718` | `#121212` | `#0e0e0e` | `#0b0b0b` |
+| White (`White-*`) | — | — | — | — | — | `#ffffff` | `#e8e8e8` | `#b5b5b5` | `#8c8c8c` | `#6b6b6b` |
+| Graphite (`Graphite-*`) | `#efefef` | `#cecece` | `#b7b7b7` | `#969696` | `#818181` | `#626262` | `#595959` | `#464646` | `#363636` | `#292929` |
+| Platinum (`Platinum-*`) | `#fdfdfd` | `#f8f8f8` | `#f5f5f5` | `#f0f0f0` | `#ededed` | `#e9e9e9` | `#d4d4d4` | `#a5a5a5` | `#808080` | `#626262` |
+| Blue (`Blue-*`) — not used | `#e9e9fd` | `#bbbaf8` | `#9b99f4` | `#6d6bef` | `#514eec` | `#2522e7` | `#221fd2` | `#1a18a4` | `#14137f` | `#100e61` |
+| Green (`Success-*`) | `#eaf6ef` | `#bee4cc` | `#9fd7b3` | `#73c590` | `#58b97b` | `#2ea85a` | `#2a9952` | `#217740` | `#195c32` | `#134726` |
+| Yellow (`Warning-*`) | `#fdf3e7` | `#f8d9b3` | `#f5c68f` | `#f1ac5c` | `#ee9c3c` | `#ea830b` | `#d5770a` | `#a65d08` | `#814806` | `#623705` |
+| Red (`Error-*`) | `#f9e8e8` | `#edb7b9` | `#e49497` | `#d86468` | `#d1454a` | `#c5171d` | `#b3151a` | `#8c1015` | `#6c0d10` | `#530a0c` |
+
+| Burgundy (`Burgundy-*`, `--fin-palette-burgundy-*`) — Burgundy brand only | `#f0e6eb` | `#d0b0c0` | `#b98aa1` | `#985476` | `#85335c` | `#660033` | `#5d002e` | `#480024` | `#38001c` | `#2b0015` |
+
+Brand Key (hidden from publishing in Figma): `White` = `#ffffff`, `Black` = `#000000`
+
+#### Sampath scales (added 4 Nov 2026)
+
+_`Colors/Sampath/*`, generated as **`--fin-palette-sampath-<scale>-<step>`**: the `sampath-` prefix is needed because some names (`White-*`, `Brand Key`) clash with Fintech's (§3.9). Unlike Burgundy's group, these are Sampath's own values, not copies. Sampath brand only._
+
+| Scale (Sampath role) | 50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Orange (Primary, Primary dark) | `#fde7d6` | `#fcd5ba` | `#fac199` | `#f8a56a` | `#f6944d` | `#f47921` | `#de6e1e` | `#ad5617` | `#864312` | `#66330e` |
+| Mirage (Secondary) | `#e8e8e9` | `#b6b9bc` | `#93979c` | `#62686e` | `#434a52` | `#141d27` | `#121a23` | `#0e151c` | `#0b1015` | `#080c10` |
+| Woodsmoke (Tertiary) | `#e8e8e8` | `#b6b6b7` | `#939394` | `#626263` | `#1e1e21` | `#141416` | `#121214` | `#0e0e10` | `#0b0b0c` | `#080809` |
+| Spring-wood (Tertiary1) | `#fefefd` | `#fdfbfa` | `#fbf9f8` | `#faf7f4` | `#f9f5f2` | `#f7f3ef` | `#e1ddd9` | `#afadaa` | `#888683` | `#686664` |
+| White (Tertiary2) | — | — | — | — | — | `#ffffff` | `#e8e8e8` | `#b5b5b5` | `#8c8c8c` | `#6b6b6b` |
+| Green (Success) | `#eaf6ef` | `#bee4cc` | `#9fd7b3` | `#73c590` | `#58b97b` | `#2ea85a` | `#2a9952` | `#217740` | `#195c32` | `#134726` |
+| Yellow (Warning) | `#fffcf6` | `#fef6e3` | `#fdf1d6` | `#fcebc3` | `#fce7b8` | `#fbe1a6` | `#e4cd97` | `#b2a076` | `#8a7c5b` | `#695f46` |
+| Red (Error) | `#f9e9e9` | `#edbaba` | `#e49998` | `#d86b69` | `#d14e4c` | `#c5221f` | `#b31f1c` | `#8c1816` | `#6c1311` | `#530e0d` |
+
+Brand Key (`--fin-palette-sampath-brand-key-white`, `-black`): `#ffffff`, `#000000`.
+
+- **Green** has Fintech's values. **Red** is close to Fintech's but not the same (Red-400 `#d14e4c` vs Error-400 `#d1454a`, so white on it is 4.28:1, §10). **Yellow** is a pale scale (the same values as Sampath's `Peach-Yellow`), which is why Sampath's warning text and icons fail in Light (§10).
+- **Not generated:** `Violet` and `Peach-Yellow` (20 variables) are in the group, but no alias points at them. The build only generates the scales listed for Sampath in `BRAND_SCALES` and stops if anything points at a scale that isn't listed. Violet is Sampath's own info colour; today Sampath's info tokens are orange (§10 #81).
+
+**The `Burgundy theme` group also holds copies** of Gray, White, Graphite, Platinum, Blue, Green, Yellow, Red and Brand Key (77 variables, the same values as Fintech's; checked 3 Nov 2026). Nothing points at them, so they **aren't generated**: only the Burgundy scale is (decided 3 Nov 2026). Their names would also clash with Fintech's. The build stops with an error if a variable ever points at a copy (§3.9).
+
+### 3.2 Alias colors (brand layer)
+
+_Collection `Alias Colors` → `Colors/Fintech`, modes **Finspace**, **Burgundy theme** and **Sampath** (§3.10). Role names that point 1:1 at a primitive scale (step for step). **In Burgundy only Primary differs**; **Sampath points every group at its own scales** (§3.1)._
+
+| Alias group | Token pattern | Points to (Finspace) | Points to (Burgundy) | Points to (Sampath) |
+|---|---|---|---|---|
+| Primary | `Primary-50 … -900` | Electric Indigo | **Burgundy** | **Orange** |
+| Primary dark | `Primary-dark-*` (7) | Primary steps | Burgundy steps (table below) | Orange steps (table below) |
+| Secondary | `Secondary-50 … -900` | Gray (near-black) | Same | **Mirage** |
+| Tertiary | `Tertiary-50 … -900` | Graphite | Same | **Woodsmoke** |
+| Tertiary1 | `Tertiary1-50 … -900` | Platinum | Same | **Spring-wood** |
+| Tertiary2 | `Tertiary2-500 … -900` | White | Same | Sampath White |
+| Success | `Success-50 … -900` | Green | Same | Sampath Green |
+| Warning | `Warning-50 … -900` | Yellow | Same | Sampath Yellow |
+| Error | `Error-50 … -900` | Red | Same | Sampath Red |
+| Key | `White`, `Black` | Brand Key White, Black | Same | Sampath Brand Key |
+| Neutral dark | `Neutral-dark-*` (14) | Fintech steps (table below) | Same | Sampath steps (table below) |
+| Neutral light | `Neutral-light-*` (5) | Fintech steps (table below) | Same | Sampath steps (table below) |
+
+#### Primary dark (added 3 Nov 2026)
+
+_The brand colors the **Dark** theme uses for actions and brand fills. A brand needs its own steps in Dark: a scale step that reads well on Finspace's indigo can be too dark in another brand. 17 semantic tokens point here in Dark (§3.3); Light still uses the Primary scale. Finspace's values are the steps its Dark theme used before, so Finspace looks the same. Descriptions are Figma's._
+
+| Token | CSS | Finspace | Burgundy | Sampath | Use (Figma description) |
+|---|---|---|---|---|---|
+| `Primary-dark-action` | `--fin-color-primary-dark-action` | Primary-400 `#817cff` | Burgundy-200 `#b98aa1` | Orange-500 `#f47921` | Brand action colour in dark mode: links, action text, icons, active borders |
+| `Primary-dark-hovered` | `--fin-color-primary-dark-hovered` | Primary-300 `#9691ff` | Burgundy-100 `#d0b0c0` | Orange-400 `#f6944d` | Hover state of action text, icons and borders in dark mode |
+| `Primary-dark-pressed` | `--fin-color-primary-dark-pressed` | Primary-200 `#b7b4ff` | Burgundy-50 `#f0e6eb` | Orange-300 `#f8a56a` | Pressed state of action text, icons and borders in dark mode |
+| `Primary-dark-focus` | `--fin-color-primary-dark-focus` | Primary-300 `#9691ff` | Burgundy-200 `#b98aa1` | Orange-500 `#f47921` | Focus ring colour in dark mode |
+| `Primary-dark-fill` | `--fin-color-primary-dark-fill` | Primary-500 `#625bff` | Burgundy-300 `#985476` | Orange-500 `#f47921` | Primary button and brand backgrounds in dark mode |
+| `Primary-dark-fill-hovered` | `--fin-color-primary-dark-fill-hovered` | Primary-400 `#817cff` | Burgundy-400 `#85335c` | Orange-600 `#de6e1e` | Hover state of primary buttons in dark mode |
+| `Primary-dark-fill-pressed` | `--fin-color-primary-dark-fill-pressed` | Primary-300 `#9691ff` | Burgundy-500 `#660033` | Orange-700 `#ad5617` | Pressed state of primary buttons in dark mode |
+
+- **Fills go opposite ways** (intended, design 3 Nov 2026): Finspace's dark button fill gets lighter on hover and press (500 → 400 → 300); Burgundy's gets darker (300 → 400 → 500).
+- Finspace's values point at its **Primary aliases**; Burgundy's point straight at **Burgundy primitives**. Both resolve the same way in code.
+- **Sampath** fills like Burgundy (darker on hover and press: Orange 500 → 600 → 700), and uses Orange-500 for both the action colour and the fill, so white on Sampath's Primary buttons is 2.76:1 in both themes (§10).
+
+#### Neutral dark and Neutral light (added 4 Nov 2026)
+
+_Role aliases for the greys the semantic tokens use: **Neutral dark** (14) for the Dark theme, **Neutral light** (5) for a few Light tokens. 19 semantic tokens point here (§3.3)._
+
+**Why they exist:** before 4 Nov 2026 those semantic tokens pointed at fixed steps of the Fintech-shaped aliases (for example `bg-secondary` Dark = `Tertiary-900`). That worked while every brand shared Fintech's greys. Sampath's grey scales (Mirage, Woodsmoke, Spring-wood) don't put the right shades at the same step numbers, so one fixed step can't serve both. Each brand now points these roles wherever it needs. **Finspace and Burgundy point them at exactly the values the semantic tokens had before**, so both look the same (checked 4 Nov 2026: every variable on `main` resolves to the same value on the branch, Light and Dark, in headless Chrome).
+
+| Alias | CSS | Finspace and Burgundy | Sampath | Used by (semantic) |
+|---|---|---|---|---|
+| `Neutral-dark-bg` | `--fin-color-neutral-dark-bg` | Secondary-500 `#19191a` | Tertiary-500 (Woodsmoke) `#141416` | `bg-primary` Dark |
+| `Neutral-dark-surface-2` | `--fin-color-neutral-dark-surface-2` | Graphite-900 `#292929` | Woodsmoke-400 `#1e1e21` | `bg-secondary` Dark |
+| `Neutral-dark-surface-3` | `--fin-color-neutral-dark-surface-3` | Graphite-800 `#363636` | Mirage-400 `#434a52` | `bg-tertiary` Dark |
+| `Neutral-dark-bg-neutral` | `--fin-color-neutral-dark-bg-neutral` | Graphite-700 `#464646` | Mirage-400 `#434a52` | `bg-neutral` Dark |
+| `Neutral-dark-bg-icons` | `--fin-color-neutral-dark-bg-icons` | Graphite-700 `#464646` | Mirage-400 `#434a52` | `bg-icons` Dark |
+| `Neutral-dark-disabled-bg` | `--fin-color-neutral-dark-disabled-bg` | Graphite-800 `#363636` | Woodsmoke-300 `#626263` | `bg-disabled` Dark |
+| `Neutral-dark-secondary` | `--fin-color-neutral-dark-secondary` | Graphite-200 `#b7b7b7` | Spring-wood-600 `#e1ddd9` | `text-secondary`, `fg-secondary` Dark |
+| `Neutral-dark-tertiary` | `--fin-color-neutral-dark-tertiary` | Graphite-300 `#969696` | Spring-wood-700 `#afadaa` | `text-tertiary` Dark |
+| `Neutral-dark-placeholder` | `--fin-color-neutral-dark-placeholder` | Graphite-400 `#818181` | Mirage-100 `#b6b9bc` | `text-placeholder`, `fg-placeholder` Dark |
+| `Neutral-dark-disabled` | `--fin-color-neutral-dark-disabled` | Graphite-600 `#595959` | Mirage-300 `#62686e` | `text-disabled`, `fg-disabled` Dark |
+| `Neutral-dark-disabled-on_bg` | `--fin-color-neutral-dark-disabled-on-bg` | Graphite-500 `#626262` | Mirage-100 `#b6b9bc` | `text-disabled-on_bg`, `fg-disabled-on_bg` Dark |
+| `Neutral-dark-border` | `--fin-color-neutral-dark-border` | Tertiary-700 `#464646` | Tertiary1-900 (Spring-wood) `#686664` | `border-default` Dark |
+| `Neutral-dark-border-subtle` | `--fin-color-neutral-dark-border-subtle` | Graphite-800 `#363636` | Mirage-400 `#434a52` | `border-subtle` Dark |
+| `Neutral-dark-border-disabled` | `--fin-color-neutral-dark-border-disabled` | Graphite-800 `#363636` | Woodsmoke-300 `#626263` | `border-disabled` Dark |
+| `Neutral-light-bg` | `--fin-color-neutral-light-bg` | Tertiary2-500 `#ffffff` | Sampath White-500 `#ffffff` | `bg-primary` Light |
+| `Neutral-light-surface-2` | `--fin-color-neutral-light-surface-2` | Platinum-200 `#f5f5f5` | Spring-wood-500 `#f7f3ef` | `bg-secondary` Light |
+| `Neutral-light-disabled` | `--fin-color-neutral-light-disabled` | Graphite-200 `#b7b7b7` | Mirage-100 `#b6b9bc` | `text-disabled`, `fg-disabled` Light |
+| `Neutral-light-secondary` | `--fin-color-neutral-light-secondary` | Graphite-500 `#626262` | Mirage-300 `#62686e` | `fg-secondary` Light |
+| `Neutral-light-border-strong` | `--fin-color-neutral-light-border-strong` | Graphite-400 `#818181` | Spring-wood-800 `#888683` | `border-strong` Light |
+
+- Some Finspace values point at Fintech primitives directly (`Graphite-*`, `Platinum-*`) rather than at the `Tertiary*` aliases; they resolve to the same hex.
+- **Sampath Light surfaces** don't follow Finspace's order: `bg-tertiary` (Tertiary1-400 `#f9f5f2`) is **lighter** than `bg-secondary` (`#f7f3ef`), and `border-subtle` is the same colour as `bg-tertiary` (1.08:1 on white). Grey panels, table headers and subtle borders barely separate from white. Open for design's review (§10 #82).
+### 3.3 Semantic colors (Light / Dark)
+
+_Collection `Color collection`, modes **Light** and **Dark**. **Components must only use these.** Hex values are resolved for reference; code must reference the token, not the hex._
+
+**Hex values are Finspace's.** In Burgundy every `Primary-*` is the same Burgundy step (§3.2), so a cell that reads `Primary-500` is `Burgundy-500` there. Since 3 Nov 2026, **17 Dark values point at the Primary dark aliases** (§3.2) instead of the Primary scale; those cells show both brands. Light didn't change. The other Dark values on the Primary scale (`bg-active`, `bg-active-hover`, `bg-action-secondary*`, the info tokens, `Alpha-brand`) follow the plain scale in both brands (fine for now, decided 3 Nov 2026; the info tokens move to a new blue later, §10 #79).
+
+#### Background
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `bg-primary` | Tertiary2-500 `#ffffff` | Secondary-500 `#19191a` | Main background of screens, dialog boxes and side sheets |
+| `bg-secondary` | Tertiary1-200 `#f5f5f5` | Tertiary-900 `#292929` | Side nav |
+| `bg-tertiary` | Tertiary1-400 `#ededed` | Tertiary-800 `#363636` | Info callout notification backgrounds |
+| `bg-neutral` | Tertiary1-500 `#e9e9e9` | Tertiary-700 `#464646` | Badge neutral background |
+| `bg-brand` | Primary-500 `#625bff` | **Primary-dark-fill**: Finspace Primary-500 `#625bff` · Burgundy Burgundy-300 `#985476` | Brand related backgrounds |
+| `bg-active` | Primary-50 `#efefff` | Primary-900 `#29266b` | Active or selected state backgrounds |
+| `bg-active-hover` | Primary-100 `#ceccff` | Primary-800 `#36328c` | Hover state of active or selected backgrounds |
+| `bg-action-primary` | Primary-500 `#625bff` | **Primary-dark-fill**: Finspace Primary-500 `#625bff` · Burgundy Burgundy-300 `#985476` | Primary button backgrounds |
+| `bg-action-primary_hovered` | Primary-600 `#5953e8` | **Primary-dark-fill-hovered**: Finspace Primary-400 `#817cff` · Burgundy Burgundy-400 `#85335c` | Hover state of primary buttons |
+| `bg-action-primary_pressed` | Primary-700 `#4641b5` | **Primary-dark-fill-pressed**: Finspace Primary-300 `#9691ff` · Burgundy Burgundy-500 `#660033` | Pressed state of primary buttons |
+| `bg-action-secondary` | Primary-50 `#efefff` | Primary-900 `#29266b` | Secondary button background (Figma description still says "swipe button", see §10) |
+| `bg-action-secondary_hovered` | Primary-100 `#ceccff` | Primary-800 `#36328c` | Hover state of secondary buttons |
+| `bg-action-secondary_pressed` | Primary-200 `#b7b4ff` | Primary-700 `#4641b5` | Pressed state of secondary buttons |
+| `bg-action-inverse` | White `#ffffff` | White `#ffffff` | White call to action on brand |
+| `bg-action-destructive` | Error-500 `#c5171d` | Error-400 `#d1454a` | Destructive buttons |
+| `bg-action-destructive_hovered` | Error-600 `#b3151a` | Error-300 `#d86468` | Hover state of destructive buttons |
+| `bg-action-destructive_pressed` | Error-700 `#8c1015` | Error-200 `#e49497` | Pressed state of destructive buttons |
+| `bg-action-destructive-secondary_hovered` | Error-50 `#f9e8e8` | Error-700 `#8c1015` | Hover state of secondary destructive buttons |
+| `bg-action-destructive-secondary_pressed` | Error-100 `#edb7b9` | Error-600 `#b3151a` | Pressed state of secondary destructive buttons |
+| `bg-disabled` | Tertiary1-500 `#e9e9e9` | Tertiary-800 `#363636` | Disabled backgrounds |
+| `bg-direct` | Secondary-500 `#19191a` | Tertiary1-50 `#fdfdfd` | Snackbar and Plain Tooltip backgrounds: dark in Light, light in Dark. Text on it uses `text-inverse`, icons `fg-inverse`. Renamed from `bg-dark` (14 Oct 2026). |
+| `bg-success` | Success-600 `#2a9952` | Success-500 `#2ea85a` | Success backgrounds (notification, badge) |
+| `bg-success_secondary` | Success-50 `#eaf6ef` | Success-900 `#134726` | Secondary success backgrounds (notification, badge) |
+| `bg-error` | Error-500 `#c5171d` | Error-400 `#d1454a` | Error backgrounds (notification, badge) |
+| `bg-error_secondary` | Error-50 `#f9e8e8` | Error-900 `#530a0c` | Secondary error backgrounds (notification, badge) |
+| `bg-warning` | Warning-500 `#ea830b` | Warning-500 `#ea830b` | Warning backgrounds (notification, badge) |
+| `bg-warning_secondary` | Warning-50 `#fdf3e7` | Warning-900 `#623705` | Secondary warning backgrounds (notification, badge) |
+| `bg-info` | Primary-500 `#625bff` | Primary-400 `#817cff` | Info backgrounds (notification, badge) |
+| `bg-info_secondary` | Primary-50 `#efefff` | Primary-900 `#29266b` | Secondary info backgrounds (notification, badge) |
+| `bg-icons` | Tertiary1-400 `#ededed` | Tertiary-700 `#464646` | Icon or default avatar backgrounds |
+
+#### Text
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `text-primary` | Secondary-500 `#19191a` | Tertiary2-500 `#ffffff` | Titles and headings |
+| `text-secondary` | Secondary-300 `#656566` | Tertiary-200 `#b7b7b7` | **Body text** and descriptions |
+| `text-tertiary` | Secondary-400 `#474748` | Tertiary-300 `#969696` | Captions, overlines, hints |
+| `text-placeholder` | Tertiary-300 `#969696` | Tertiary-400 `#818181` | Input field placeholder text |
+| `text-disabled` | Tertiary-200 `#b7b7b7` | Tertiary-600 `#595959` | Disabled text |
+| `text-disabled-on_bg` | Tertiary-300 `#969696` | Tertiary-500 `#626262` | Disabled text on backgrounds (buttons, badge, chips) |
+| `text-inverse` | White `#ffffff` | Secondary-400 `#474748` | Text on `bg-direct` (Snackbar, Plain Tooltip). Flips with the theme (changed 14 Oct 2026). |
+| `text-white_both` | White `#ffffff` | White `#ffffff` | Text on purple or red in both themes: primary and destructive buttons, Brand badge, badge indicator. Matches `fg-white_both`. New 14 Oct 2026. |
+| `text-white_subtle` | Tertiary1-600 `#d4d4d4` | Tertiary1-600 `#d4d4d4` | Secondary text on brand backgrounds. Renamed from `text-inverse_subtle` (14 Oct 2026). |
+| `text-dark_both` | Secondary-500 `#19191a` | Secondary-500 `#19191a` | Dark text in both light and dark modes |
+| `text-action` | Primary-500 `#625bff` | **Primary-dark-action**: Finspace Primary-400 `#817cff` · Burgundy Burgundy-200 `#b98aa1` | Text links, secondary buttons |
+| `text-pressed` | Primary-700 `#4641b5` | **Primary-dark-pressed**: Finspace Primary-200 `#b7b4ff` · Burgundy Burgundy-50 `#f0e6eb` | Pressed state for text links. Dark was Primary-300 until 19 Oct 2026 (§10 #39) |
+| `text-hovered` | Primary-600 `#5953e8` | **Primary-dark-hovered**: Finspace Primary-300 `#9691ff` · Burgundy Burgundy-100 `#d0b0c0` | Hover state for text links. Dark was Primary-200 until 19 Oct 2026 (§10 #39) |
+| `text-success` | Success-700 `#217740` | Success-100 `#bee4cc` | Success texts |
+| `text-error` | Error-500 `#c5171d` | Error-100 `#edb7b9` | Error texts |
+| `text-info` | Primary-700 `#4641b5` | Primary-100 `#ceccff` | Information texts |
+| `text-warning` | Warning-700 `#a65d08` | Warning-100 `#f8d9b3` | Warning texts |
+
+#### Border
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `border-default` | Tertiary1-600 `#d4d4d4` | Tertiary-700 `#464646` | Default border color. Also for dividers |
+| `border-subtle` | Tertiary1-400 `#ededed` | Tertiary-800 `#363636` | Subtle border |
+| `border-strong` | Tertiary-400 `#818181` | Tertiary-200 `#b7b7b7` | Strong border (checkbox, radio buttons, Secondary badge). Was Tertiary-300 / Tertiary-500 until 19 Oct 2026 (below 3:1, §10 #3) |
+| `border-active` | Primary-500 `#625bff` | **Primary-dark-action**: Finspace Primary-400 `#817cff` · Burgundy Burgundy-200 `#b98aa1` | Active or selected states; typing state of input fields |
+| `border-hovered` | Primary-600 `#5953e8` | **Primary-dark-hovered**: Finspace Primary-300 `#9691ff` · Burgundy Burgundy-100 `#d0b0c0` | Hover state for borders |
+| `border-pressed` | Primary-700 `#4641b5` | **Primary-dark-pressed**: Finspace Primary-200 `#b7b4ff` · Burgundy Burgundy-50 `#f0e6eb` | Pressed state for borders |
+| `border-focused` | Primary-400 `#817cff` | **Primary-dark-focus**: Finspace Primary-300 `#9691ff` · Burgundy Burgundy-200 `#b98aa1` | Focus ring and focused states |
+| `border-action-primary` | Primary-500 `#625bff` | **Primary-dark-fill**: Finspace Primary-500 `#625bff` · Burgundy Burgundy-300 `#985476` | Outline (secondary) buttons |
+| `border-disabled` | Tertiary1-500 `#e9e9e9` | Tertiary-800 `#363636` | Disabled borders |
+| `border-inverse` | Tertiary2-500 `#ffffff` | Secondary-500 `#19191a` | Borders on brand color |
+| `border-success` | Success-500 `#2ea85a` | Success-400 `#58b97b` | Success border |
+| `border-error` | Error-500 `#c5171d` | Error-400 `#d1454a` | Error border |
+| `border-info` | Primary-500 `#625bff` | Primary-400 `#817cff` | Information border |
+| `border-warning` | Warning-500 `#ea830b` | Warning-400 `#ee9c3c` | Warning border |
+
+#### Foreground (icons)
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `fg-primary` | Secondary-500 `#19191a` | Tertiary2-500 `#ffffff` | Primary icon color |
+| `fg-secondary` | Tertiary-500 `#626262` | Tertiary-200 `#b7b7b7` | Secondary icons (input fields, close, chevron) |
+| `fg-brand` | Primary-500 `#625bff` | **Primary-dark-action**: Finspace Primary-400 `#817cff` · Burgundy Burgundy-200 `#b98aa1` | Brand related icons |
+| `fg-placeholder` | Tertiary-300 `#969696` | Tertiary-400 `#818181` | Input field icons |
+| `fg-active` | Primary-600 `#5953e8` | **Primary-dark-hovered**: Finspace Primary-300 `#9691ff` · Burgundy Burgundy-100 `#d0b0c0` | Icons in active state |
+| `fg-disabled` | Tertiary-200 `#b7b7b7` | Tertiary-600 `#595959` | Disabled icons |
+| `fg-disabled-on_bg` | Tertiary-300 `#969696` | Tertiary-500 `#626262` | Disabled icons on a background |
+| `fg-inverse` | Tertiary2-500 `#ffffff` | Secondary-500 `#19191a` | Icons on brand color |
+| `fg-dark_both` | Secondary-500 `#19191a` | Secondary-500 `#19191a` | Dark icons in both light and dark modes |
+| `fg-white_both` | Tertiary2-500 `#ffffff` | Tertiary2-500 `#ffffff` | Light icons on brand color in both modes |
+| `fg-action` | Primary-500 `#625bff` | **Primary-dark-action**: Finspace Primary-400 `#817cff` · Burgundy Burgundy-200 `#b98aa1` | Action icons |
+| `fg-hovered` | Primary-600 `#5953e8` | **Primary-dark-hovered**: Finspace Primary-300 `#9691ff` · Burgundy Burgundy-100 `#d0b0c0` | Hover state for action icons |
+| `fg-pressed` | Primary-700 `#4641b5` | **Primary-dark-pressed**: Finspace Primary-200 `#b7b4ff` · Burgundy Burgundy-50 `#f0e6eb` | Pressed state for action icons |
+| `fg-success` | Success-600 `#2a9952` | Success-200 `#9fd7b3` | Success icons |
+| `fg-error` | Error-500 `#c5171d` | Error-200 `#e49497` | Error icons |
+| `fg-info` | Primary-600 `#5953e8` | Primary-200 `#b7b4ff` | Information icons |
+| `fg-warning` | Warning-600 `#d5770a` | Warning-200 `#f5c68f` | Warning icons |
+
+#### Alpha
+
+_Alpha tokens point at an alias color plus an opacity (Figma's color + opacity variable). The resolved value follows the brand._
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `Alpha-sm` | Secondary-900 @ 16% `#0b0b0b29` | Secondary-900 @ 16% `#0b0b0b29` | Small CTAs inside branded cards |
+| `Alpha-md` | Secondary-900 @ 40% `#0b0b0b66` | Secondary-900 @ 40% `#0b0b0b66` | Overlay backgrounds (scrim): `FinOverlay`, as in Figma (corrected 15 Oct 2026) |
+| `Alpha-light` | White @ 12% `#ffffff1f` | White @ 12% `#ffffff1f` | More depth for elements on brand background |
+| `Alpha-nav` | White @ 75% `#ffffffbf` | White @ 6% `#ffffff0f` | Navigation backgrounds and loading overlay |
+| `Alpha-nav_background` | White @ 40% `#ffffff66` | Tertiary-900 @ 40% `#29292966` | — |
+| `Alpha-both` | Tertiary-900 @ 42% `#2929296b` | Tertiary-900 @ 42% `#2929296b` | — (was listed as the scrim; Figma's Overlay uses `Alpha-md`, corrected 15 Oct 2026) |
+| `Alpha-border` | Tertiary-900 @ 8% `#29292914` | Tertiary-900 @ 2% `#29292905` | Subtle borders on icon circles |
+| `Alpha-success` | Success-500 @ 16% `#2ea85a29` | Success-500 @ 16% `#2ea85a29` | — |
+| `Alpha-brand` | Primary-500 @ 16% `#625bff29` | Primary-500 @ 16% `#625bff29` | — |
+| `Alpha-error` | Error-500 @ 16% `#c5171d29` | Error-500 @ 16% `#c5171d29` | — |
+
+### 3.4 Typography
+
+Font family: **Inter** (`Primitives/Typography/Font style/Primary`), self-hosted, weights 400, 500, 600, 700. Letter spacing 0 for all styles.
+
+**Per brand (added 4 Nov 2026):** `Alias Typography` has a mode per brand. **Only the font family differs**: Finspace and Burgundy use Inter; **Sampath uses Hanken Grotesk** (`Font style/Sampath`, `--fin-palette-font-family-sampath`), self-hosted from `@fontsource/hanken-grotesk` (weights 400–800, Latin and Latin Extended; 800 is bundled for the Sampath brief, no text style uses it). Sizes, weights and line heights are the same in every brand; **the token build stops** if any of them differs (sizes per brand would change every component's layout). The family parts (`--fin-font-*-family`) are written per brand in `[data-brand]`; the shorthands (`--fin-font-body-large`…) stay on `:root` and pick up the brand's family, so components need no change. The browser only downloads Hanken Grotesk where `data-brand="sampath"` is set on `<html>`. Hanken Grotesk is a little wider than Inter at the same size, so labels in fixed-width places (buttons, table cells, side nav) can truncate sooner: check them in Sampath. Storybook's preview loads both fonts before a story renders, so the a11y check never measures the fallback font.
+
+**Fallback stack (design decision, 14 Oct 2026):** `Inter, system-ui, sans-serif`. Figma only has `Inter`, so the token value stays `Inter`; The token build appends the fallbacks to every font family value (`--fin-palette-font-family-primary: Inter, system-ui, sans-serif`), so all `--fin-font-*` shorthands get them, brand fonts too (`--fin-palette-font-family-sampath: "Hanken Grotesk", system-ui, sans-serif`; a family with a space is quoted). Text never falls back to the browser's default serif font if Inter fails to load.
+
+| Text style (Figma) | Variable group | Weight | Size | Line height | Note |
+|---|---|---|---|---|---|
+| `Display/Large-H1` | `Display Large-H1` | 700 | 48 | 62.4 |  |
+| `Display/Medium-H2` | `Display Medium-H2` | 700 | 36 | 46.8 |  |
+| `Display/Small-H3` | `Display Small-H3` | 700 | 28 | 39.2 |  |
+| `Headline/Large-H4` | `Headline Large-H4` | 700 | 24 | 33.6 |  |
+| `Headline/Medium-H5` | `Headline Medium-H5` | 600 | 20 | 28 |  |
+| `Headline/Small-H6` | `Headline Small-H6` | 600 | 16 | 24 |  |
+| `Body/Large` | `Body L` | 400 | 16 | 24 |  |
+| `Body/Medium` | `Body M` | 400 | 14 | 21 |  |
+| `Body/Small` | `Body S` | 400 | 12 | 18 |  |
+| `Title/XLarge` | `Title XL` | 600 | 32 | 41.6 |  |
+| `Title/Large` | `Title L` | 600 | 18 | 25.2 |  |
+| `Title/Medium` | `Title M` | 600 | 16 | 24 |  |
+| `Title/Small` | `Title S` | 600 | 14 | 21 |  |
+| `Label/Large` | `Label L` | 500 | 16 | 24 | Was 600 until 29 Oct 2026 (design's token update) |
+| `Label/Medium` | `Label M` | 500 | 14 | 21 | Was 600 until 29 Oct 2026 |
+| `Label/Small` | `Label S` | 500 | 12 | 18 | Was 600 until 29 Oct 2026 |
+| `Caption/Large` | `Caption L` | 500 | 12 | 18 |  |
+| `Caption/Medium` | `Caption M` | 500 | 11 | 16.5 |  |
+| `Caption/Small` | `Caption S` | 600 | 10 | 15 |  |
+| `Button/XLarge` | `Button XL` | 600 | 18 | 24 |  |
+| `Button/Large` | `Button L` | 600 | 16 | 24 |  |
+| `Button/Medium` | `Button M` | 600 | 14 | 24 |  |
+| `Button/Small` | `Button S` | 600 | 12 | 24 |  |
+
+- Line heights follow 1.3 (32 px and up), 1.4 (18–28 px) and 1.5 (16 px and below), except the Button styles, which use a fixed 24.
+- `ExtraBold-800` exists in Primitives but no style uses it, so Inter's weight 800 isn't bundled (Hanken Grotesk's is, above).
+
+### 3.5 Spacing
+
+_Collection `Alias Spacing & Radius` → `Spacing`._
+
+| Token | Value |
+|---|---|
+| `Space-none` | 0 |
+| `Space-XXS` | 2 |
+| `Space-XS` | 4 |
+| `Space-S` | 6 |
+| `Space-M` | 8 |
+| `Space-L` | 12 |
+| `Space-XL` | 16 |
+| `Space-2XL` | 20 |
+| `Space-3XL` | 24 |
+| `Space-4XL` | 32 |
+| `Space-5XL` | 36 |
+| `Space-6XL` | 40 |
+| `Space-7XL` | 48 |
+| `Space-8XL` | 56 |
+| `Space-9XL` | 64 |
+| `Space-10XL` | 80 |
+| `Space-11XL` | 96 |
+| `Space-12XL` | 120 |
+
+_14 Oct 2026: `Size-36` added and `Space-5XL`…`Space-11XL` moved down one step, with `Space-12XL` = 120 added. Before that date, `5XL` was 40 … `11XL` was 120._
+
+### 3.6 Radius
+
+| Token | Value |
+|---|---|
+| `Radius-none` | 0 |
+| `Radius-XS` | 4 |
+| `Radius-S` | 8 |
+| `Radius-M` | 12 |
+| `Radius-L` | 16 |
+| `Radius-XL` | 24 |
+| `Radius-Full` | 999999 (fully rounded / pill) |
+
+### 3.7 Breakpoints
+
+_From `Primitives/Sizes`. These are layout widths, not spacing, and are generated as breakpoint tokens only._
+
+| Token | Value | Use |
+|---|---|---|
+| `Size-1024` | 1024 | Narrowest supported width. Side nav collapsed. |
+| `Size-1280` | 1280 | Side nav expanded from here |
+| `Size-1440` | 1440 | Main design width (Figma frames). No layout change yet |
+| `Size-1920` | 1920 | Large desktop (Figma frames). No layout change yet |
+
+`Size-375` is a mobile width and isn't exported to code. `Size-343` was too until **22 Oct 2026**; it's now generated as `--fin-size-343` for the table toolbar's search (§9.67).
+
+### 3.8 Figma → code naming
+
+All generated code lives in `packages/tokens/dist/` and is **generated from `tokens/design.tokens.json`** by `pnpm --filter @finspace-loyalty/tokens build` (`packages/tokens/build.ts`). Don't edit those files by hand. Files: `tokens.css`, `tokens.ts` (`finColor`, `finSpace`, `finRadius`, `finSize`, `finFont`, plus `finBrands` and `finThemes` with their `FinBrand`/`FinTheme` types), `breakpoints.css`, `breakpoints.ts` (`finBreakpoint`), `reference.ts` (`finPaletteReference`, `finAliasReference`: palette and alias colors per brand, **for the Storybook reference page only, never for components**), plus compiled `.js` and `.d.ts`. Package entry points: `@finspace-loyalty/tokens`, `@finspace-loyalty/tokens/breakpoints`, `@finspace-loyalty/tokens/reference`, `@finspace-loyalty/tokens/tokens.css`, `@finspace-loyalty/tokens/breakpoints.css`, `@finspace-loyalty/tokens/styles.css`.
+
+| Figma token | CSS | TypeScript | Rule |
+|---|---|---|---|
+| `bg-action-primary_hovered` | `var(--fin-bg-action-primary-hovered)` | `finColor.bgActionPrimaryHovered` | Semantic colors. Lowercase, `_` and spaces become `-` in CSS, camelCase in TS. The TS value is the `var(…)` reference, so it follows theme and brand. |
+| `Alpha-nav_background` | `var(--fin-alpha-nav-background)` | `finColor.alphaNavBackground` | Same as above |
+| `Space-XL`, `Space-2XL` | `var(--fin-space-xl)`, `var(--fin-space-2xl)` | `finSpace.xl`, `finSpace.x2l` | A number can't start a TS name, so `2XL` becomes `x2l` |
+| `Radius-M`, `Radius-Full` | `var(--fin-radius-m)`, `var(--fin-radius-full)` | `finRadius.m`, `finRadius.full` | `full` = 999999 px, a pill / circle |
+| Text style `Body/Large` | `font: var(--fin-font-body-large)` | `finFont.bodyLarge` | One `font` shorthand per **text style** (weight, size / line height, family). Use the text style name from §3.4. **Components use the shorthand only** (decided 14 Oct 2026). The parts (`--fin-font-body-large-size`, `-weight`, `-line-height`, `-family`) are generated so the shorthand can follow the brand; Stylelint (S6) blocks them in component CSS. If a component seems to need one, ask design. |
+| `Size-1280` | `@media (--fin-bp-lg)` | `finBreakpoint.lg` | Custom media queries: `md` = 1024, `lg` = 1280, `xl` = 1440, `xxl` = 1920 (min-width). Generated by the token build (S2) into `breakpoints.css`; the TS value is the media query string, `'(min-width: 1280px)'`, for `matchMedia`. |
+| Shadow style `Shadow/Resting_cards` | `var(--fin-shadow-resting-cards)` | — | Hand-written in `styles.css` (§4) |
+| `Size-36` (a raw Figma size approved for a fixed dimension) | `var(--fin-size-36)` | `finSize[36]` | **Fixed sizes** (added 14 Oct 2026): the token build exposes every `Primitives/Sizes` value as `--fin-size-<n>`, pointing at its `--fin-palette-size-<n>` primitive. For dimensions that must **not** follow the spacing scale. **Widths and heights (design rule, 14 Oct 2026):** Figma doesn't bind component widths and heights to variables; that's normal and isn't reported as a raw value. Code maps each one to the matching `--fin-size-*` (icon sizes, icon containers…). If no `Size-*` primitive matches, ask design. Padding, gaps and margins always use `--fin-space-*`. Stylelint still blocks `--fin-palette-*`. |
+| `Primitives`, `Alias Colors` | `--fin-palette-electric-indigo-500`, `--fin-color-primary-500` | — | Generated so semantic tokens can point to them. **Components must not use them** (Stylelint blocks it). |
+| `Primitives` (non-color) | `--fin-palette-font-family-primary`, `--fin-palette-font-weight-bold-700`, `--fin-palette-font-size-48px`, `--fin-palette-line-height-48px`, `--fin-palette-size-8` | — | **Every primitive is `--fin-palette-*`**, not only colors (decided 14 Oct 2026), so one Stylelint pattern blocks the whole primitive layer. Spacing, radius and the text styles point to them. |
+
+**Theming in CSS:**
+
+```css
+:root                          { /* primitives + alias typography (sizes, weights, line heights, text-style shorthands) */ }
+:root, [data-brand="finspace"] { /* alias colors → primitives + font families (Finspace, the default) */ }
+[data-brand="burgundy"]        { /* alias colors → primitives + font families (Burgundy) */ }
+[data-brand="sampath"]         { /* alias colors → primitives + font families (Sampath) */ }
+:root, [data-theme="light"]    { /* semantic colors → alias colors */ }
+[data-theme="dark"]            { /* semantic colors → alias colors */ }
+```
+
+### 3.9 Export quirks the token build must handle
+
+- **Font weights** are exported as `{ "value": 800, "unit": "px" }`. Drop the unit; they are plain weights.
+- **Line heights** are exported as fractional px (`62.400002`). Round to one decimal (`62.4px`).
+- **Alpha colors** are exported as `{ "components": "{Alias Colors…}", "alpha": 0.16 }`. This isn't standard DTCG. Resolve the referenced alias **as a variable** and apply the alpha with **`color-mix` only**: `color-mix(in srgb, var(--fin-color-primary-500) 16%, transparent)`, so it follows the brand (decided 14 Oct 2026; it works in more browsers than relative color syntax and gives the same result).
+- **Aliases** (`{Collection.Group.Token}`) are kept as `var()` references between layers (not flattened to hex) and resolved per mode (Light/Dark).
+- `LineHeight-64px 2` has a stray ` 2` in its name. Generate it as `line-height-64px`.
+- `Primitives/Sizes`: `Size-1024` to `Size-1920` are generated as breakpoints only (§3.7). `Size-375` isn't generated (`Size-343` is, since 22 Oct 2026: `--fin-size-343`). The other sizes are generated as `--fin-palette-size-*` and are only reached through the spacing and radius tokens.
+- `Font style/Primary` is the font family, not a style.
+- **Mode names aren't in the export when a collection has only one mode.** TokensBrücke writes `mode: {}` for a single-mode collection. **Since 3 Nov 2026 `Alias Colors` has two modes, so the export lists them** (`Finspace`, `Burgundy theme`) and the build reads the brands from there: adding a brand in Figma needs no build change (apart from its primitive scale, below). Since 4 Nov 2026 `Alias Typography` has the brand modes too (spelled `Burgundy` there, `Burgundy theme` in `Alias Colors`: matched by code name). Its modes must match the brands, or the build stops; a single-mode `Alias Typography` would still be shared by every brand. The `finspace` name config is now only a fallback if `Alias Colors` ever goes back to one mode.
+- **Brand code names come from a fixed list** (`BRAND_SLUGS` in `build.ts`, since 4 Nov 2026): `Finspace` → `finspace`, `Burgundy theme` and `Burgundy` → `burgundy`, `Sampath` → `sampath`. Renaming a mode in Figma can't change a brand's code name; **an unknown mode stops the build** (add it to `BRAND_SLUGS`). Two modes with the same code name stop the build.
+- **A brand's primitive group copies every Fintech scale** (`Colors/Burgundy theme/Gray`, …; 77 copies, same values). Only the scales listed per brand in the build (`BRAND_SCALES`: Burgundy → `Burgundy`; Sampath → its 9 used scales, §3.1) are generated, as `--fin-palette-<scale>-<step>`, or `--fin-palette-<prefix>-<scale>-<step>` when the brand has a prefix (Sampath: `sampath-`, because its `White` and `Brand Key` names clash with Fintech's; `Brand Key` keeps the scale in the name: `--fin-palette-sampath-brand-key-white`). A reference to a scale that isn't generated stops the build. A new brand adds one line there.
+- **An alias can point at another alias** (Finspace's `Primary-dark-*` → `Primary-*`) **or at a primitive** (Burgundy's `Primary-dark-*` → `Burgundy-*`). Both are kept as `var()` within the brand block.
+- **Per-brand typography:** only `Font family` may differ between the `Alias Typography` modes; any other difference stops the build (§3.4). `EXPECTED.tokens` is the export's variable count (645 since 4 Nov 2026).
+- **Styles aren't in the export** (shadows, text styles, grids). Shadows and grids are recorded in §4 and hand-written in `packages/tokens/src/styles.css`. Text styles are generated by the token build as `--fin-font-*` shorthands from the `Alias Typography` variables, one per group (23).
+
+### 3.10 Brands (added 3 Nov 2026)
+
+| Brand | Figma mode | `data-brand` | Primary | Status |
+|---|---|---|---|---|
+| Finspace | `Finspace` | `finspace` (**default**: also on `:root`, and first in `finBrands`) | Electric Indigo | Live |
+| Burgundy | `Burgundy theme` | `burgundy` | Burgundy | **Not live**: a11y exceptions open (§10 #80, #106–#109) |
+| Sampath | `Sampath` | `sampath` | Orange (and its own greys, status colours and font, Hanken Grotesk) | **Not live** (added 4 Nov 2026): a11y exceptions open (§10 #83–#105; open items #81, #82), including one high priority (§10 #103) |
+
+- **Where it's set:** `data-brand` on `<html>` only, with `data-theme` (§3.0). Without it, Finspace applies. Never on an inner element: the semantic colors and text-style shorthands wouldn't follow it.
+- **In code:** `finBrands` (`['finspace', 'burgundy', 'sampath']`) and the type `FinBrand` from `@finspace-loyalty/tokens`. The Storybook **Brand** toolbar lists every brand in `finBrands`.
+- **What a brand changes:** the `Alias Colors` values (Burgundy: only `Primary-*` and `Primary-dark-*`; Sampath: every group, §3.2) and the font family (Sampath, §3.4). Semantic tokens, components, sizes and spacing are the same for every brand.
+- **Checks:** `pnpm test:a11y` runs every story for **every brand × theme** (6 projects: `a11y-<brand>-<light|dark>` for finspace, burgundy, sampath), kept permanently (decided 3 Nov 2026). On a low-memory machine run them one at a time: `pnpm --filter @finspace-loyalty/storybook exec vitest run --project a11y-sampath-light`.
+- **Exceptions for a brand** (decided 3 Nov 2026): a contrast failure in a brand can only be accepted by design, one at a time, and **each exception is specific**: one token pair or one story's element, for one brand and one theme (an axe `exclude` selector starting `html[data-brand="…"][data-theme="…"]`). A whole check, story or brand is never switched off. Each one is listed in §10 with its reason and planned fix. Any new failure still fails `test:a11y`.
+- **How exceptions are applied in code (4 Nov 2026):** brand exceptions live in `apps/storybook/.storybook/brandContrastExceptions.ts`, one entry per token pair with the elements that show it. They switch off **only axe's `color-contrast` rule** (through the rule's `selector`), **only on those elements**, **only** under `html[data-brand][data-theme]` for that brand and theme; every other rule still runs on them. axe's selector engine doesn't support `~` or `+` (an unsupported selector silently switched the rule off everywhere on 4 Nov 2026), so the file throws if one is used. Non-text contrast (3:1) and hover states aren't checked by axe; their exceptions are in §10 only.
+- **Story exclusions are Finspace-only (4 Nov 2026).** The older per-story `exclude` lists (Finspace's accepted §10 #3 pairs) used to apply to every brand, which hid 4 Burgundy failures and 6 Sampath ones. They now start `html[data-brand="finspace"]`. Exclusions for **disabled** content (`[data-disabled]`, `[data-tone="disabled"]`) stay on for every brand: WCAG 1.4.3 exempts inactive controls.
+- **⚠️ A brand's exception list must be empty before that brand goes live.**
+- **Adding a brand:** add a mode to `Alias Colors` and `Alias Typography` (only the family may differ) and its primitive scales in Figma; export; add the mode to `BRAND_SLUGS` and its scales to `BRAND_SCALES` (with a prefix if any name clashes) in `packages/tokens/build.ts`; bump `EXPECTED.tokens`; self-host a new font in `packages/ui/src/styles/fonts.css` and load it in Storybook's `preview.tsx`; run the build, the comparison with `main` (every existing brand unchanged), the contrast table and `pnpm test:a11y`; update this table.
+
+### 3.11 Tailwind theme (added 5 Nov 2026; styling refactor in progress)
+
+Component styling is moving from CSS Modules to **Tailwind CSS 4.3** (decided by the team 5 Nov 2026, "Option B"). It's a styling refactor: no visual, API or behaviour change. The tokens stay the only source of values: `tokens/design.tokens.json` and the token build don't change. Until a component is converted, its CSS Module still applies.
+
+**Component rules** (agreed after the FinButtonBase pilot, 5 Nov 2026; the full list is in CLAUDE.md "Tokens and styling"):
+- Each component's classes live in `Fin<Name>.styles.ts`, as whole literal strings (Tailwind and the lint must see every class).
+- **One class list per prop value**, in a lookup object picked in the TSX (`size.large`, `variant.primary`); lists never set the same property, so nothing depends on the order Tailwind writes its rules in. The `data-*` attributes stay on the element as hooks (tests, a11y exceptions, app CSS), but props aren't styled through them. *Why:* the CSS Modules sometimes relied on rule order (a `contentTone` colour beat the disabled colour only by coming later in the file); Tailwind decides its own order.
+- States as variants inside each list (`enabled:hover:`, `enabled:active:`, `disabled:`, `focus-visible:`, `aria-disabled:`); a child follows its parent's state through a named group (`group/button`, `group-hover/button:`).
+- Inside stroke `inset-ring` / `inset-ring-2`; focus ring `focus-visible:outline-2 -outline-offset-1 outline-focused`; visually hidden text `sr-only`.
+- An arbitrary variant only for a documented exception (today `[[data-theme=dark]_&]:`, §10 #74). What utilities can't express goes into `tailwind.css` as a named variant or utility.
+- Story and page layout CSS stays CSS Modules.
+
+**Batches:** stage 1 setup ✅, stage 2 pilot FinButtonBase ✅ (both merged 5 Nov 2026); 3a L0 atoms + FinIcon, FinFlag, FinLogo, FinPaymentIcon ✅ (merged 6 Nov 2026); 3b L1 atoms ✅ (merged 6 Nov 2026); 3c molecules ✅ (merged 8 Nov 2026); 3d organisms: fields ✅ (merged 9 Nov 2026); 3e organisms: the rest, in two parts: 3e-1 the table family, FinMenu and the other parents of converted components ✅ (merged 9 Nov 2026), 3e-2 everything else. One branch per batch, design's approval between batches.
+
+**Setup (stage 1, `refactor/tailwind-setup`):**
+- `tailwindcss` and `@tailwindcss/vite` **4.3.4** (pinned), in `packages/ui` and `apps/storybook`; `eslint-plugin-better-tailwindcss` **4.10.0** at the root.
+- **Theme:** `packages/ui/src/styles/theme.css` is **generated** from the token files by `scripts/tailwind-theme.ts` (part of `pnpm icons`); never edit it by hand. It removes every Tailwind default (palette, spacing scale, radius, text sizes, shadows, breakpoints) and maps only our tokens, with `@theme inline reference`: each utility contains `var(--fin-*)` itself, so `data-brand` and `data-theme` keep switching at runtime (also on an inner element, as Storybook's side-by-side view does), and Tailwind writes no variables of its own.
+- **Prefix `fin`:** every class is `fin:<utility>` (`fin:bg-primary`), so an app's own Tailwind can't clash with ours.
+- **Layers:** everything the library ships sits in **`@layer fin`**: the reset in `fin.base`, the utilities in `fin.utilities` (above it). Tokens and fonts aren't in a layer (only variables and `@font-face`). There's no Tailwind preflight; the reset is ours.
+- **Entry files:** `src/styles/tailwind.css` (prefix, layers, theme; shared), `src/styles/components.css` (the library: scans `src/`, not stories or tests; imported by `src/index.ts`), `apps/storybook/.storybook/tailwind.css` (Storybook: also scans stories, pages and Foundations; the library's `components.css` is pointed at it, so it's compiled once).
+- `dark:` is redefined so it never matches: brand and theme come only from the tokens.
+
+**Utility names: the token name without `--fin-` and its group, after the matching Tailwind prefix.**
+
+| Token | Utility | Example |
+|---|---|---|
+| `--fin-bg-*` | `bg-*` | `fin:bg-action-primary` → `var(--fin-bg-action-primary)` |
+| `--fin-text-*` | `text-*` | `fin:text-secondary` |
+| `--fin-fg-*` (icon colour) | `fg-*` (sets `color`) | `fin:fg-action` |
+| `--fin-border-*` | `border-*`, `outline-*`, `ring-*`, `inset-ring-*` | `fin:outline-focused` |
+| a colour from another group, as Figma uses it | the group named first | `fin:bg-fg-active`, `fin:border-bg-primary`, `fin:bg-alpha-md`, `fin:stroke-fg-brand`, `fin:caret-fg-primary` |
+| `--fin-space-*` | `p-* m-* gap-* inset-* translate-*` with the space names | `fin:p-xl` (16), `fin:gap-m` (8), `fin:p-none` (0) |
+| `--fin-size-*` | `w-* h-* size-* min-* max-*` with the size numbers | `fin:size-24`, `fin:min-w-120` |
+| `--fin-radius-*` | `rounded-*` | `fin:rounded-m` |
+| `--fin-shadow-*` (§4.2) | `shadow-*` | `fin:shadow-menu` |
+| `--fin-font-<style>` | `font-<style>` (the whole `font` shorthand) | `fin:font-body-medium` |
+| breakpoints (§3.7) | `bp-md: bp-lg: bp-xl: bp-xxl:` | `fin:bp-lg:p-3xl` |
+
+Not standard Tailwind: there's no ×4px spacing scale, so `p-4` doesn't exist, and `w-24` is the 24px size token (not 96px). Zero is `none` (`p-none`).
+
+**Names our theme takes over or changes** (audit of 6 Nov 2026: every class name that standard Tailwind 4.3.4 and our theme both generate, compiled both ways; 248 of 3,692 differ). Banned by the lint, with a test:
+- `leading-*`: `leading-none` would be 0px (our space token `none`); line height comes with the text style (`font-<style>`).
+- Space names on sizes (`w`, `h`, `size`, `min-*`, `max-*`, `basis`, `inline`, `block` with `none`, `xxs` … `7xl`): `max-w-none` would be 0px, `w-xs` / `max-w-xl` 4px / 16px, not "no limit" and container widths.
+- `translate-none` (it would be `translate: 0 0`), `transition` / `transition-*` except `transition-none` (no duration without Tailwind's defaults; motion is deferred, §5), `container` (only `width: 100%`).
+- Not banned, same meaning on our scale: size numbers (`w-8` = 8px) and the radius tokens (`rounded-none`, `rounded-full`, `rounded-xs`, `rounded-xl`). `auto`, `px`, `screen`, `min`, `max`, `fit` and the viewport units compile as in standard Tailwind.
+
+**Checks:** `packages/ui/test/tailwind-theme.test.ts` compiles every utility with the real compiler and checks it gives `var(--fin-…)` of the token its name says (a wrong mapping fails), that every semantic colour, space, size, radius, shadow and text style token has a utility, that Tailwind's defaults and the palette give nothing, and that the theme is up to date with the tokens. The Storybook page **Foundations/Tailwind utilities** compares each utility's computed value with the token's in the browser; `pnpm test:a11y` runs it in every brand × theme. `packages/ui/test/tailwind-lint.test.ts` proves the lint rules (prefix, no arbitrary values, no `dark:`, no `!`, no `-px`, space names for padding / margin / gap, unknown and conflicting classes).
+
+**Visual check** for every converted component: `apps/storybook/scripts/visual.ts` screenshots every story in every brand × theme from two Storybook builds (`main` and the branch) and compares them pixel by pixel, with a hash of every element's computed style and box (`::before` / `::after` included); `--states` also hovers, presses and keyboard-focuses each interactive element. It runs in chunks (one browser per 20 stories) with the Storybook dev server stopped, to keep memory low.
+
+**What the comparison compares** (decided by design 6 Nov 2026, from stage 3b on): every real CSS property of every element (colours, sizes, spacing, fonts, borders, shadows, outlines, positions…), its box, its `::before` / `::after`, every `--fin-*` token variable, and the pixels. It leaves out only the switches written on the command line, the same on both sides:
+- `--ignore-props '^--(?!fin-)'`: **component-private variables** (`--button-bg`, `--chip-border`, `--icon-color`…). They never draw anything themselves; whatever they feed into (the background, the border, the colour) is a real property and is still compared. Tailwind's own `--tw-*` variables are always left out, for the same reason. The switch is the same for every batch, so a merged batch's branch snapshots can be the next batch's `main` baseline, as long as `main` is exactly that merged commit (otherwise `main` is shot again).
+- `--normalize-shadows`: empty `box-shadow` layers (transparent or all zero) are dropped, so Tailwind's layered shadow equals the same single shadow, and an invisible ring equals `none`.
+- `--skip-hidden`: visually hidden elements (`sr-only`, 1 × 1 and clipped) are left out; nothing of them can be seen.
+Every other difference is listed in the batch summary, with its reason.
+
+**In an app:** one import in the app's main stylesheet:
+
+```css
+@import "@finspace-loyalty/ui/index.css"; /* tokens + fonts + reset + components */
+```
+
+The separate files are still there: `styles.css` (tokens, fonts, reset), `components.css` (components), and, **optionally**, `theme.css` for an app on Tailwind 4 that wants the same utilities on its own pages (`@import "tailwindcss"; @import "@finspace-loyalty/ui/theme.css";`; it removes Tailwind's defaults there too). **Any app style that isn't in a cascade layer beats ours**, whatever its specificity: that's how a `className` from the app wins without `!important`, but it also means an app's global element rules (`button { … }`, `a { … }`, `input { … }`) override the components' look (§10 #112).
+
+---
+
+## 4. Foundations: styles (not variables)
+
+These are saved as Figma **styles**, not variables, so they are **not** in the token JSON. Their values are recorded here. Claude Code puts them in `packages/tokens/src/styles.css` by hand, and they must be updated here and in code whenever the Figma style changes.
+
+### 4.1 Text styles
+
+There are 23 text styles (re-checked 13 Oct 2026). Each one is linked to its `Alias Typography` group (family, weight, size and line height all bound), so in code a text style is just the `--fin-font-*` shorthand built from those variables (§3.8). Names and values are in [§3.4](#34-typography), and they match the styles exactly. Letter spacing is 0 for all.
+
+Designers use the text styles in Figma; Claude Code reads which style a text layer uses and applies the matching `--fin-font-*` token. A text layer with no text style is reported to the designer (§10 #22).
+
+### 4.2 Shadows (effect styles)
+
+_Re-checked 13 Oct 2026. Three styles in Figma, plus `Shadow/Menu` (code first, 22 Oct 2026); all neutral black, no background blur or inner shadow._
+
+| Style | Layer (x, y, blur, spread, color) | CSS variable | Use |
+|---|---|---|---|
+| `Shadow/Resting_cards` | Drop: 0, 1, 3, 0, `#000000` 5% | `--fin-shadow-resting-cards` | Cards and surfaces at rest |
+| `Shadow/Panel_sheets` | Drop: 0, 2, 10, 0, `#000000` 4% | `--fin-shadow-panel-sheets` | Panels that sit directly on the page (menus use `Shadow/Menu`, below). **Not** Dialog box or Side sheet: they have no shadow on purpose, because they render on top of `FinOverlay` (the scrim), which separates them from the page. Their §9 specs must say so when they're built. |
+| `Shadow/Sticky` | Drop: 0, **−2**, 16, 0, `#000000` 8% | `--fin-shadow-sticky` | Sticky bottom elements (the shadow falls upward) |
+| `Shadow/Sticky` turned sideways (**code first**, added 22 Oct 2026) | Drop: **∓2**, 0, 16, 0, `#000000` 8% (Sticky's blur and colour, the offset sideways) | `--fin-shadow-sticky-end` (falls left), `--fin-shadow-sticky-start` (falls right) | A table column fixed while the table scrolls sideways (§9.45, §9.66), shown only while content passes under it. Design chose the Sticky shadow for consistency. |
+| `Shadow/Menu` (**code first**, added 22 Oct 2026; design to add the style in Figma) | Drop: 0, −2, 16, 0, `#000000` 8% (the same values as Sticky) | `--fin-shadow-menu` | Menus (`FinMenu`, §9.64). Panel_sheets was too faint for menus, so they use these values under their own name, never `--fin-shadow-sticky`. |
+
+- Figma's drop-shadow **blur** maps to the CSS `box-shadow` blur value directly.
+- Shadow colors are fixed values in Figma (not variables), so they're the same in Light and Dark (see §10 #5).
+- Use a shadow only where the Figma component uses that style. If a component has an effect that isn't one of these styles, report it.
+
+### 4.3 Layout grids (grid styles)
+
+| Style | Frame | Columns | Gutter | Margin | Alignment |
+|---|---|---|---|---|---|
+| `Desktop-sm` | 1440 × 1024 | 12 | 24 (`Space-3XL`) | 24 (`Space-3XL`) | Stretch |
+| `Desktop-lg` | 1920 × 1080 | 12 | 24 (`Space-3XL`) | 24 (`Space-3XL`) | Stretch |
+
+Both grids are the same today. Hand-written in `styles.css` as `--fin-grid-columns`, `--fin-grid-gutter` and `--fin-grid-margin` (gutter and margin use `var(--fin-space-3xl)`).
+
+### 4.4 Page widths (added 22 Oct 2026)
+
+The Figma screens are designed at **1920 × 1080**. Every Storybook page (§8.6) is checked at these four widths, which are also Storybook viewport options:
+
+| Width | Height | Side nav (§2) | Notes |
+|---|---|---|---|
+| 1920 | 1080 | Expanded (272; 312 in Figma, changed by design 29 Oct 2026) | Figma's frame; pages are compared with Figma here |
+| 1440 | 900 | Expanded | Same layout as 1920 today |
+| 1280 | 800 | Expanded | The smallest width with the expanded nav (`Size-1280`) |
+| 1024 | 768 | Minimized (80; 88 until 29 Oct 2026) | Below 1280 the nav collapses |
+
+The four widths are the Storybook **viewport** options (toolbar), added 22 Oct 2026. Page stories open at the canvas's own width, not a fixed viewport (decided 28 Oct 2026, as Focus areas; the Loyalty management pages and Pages/Common states opened at 1920 before), so the page fills the Storybook canvas; pick a width from the toolbar to check one, and each page keeps its "at 1024" stories. Behaviour between and below these widths that Figma doesn't show (scrolling, sticky parts, wrapping, tables wider than the space) is decided per page and recorded in §8.6.
+
+---
+
+## 5. Motion
+
+> **Status: deferred. Don't build yet.** Don't create motion tokens or add animations to components until design confirms this section. Simple state changes (hover, pressed, focus) switch instantly until then.
+>
+> **Planned direction:** use **Material 3 motion** ([how it works](https://m3.material.io/styles/motion/overview/how-it-works)): its easing and duration pairs, written as CSS custom properties. When this is picked up:
+> 1. Check the current M3 guidance first, since it has been updated over time.
+> 2. Map each use (enter, exit, hover color, expand/collapse, side nav collapse) to an M3 easing + duration pair.
+> 3. Agree the list with design.
+
+**Exception (15 Oct 2026):** the `FinSpinner` loader spins (one turn per second, linear), at design's request (§9.17). It's the only animation so far; its duration is raw until motion tokens exist.
+
+**Exception (21 Oct 2026):** the side nav's expand / collapse is a width transition (200ms, M3 standard easing `cubic-bezier(0.2, 0, 0, 1)`), approved by design (§9.57). Raw values until motion tokens exist; none under reduced motion.
+
+**Reduce motion:** every animation must respect `@media (prefers-reduced-motion: reduce)`. When it's on, elements appear instantly and loops stop.
+
+---
+
+## 6. Icons
+
+### 6.1 Rules
+
+| Type | Source | Style | Color |
+|---|---|---|---|
+| **Utility icons** | **Material Symbols Rounded**, npm package `material-symbols` (self-hosted variable font) | Outlined (`FILL 0`) by default, filled (`FILL 1`) for active/selected states | **Recolored per use** with an `fg-*` token. Changes in dark mode. |
+| **Flags** | **`flag-icons` (lipis, MIT), self-hosted** (decided 19 Oct 2026): 4:3 rectangles and 1:1 squares (rounded into circles). Code is the source of truth, like icons; Figma's flags are visual reference only (§8.5) | Own artwork | **Never recolor, redraw or distort.** |
+| **Payment icons** | **Shopify's `activemerchant/payment_icons` (MIT), self-hosted** (decided 20 Oct 2026): 38 × 24 cards, pinned version, copied into `src/payment/library/` by `pnpm payment-icons` and committed; our own logos in `src/payment/custom/`; the Default card drawn in code. Code is the source of truth; Figma's Payment Icons are visual reference only (§8.5) | Own artwork | **Never recolor, redraw or distort.** Disabled is opacity 0.4, as flags |
+| **Dial codes** (data, not artwork) | **`libphonenumber-js` (MIT; Google's libphonenumber metadata)**, a pinned dev dependency (decided 21 Oct 2026): `pnpm dial-codes` writes `src/flags/finDialCodes.ts` (committed) for the flag countries; a test fails if it no longer matches the library. Used by FinTextField's Mobile number (§9.59) | — | — |
+| **Logos** (other) | Assets exported from Figma (brand logos: `FinLogo`, §9.83, files in `packages/ui/src/logos/<brand>/`) | Own artwork | **Never recolor, redraw or distort.** |
+
+- **For icons, the code is the source of truth (design decision, 14 Oct 2026).** Icons render from the self-hosted Material Symbols Rounded font by **ligature name**, never as SVGs. How an icon looks in Figma doesn't decide how it looks in code; design will update the Figma icons to match.
+- **Never draw, invent or approximate an icon.** If a needed icon has no Material Symbols equivalent, stop and ask design.
+- Icon names are the names **Material Symbols uses today**, in snake_case (`keyboard_arrow_down`, `person`). Where Figma uses an old Material Icons name, the code uses the current equivalent (list in §6.4); if there's no equivalent, ask design.
+- The full variable font is 5.4 MB. The build generates a subset font from the `finIcons` registry automatically (§10 #14).
+
+### 6.2 One component for every icon
+
+Screens and components **never** render the icon font or an SVG directly. They always use:
+
+```tsx
+<FinIcon name="home" size={24} color="secondary" filled={isActive} label="Home" />
+```
+
+- `finIcons` is the single registry: a typed list of the icon names the system uses, so `name` is checked by TypeScript. **Adding an icon is a one-line change** to the registry; the font subset follows at the next build. In development, `FinIcon` warns when a name isn't in the registry.
+- **Color (design decision, 14 Oct 2026):** `color` accepts **every `fg-*` token**, typed from the generated tokens, so new `fg-*` tokens become valid values automatically. Without `color`, the icon inherits `currentColor`. The Figma `State` variants (Primary, Secondary, Disabled, Success, Warning, Error, Info) are examples of these colors, not a separate prop.
+- `filled` switches `FILL` 0 → 1. Use it for the active/selected state only.
+- Without `label`, the icon is decorative (hidden from screen readers). With `label`, it's announced as an image with that name.
+- **Font settings (design decision, 14 Oct 2026):** Material Symbols Rounded at **weight 300, optical size 24, grade 0**, with `FILL 0` by default and `FILL 1` when filled. The subset font has weight, optical size and grade fixed at these values, so CSS only sets `FILL`. They're the same at every size.
+- **The icon size comes from `FinIcon`'s `size` prop** (the Icon sizes component, §6.3), not from the font. The optical size stays 24 at every size.
+- S4 ships the full variable font from `material-symbols`; `FinIcon` replaces it with a generated subset (§10 #14). The smaller weight-300 build (`@material-symbols/font-300`) keeps `FILL` but is fixed at optical size 48, so it can't give optical size 24.
+
+### 6.3 Sizes
+
+_From the **Icon sizes** page (13 Oct 2026). Each set has a `State` variant: Primary / Secondary / Disabled / Success / Warning / Error / Info._
+
+| Figma set | Node | Size |
+|---|---|---|
+| `16px` | `3017:6258` | 16 (`Size-16` → `--fin-size-16`) |
+| `20px` | `3017:6323` | 20 (`Size-20` → `--fin-size-20`) |
+| `24px` | `3017:6352` | 24 (`Size-24` → `--fin-size-24`), default |
+| `36px` | `3017:6388` | 36 (`Size-36` → `--fin-size-36`) |
+| `48px` | `3017:6417` | 48 (`Size-48` → `--fin-size-48`) |
+| `64px` | `3017:7083` | 64 (`Size-64` → `--fin-size-64`) |
+
+Only these six sizes exist (`size` prop: `16 | 20 | 24 | 36 | 48 | 64`). In Figma the frame sizes are **raw values** (not bound to a variable), which is fine; no Figma change is needed. **Design decision (14 Oct 2026):** code maps them to the `Size-*` primitives through `--fin-size-*` (§3.8), **not** to spacing tokens, so icon sizes never move when the spacing scale changes. Icon containers on the same page (`40px bg`, `48px bg`, `64px bg`) are `FinIconContainer`, §8.2 and §9.2.
+
+### 6.4 Icons used in the component file
+
+_Scan of all in-scope pages, 13 Oct 2026; names checked against Material Symbols Rounded on 14 Oct 2026 (§10 #23). `FinIcon`'s registry starts with these 28 names (current Material Symbols names):_
+
+`add` (added 22 Oct 2026: the table toolbar's button, §9.67), `arrow_back`, `arrow_downward`, `arrow_upward` (both added 22 Oct 2026 for table sort, §9.41), `assignment`, `cancel`, `check`, `check_circle`, `chevron_left` (added 19 Oct 2026 for Pagination, §9.39), `chevron_right`, `close`, `cloud_upload`, `credit_card`, `dark_mode` (added 2 Nov 2026: the account menu's Theme row, §9.57), `desktop_windows`, `dock_to_right`, `edit` (added 15 Oct 2026 for Profile image, §9.6), `home`, `image` (added 21 Oct 2026: the logo placeholder in the Side nav stories, §9.57), `info`, `keyboard_arrow_down`, `keyboard_arrow_right`, `keyboard_arrow_up`, `light_mode` (added 2 Nov 2026: the account menu's Theme row, §9.57), `logout` (added 22 Oct 2026: the account menu, §9.57), `loyalty`, `more_vert` (added 22 Oct 2026: the table's row actions, §9.66), `notifications`, `person`, `photo_camera`, `plagiarism`, `remove`, `search`, `settings` (added 22 Oct 2026: the account menu, §9.57), `sports_esports`, `supervised_user_circle`, `unfold_more` (added 22 Oct 2026: an unsorted sortable column, §9.41), `visibility`, `visibility_off`, `warning`
+
+**Old Material Icons names in Figma → current names in code:**
+
+| Figma (old name) | Code (current name) | Note |
+|---|---|---|
+| `camera_alt` | `photo_camera` | |
+| `payment` | `credit_card` | |
+| `perm_identity` | `person` | The placeholder icon inside most components; in use it gets swapped for the needed icon. |
+| `warning_amber` | `warning` | The font draws the same glyph for both, so the registry keeps one name. |
+
+---
+
+## 7. Component architecture
+
+### 7.1 Levels
+
+Components are built **bottom-up**. A component may only be built after everything it depends on is done.
+
+| Level | Meaning |
+|---|---|
+| **Atom (L0)** | Contains no other component |
+| **Atom (L1)** | Contains only icons or an L0 atom |
+| **Molecule** | Built from atoms |
+| **Organism** | Built from molecules |
+| **Asset** | Artwork, not a component (flags, payment icons, logos) |
+
+_Levels confirmed by design on 13 Oct 2026; each component's level is its section in §8. The first component to build is `Icon sizes` (L0)._
+
+### 7.2 Base → mapped pattern (important)
+
+Many components in Figma follow a **base → mapped** structure:
+
+- A **base** component (for example `Base-button`, `Input field-base`) holds **every** option as boolean properties, text properties and slots.
+- **Mapped** components are built from instances of the base, with some options fixed for a specific type, size or state.
+- Changing the base updates every mapped component.
+
+**Code must keep the same structure:**
+
+1. Build the **base component first**, with all options as props.
+2. Build each **mapped component** as a thin wrapper that only passes fixed props to the base. Mapped components must not copy the base's markup or CSS.
+3. A visual fix to a mapped component almost always belongs in the **base**.
+4. **Bases are internal unless DESIGN.md says otherwise** (decided 15 Oct 2026). A base isn't exported from the package entry point (`@finspace-loyalty/ui`); apps use the mapped components. Its stories live under **Internal** in Storybook, only to check it against Figma. A base becomes public only when DESIGN.md says so (for example when a Figma component uses the base directly), with the reason noted in its §9 spec. Shared option lists (such as tones) are defined once in the base and re-exported by the mapped component. `packages/ui/test/public-api.test.ts` checks that no `*Base` component, and none of the internal bases it lists (`FinBadgeBase`, `FinIndicatorDot`, `FinButtonBase`, `FinWhiteButton`, `FinDestructiveButton`, `FinCheckboxBase`, `FinChipBase`, `FinSegmentBase`, `FinCountrySelector`, `FinPaginationItem`, `FinRowCountSelect`, `FinTableFooter`, `FinTableHeaderCell`), is exported. Internal so far: FinBadgeBase (§9.9), FinIndicatorDot (§9.11), FinButtonBase (§9.25), FinWhiteButton (§9.26), FinDestructiveButton (§9.27), FinCheckboxBase (§9.29), FinChipBase (§9.31), FinSegmentBase (§9.33), FinCountrySelector (§9.36, part of the input field), FinPaginationItem (§9.37), FinRowCountSelect (§9.38, part of the pagination), FinTableFooter (§9.40) and FinTableHeaderCell (§9.41), parts of the table, and FinInputBase (§9.58), the base of the single-line fields. **Exceptions:** Figma's `Base-Radio_box` is public as `FinRadio` (§9.15), because nothing is mapped from it; `Progress bar` is public as `FinProgressBar` (§9.16) and `Spinner` as `FinSpinner` (§9.17), because they're also used on their own.
+
+| Base | Mapped components |
+|---|---|
+| `Base-button`, `white-button`, `Destructive-button` (all three are bases, decided 19 Oct 2026) | `all-button` → used by Button dock, Dialog, Empty state, File uploads, Header, Notification, Side Menu, Side sheet, Snackbar, Pagination group, Table cell |
+| `Badge-base` (was `Tag-base`) | `Badge-primary` |
+| `Chips-base` | `Chips` (code: FinAssistChip, FinFilterChip, FinInputChip), `Chips-group` |
+| `Base-Checkbox` | `Checkbox` |
+| `Segmented_button-base` | `Segmented button` |
+| `Input field-base` (`49:5734`) | `Input field-standard`, `Input field-password`, `Input field-select`, `Input field-Multi select`, `Search` |
+| `Input field-textArea-base` (`3094:26567`) | the text area set at `3097:27497` (still named `Input field-base` in Figma, §10 #17) |
+| `Input-OTP-base` | (base only; no mapped OTP component in the file) |
+| `Indicator` | `Indicator set` |
+| `Progress bar` | `bar-with-text` (was `Progress-full`, before that `Progress-progress bar`) |
+| `Spinner` | `spinner-with-text` (was `Progress-Spinner`) |
+| `Avatar` | `Avatar Group`, `Profile image` |
+| `Pagination item` | `Pagination group` |
+| `List-base`, `List-fill-base` | (bases; used directly by Side Menu, no mapped components yet) |
+| `Accordion-frame-base`, `Accordion-bare-base` | (bases only; no mapped components yet) |
+
+**List and Accordion bases (design note, 13 Oct 2026).** These are bases even though nothing is mapped from them yet. They have no interaction states in Figma today (no hover, pressed or selected). Build them as bases with **no hover or selected styling**. ~~When design adds states, they are added to the base~~ (replaced 20 Oct 2026 by the rule below: states go on the components built on the base). Don't invent states before design adds them.
+
+**Rule: bases have no interaction states (decided 20 Oct 2026).** Hover, pressed, selected and focus never go on a base (List, Accordion or any other); they belong to the components built on it (a menu row, a list row), which add them in their own CSS. A base only provides the layout, parts and slots.
+
+`white-button` and `Destructive-button` are **separate** from `Base-button` in Figma (they don't contain it). **They're bases too** (decided 19 Oct 2026): `all-button` (`FinButton`) is built from all three, so all three are internal and FinButton is the only public button. In code they're built on `FinButtonBase`: their sizes and layout are identical, so each adds an internal `variant` with only its colors, and a thin internal wrapper mirrors its Figma set for the Storybook check. `FinWhiteButton` is `variant="white"` (§9.26); `FinDestructiveButton` is `variant="destructive"` / `"destructive-secondary"` (§9.27). **`all-button` picks the base with a new `Tone` property** (Normal / White / Destructive) next to `Type` (Primary / Secondary / Tertiary), decided 19 Oct 2026; `FinButton` maps the pair to the base's look (§9.28).
+
+### 7.3 Figma properties → React props
+
+| Figma property | React |
+|---|---|
+| **Variant** (Type, Size, Style…) | String union prop, such as `type: 'primary' \| 'secondary' \| 'tertiary'`, rendered as a `data-*` attribute for CSS |
+| **Variant for interaction state** (`State=Enabled/Hovered/Pressed/Disabled`, `Focused`, `Typing`, `Complete`) | **Not a prop.** It's runtime state in CSS: `:hover`, `:active`, `:focus-visible`, `:disabled`. Only `disabled` itself is a prop (the native attribute). Only data states (`Error`, `Selected`, `Expanded`, `Indeterminate`) become props. |
+| **`State` that only changes colors** (background, text, icon), for example `State=Primary/Secondary/Disabled/Success/Warning/Error/Info` on Icon sizes `40px bg` | **`tone` prop** (string union, rendered as `data-tone`). In this system "state" always means an interaction state, so a property that only changes colors is called `tone` in code (design decision, 14 Oct 2026). Use it for this and future components (badges, tags, notifications…). |
+| **Boolean** (`Show Leading Icon`…) | `boolean` prop, or an optional node (for example `leadingIcon` undefined hides it) |
+| **Text** (`Button label`…) | `string` prop, or `children` for the main label |
+| **Slot** (`Leading accessory`, `Body content`…) | `ReactNode` prop |
+| **Instance swap** (icon) | `FinIconName` prop |
+
+- **Disabled controls are never focusable** and get no focus ring (native `disabled`). `Disabled + Focused` variants in Figma are ignored; don't build or style them (design decision, 13 Oct 2026).
+- Form controls are **controlled or uncontrolled** like native inputs (`value` + `onChange`, or `defaultValue`), and forward `ref` to the native element.
+- Every component accepts `className` and passes other native attributes to its root element.
+
+#### Figma ↔ code parity (design rule, 15 Oct 2026)
+
+A component does the same things in Figma and in code.
+
+1. **Every Figma control has a matching prop**, with the same options and meaning, including the controls of nested components that Figma exposes (for example Text Box's Label: `labelSize`, `labelBadge`).
+2. **Names differ only by these patterns:** a colour-only `State` becomes `tone`; interaction states (Hovered, Pressed, Focused…) become CSS, not props; typos get the corrected spelling; `Property 1` and unnamed properties get a meaningful name; booleans like `Show X` become `x`; a text property for the main content becomes `children` (see the table above). **Option values stay the same**, in lower case (`Display Large-H1` → `'display-large-h1'`, `Red` → `'red'`).
+3. **Each §9 spec has a short "Figma → code" table** listing every Figma property and its prop. Components built before this rule have a one-line **"Figma → code names"** note instead, listing only the names that differ.
+4. **Code may add props Figma can't express** only when they don't change the look and have sensible defaults: accessibility and behaviour (`label`, `htmlFor`, `headingLevel`, `onChange`, `valueText`…).
+5. **Anything else** (a missing control, an extra visual option, or a rename outside these patterns) is **flagged to the designer before building**.
+
+### 7.4 Code conventions
+
+- One folder per component: `Fin<Name>.tsx`, `Fin<Name>.module.css`, `Fin<Name>.stories.tsx`, `Fin<Name>.test.tsx`, `index.ts`.
+- Styles follow the CSS Modules rules in `CLAUDE.md`: token variables only, variants as `data-*` attributes, states with pseudo-classes, no `:global`, no style objects in TSX.
+- `'use client'` on interactive components only. No browser APIs at import time. No router imports.
+- Storybook: one story per variant, with controls, checked in Light and Dark.
+
+---
+
+## 8. Component inventory and build status
+
+**Build order:** top to bottom. Design says what to build next. Claude Code updates the **Status** column when a component is done.
+
+Status: ⬜ Not started · 🟨 In progress · ✅ Done (built, Storybook stories and tests added, checked against Figma)
+
+All node IDs are in the component file `vD9CL5tZQo4D26fUN3vKHT`. Where a Figma name has a typo, the **code name** uses the corrected spelling, and the Figma name is kept here so it can still be found.
+
+Inventory from the component file scan of 13 Oct 2026. Levels and scope confirmed by design.
+
+**Figma check** column: ✅ clean · ⚠️ some values are bound to another library or are raw values (see §10 #13). **This never blocks a build:** Figma doesn't need to be fixed first, Claude Code maps each value to a Finspace Loyalty token and tells the designer before building · 🔴 a structural problem in Figma (broken component set, missing main component, placeholder or duplicate name) that must be fixed first (see the §10 item). **Don't build a 🔴 component; tell the designer.** **Before building a ⚠️ component, list its other-library and raw values with the Finspace Loyalty token you plan to use for each, and wait for the designer's approval.**
+
+**Code names marked _(provisional)_** come from placeholder Figma names (`Frame …`). Confirm them with design before building.
+
+### 8.0 Setup: before any component
+
+| # | Task | Output | Status |
+|---|---|---|---|
+| S1 | pnpm monorepo scaffold (`packages/tokens`, `packages/ui`, `apps/storybook`), TypeScript, Vite, ESLint, Stylelint | repo root | ✅ |
+| S2 | Token build: `tokens/design.tokens.json` → CSS variables + TypeScript (handles the quirks in §3.9), with brand and theme scoping (§3.8), and breakpoints (§3.7) | `packages/tokens/dist/` | ✅ |
+| S3 | Styles by hand from §4 (shadows, grid). Breakpoints are generated in S2. Motion (§5) is deferred. | `packages/tokens/src/styles.css` | ✅ |
+| S4 | Fonts: Inter (400, 500, 600, 700; Latin + Latin Extended) and Material Symbols Rounded, self-hosted, with the fallback stack `Inter, system-ui, sans-serif` (§3.4). CSS reset with page defaults: `Body/Medium`, `--fin-text-secondary`, `--fin-bg-primary`. One app stylesheet, `@finspace-loyalty/ui/styles.css`. | `packages/ui/src/styles/` | ✅ |
+| S5 | Storybook with a Light/Dark and brand switcher, plus a Foundations section (colors, typography, spacing, radius, shadows, grid and breakpoints, and a separate Palette (reference only) page). Run with `pnpm storybook`; local only for now. `postcss-custom-media` set up for Storybook and the `ui` build. | `apps/storybook/` | ✅ |
+| S6 | Tests and lint setup: Vitest + Testing Library (`pnpm test`), Storybook a11y addon with every story checked in Light and Dark (`pnpm test:a11y`), Stylelint rules for every CSS Module that block raw colors (hex, named, `rgb()`/`hsl()`/… and `color-mix()`), `--fin-palette-*`/`--fin-color-*`, and the typography parts (`--fin-font-*-size`, `-weight`, `-line-height`, `-family`), proven by `packages/ui/test/stylelint.test.ts` | repo root | ✅ |
+
+### 8.1 Atoms, level 0: contain no other components
+
+| # | Figma component | Page | Node | Code name | Variants / properties | Figma check | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | `16px`, `20px`, `24px`, `36px`, `48px`, `64px` | Icon sizes | `3017:6258`, `3017:6323`, `3017:6352`, `3017:6388`, `3017:6417`, `3017:7083` | `FinIcon` | State: Primary/Secondary/Disabled/Success/Warning/Error/Info · see §6. Sizes are raw values in Figma, mapped to `Size-*` (`--fin-size-*`), approved 14 Oct 2026 | ✅ (64px state names fixed 14 Oct 2026) | ✅ |
+| 2 | `Divider` | Divider | `28:367` | `FinDivider` | Type: Divider / Section Divider · plus `orientation` (vertical, code only, 15 Oct 2026) | ✅ | ✅ |
+| 3 | `Badge - indicator` | Badge | `30:1500` | `FinBadgeIndicator` | Size: Large/Small · Digits: None/Single/Double (code: from `count`) · Style: Red/Yellow/Green (code: `tone`) | ⚠️ (other-library spacing dropped, padding mapped, approved 15 Oct 2026) | ✅ (contrast exceptions, §10 #3) |
+| 4 | `Online Indicator` | Avatar | `14:995` | `FinOnlineIndicator` | Size: XSmall/Small/Medium/Large/XLarge (5, updated in Figma 15 Oct 2026) · on an avatar: FinAvatar `online` (§9.4) | ✅ (white frame fill, §10 #32) | ✅ |
+| 5 | `Indicator` | Indicator | `98:3532` | `FinIndicatorDot` (**internal**, §9.11) | Type: Default/Selected (code: `selected`) · clickable option | ✅ (raw radius 8 → `Radius-Full`; selected 22 → 24, §10 #35) | ✅ |
+| 6 | `Caption` | List | `77:10172` | `FinCaption` | Size: Small/Medium/Large · Thickness: Heavy/Light · code: `size`, `thickness`, wraps (§9.24) | ⚠️ (zero padding from another library) | ✅ |
+| 7 | `Overlay` | Overlays | `111:2495` | `FinOverlay` | Type: **Desktop only** (Mobile is out of scope) · responsive: fills the window · `Alpha-md` | ✅ | ✅ |
+| 8 | `Toggle` (renamed from `Switch` in Figma, 15 Oct 2026) | Toggle | `34:2545` | `FinToggle` | Type: Selected/Unselected · Size: Small/Large · State, Focused (runtime) · visually hidden `label` (§9.14) | ⚠️ (focus-ring radius from another library → `Radius-Full`; raw radii → `Radius-Full`; approved 15 Oct 2026) | ✅ |
+| 9 | `Base-Radio_box` | Radio button | `37:104` | `FinRadio` | Type: Selected/Unselected · State (runtime) · **public** (§7.2 rule 4 exception) · visually hidden `label` (§9.15) | ⚠️ (radius from another library → `Radius-Full`, approved 15 Oct 2026) | ✅ |
+| 10 | `Progress bar` | Progress | `31:2113` | `FinProgressBar` | **Base** of bar-with-text, **public** (§7.2 rule 4 exception, §9.16) · code: any `value`, `max`, fills its container · Filled: 0/25/50/75/100% (Steps=4, Large and Small) and 0/20/40/60/80/100% (Steps=5, Small only) · Size: Large (8 tall) / Small (4 tall) · 16 variants (checked 15 Oct 2026) | ⚠️ (fill radius from the `Tokens` library → `Radius-XS`, approved 15 Oct 2026) | ✅ |
+| 11 | ~~`Progress bar-portfolio`~~ | Progress | ~~`695:5418`~~ | — | **Removed from Figma (15 Oct 2026); not built.** | — | — |
+| 12 | `slider` (renamed from `dragger` in Figma, 15 Oct 2026) | Progress | `645:3136` | `FinSlider` | Filled: 5–100% · code: `value`/`defaultValue`, `min` 0, `max` 100, `step`, visually hidden `label`, disabled (§9.18) | ⚠️ (radius and padding from another library → `Radius-XS`, `Space-none`, approved 15 Oct 2026) | ✅ |
+| 13 | `Spinner` | Progress | `33:2331` | `FinSpinner` | Progress (`Pregress`): 25/50/75%, Success, Error · **public** (§7.2 rule 4 exception) · code: `value` (still ring) or none (spinning loader), `status` success/error (§9.17) | ✅ | ✅ |
+| 14 | `Input-OTP-base` | Input field | `49:5843` | `FinOtpCellBase` | **Base** for OTP. State (runtime) · Show number · Error | ⚠️ | ⬜ |
+| 15 | `Pagination item` | Table | `3144:14184` | `FinPaginationItem` | State: Default/Hovered (runtime)/Selected (code `selected`)/Dots (code `variant="dots"`) · **internal**, base of Pagination group (§9.37) | ✅ | ✅ |
+
+### 8.2 Atoms, level 1: contain only icons or L0 atoms
+
+| # | Figma component | Page | Node | Code name | Depends on | Variants / properties | Figma check | Status |
+|---|---|---|---|---|---|---|---|---|
+| 16 | `40px bg` | Icon sizes | `3017:6944` | `FinIconContainer` (size 40) | `24px` | State (7) → `tone` | ✅ | ✅ |
+| 17 | `48px bg` | Icon sizes | `3017:6993` | `FinIconContainer` (size 48) | `24px` | State (7) → `tone` | ✅ | ✅ |
+| 18 | `64px bg` (was `68px bg`, 68 → 64 on 14 Oct 2026) | Icon sizes | `3017:7023` | `FinIconContainer` (size 64) | `36px` | State (7) → `tone` | ✅ | ✅ |
+| 19 | ~~`Circle Icon`~~ | Icon sizes | ~~`624:4882`~~ | ~~`FinCircleIcon`~~ | — | **Removed from Figma (14 Oct 2026); not built.** | — | — |
+| 20 | `Badge-base` (renamed from `Tag-base` in Figma, 15 Oct 2026) | Badge | `30:1454` | `FinBadgeBase` | `16px`, `20px` | Size: Small/Large · Leading/Trailing icon (code: none by default) · Label (one line, "…" when narrow) | ✅ | ✅ |
+| 21 | `Label` | Text box | `28:968` | `FinLabel` | Badge - indicator | Size: Medium/Small · Show badge · Label · code: `badgeLabel` required with `badge`, `htmlFor` → `<label>`, one line with "…" (§9.19) | ⚠️ (other-library bindings only inside the badge instance) | ✅ |
+| 22 | `Helper text content` | Text box | `28:973` | `FinHelperText` | `20px` | State: Default/Error/Success/Warning/Disabled · Show leading icon · Text · code: `tone`, `showIcon`, wraps, `announce` (§9.20) | ⚠️ (text radius from another library, no effect, dropped) | ✅ |
+| 23 | `Base-button` | Buttons | `45:405` | `FinButtonBase` | `20px`, `24px` | Type (code `variant`): Primary/Secondary/Tertiary · Size: Large/Medium/Small/XSmall · State, Focused (runtime) · Leading/Trailing icon · Label · **internal** (§9.25) | ✅ | ✅ |
+| 24 | `white-button` | Buttons | `349:5042` | `FinWhiteButton` | `20px`, `24px` | Size (4) · State, Focused (runtime) · icons · Label · on FinButtonBase `variant="white"` · **internal**, a base of `all-button` (§9.26) | ✅ | ✅ |
+| 25 | `Destructive-button` | Buttons | `523:2813` | `FinDestructiveButton` | `20px`, `24px` | Type (code `variant`): Primary/Secondary · Size (4) · State, Focused (runtime) · icons · Label · on FinButtonBase `variant="destructive"` / `"destructive-secondary"` · **internal**, a base of `all-button` (§9.27) | ✅ | ✅ |
+| 26 | `Base-Checkbox` | Checkbox | `42:185` | `FinCheckboxBase` | `16px` | Type: Unselected/Selected/Indeterminate · State (Enabled/Hovered/Pressed/Disabled), Focused (runtime) · **internal** (§9.29) | ⚠️ | ✅ |
+| 27 | `Chips-base` | Chips | `95:1811` | `FinChipBase` | `16px`, `20px` | Type (code `variant`): Unselected/Selected/Unselected-border · Size: XSmall/Small/Large · Leading slot · Trailing icon · **internal** (§9.31) | ⚠️ | ✅ |
+| 28 | `Segmented_button-base` | Segmented button | `117:4667` | `FinSegmentBase` | `20px` | Type (code `selected`): Unselected/Selected · State Enabled/Hovered/Pressed/Disabled (runtime) · leading icon · **internal** (§9.33) | ⚠️ | ✅ |
+| 29 | `Avatar` | Avatar | `932:1387` | `FinAvatar` | `16`–`64px` | Type: Image/Icon/Text · Size: XSmall…XXXLarge (7; XXXLarge 96 in code, §10 #30) · fallback photo → initials → icon, `online` indicator (code only, §9.4) | ⚠️ (sizes mapped to `Size-*`, approved 15 Oct 2026) | ✅ |
+| 30 | `Contry selecter` | Input field | `49:5731` | `FinCountrySelector` | FinFlag, `24px` · country menu with search (FinMenu select, 22 Oct 2026) · **internal**, part of the input field (§9.36) | ✅ | ✅ |
+| 31 | `Row count dropdown` | Table | `3151:14547` | `FinRowCountSelect` | `24px` | Default/Hovered (runtime) · `Property 1` name (§10 #21) · menu of row counts (FinMenu select, 22 Oct 2026) · **internal**, part of the pagination (§9.38) | ✅ | ✅ |
+| 32 | `Icon` (side nav; was `24px`, renamed 20 Oct 2026) | Side nav | `3138:10976` | `FinSideNavIcon` | `20px` icon (was `24px`, then `16px`, 29 Oct 2026) | Type: Unselected/Selected → `selected` (filled when selected) · icon by `name` · **internal**, part of the side nav (§9.46) | ⚠️ (raw `#626262` → `fg-secondary`, `#5953E8` → `fg-active`; icon swap not exposed, §10 #51) | ✅ |
+| 33 | `sub selection` | Side nav | `3140:11076` | `FinSideNavSubItem` | — | `state` (was `Property 1`): Default/Hovered/Pressed (CSS)/Selected (`selected`) · a link (`linkAs`), one line with "…" · **internal**, part of the side nav (§9.47) | ✅ | ✅ |
+
+### 8.3 Molecules
+
+| # | Figma component | Page | Node | Code name | Built on / depends on | Figma check | Status |
+|---|---|---|---|---|---|---|---|
+| 34 | `all-button` | Buttons | `47:1580` | `FinButton` | **Base-button**, **white-button**, **Destructive-button** · Tone (new: Normal/White/Destructive) · Type (3, code `variant`) · Size (4) · Icon: None/Leading/Trailing/Only Icon · **public** (§9.28) | ⚠️ | ✅ |
+| 35 | `Badge-primary` | Badge | `30:1465` | `FinBadge` | **Badge-base** · State: Primary/Secondary/Success/Error/Info/Warning/Disabled/Neutral (`brand` removed 15 Oct 2026) → `tone` · optional icons (code) | ✅ (Error outer stroke fixed 15 Oct 2026) | ✅ |
+| 36 | `Text Box` | Text box | `28:1001` | `FinTextBox` | Label · Type: H1–H6 · Alignment: Left/Center/Right · code: `headingLevel` (structure only), label badge (exposed in Figma) (§9.21) | ✅ | ✅ |
+| 37 | `Checkbox` | Checkbox | `42:220` | `FinCheckbox` | **Base-Checkbox**, Text Box · checkbox always on the left · **public** (§9.30) | ⚠️ | ✅ |
+| 38 | `Chips` | Chips | `95:1848` | `FinAssistChip`, `FinFilterChip`, `FinInputChip` (three chip types, decided 19 Oct 2026) | **Chips-base** · State Enabled/Hovered/Pressed/Disabled × Type (code `selected`) · **public** (§9.32) | ✅ | ✅ |
+| 39 | `Chips-group` | Chips | `922:6646` | `FinChipGroup` | **Chips-base** · Chip count 1–4 | ⚠️ | ⬜ |
+| 40 | `Segmented button` | Segmented button | `117:4688` | `FinSegmentedButton` | **Segmented_button-base** · State Enabled/Disabled · Show Button 1/2/3 (code: `options`, at least 2) · **public** (§9.34) | ⚠️ | ✅ |
+| 41 | `Indicator set` | Indicator | `98:3541` | `FinPageIndicator` | **Indicator** · Active, Number (code: `active`, `count`, no maximum) · clickable with `onChange` (§9.12) | ✅ | ✅ |
+| 42 | `Avatar Group` | Avatar | `14:1155` | `FinAvatarGroup` | **Avatar** · Size · Count 2/3/5/7 (code: 2–6 shown, then "+N", §9.5) | ⚠️ (overlaps mapped to spacing, approved 15 Oct 2026) | ✅ |
+| 43 | `Profile image` | Avatar | `432:1610` | `FinProfileImage` | **Avatar**, icons · Type: Icon/Image (code: from `src`) · badge button: camera / edit (§9.6) | ⚠️ (frame 100 = `Size-96` + `Space-XS`, approved 15 Oct 2026) | ✅ |
+| 44 | `bar-with-text` (renamed in Figma 15 Oct 2026: `Progress-progress bar` → `Progress-full` → `bar-with-text`) | Progress | `31:2122` | `FinBarWithText` | **Progress bar** (Large, Steps=4), **Text Box** (Center, Display Small-H3) · Progress: 25/50/75/100% · Description: True/False · 375 wide (a mobile-era width), gap `Space-XL` · built from FinProgressBar and FinTextBox; spans the middle 6 grid columns (§9.22) | ⚠️ | ✅ |
+| 45 | `spinner-with-text` (renamed from `Progress-Spinner` in Figma, 15 Oct 2026) | Progress | `33:2348` | `FinSpinnerWithText` | **Spinner**, Text Box · built from FinSpinner and FinTextBox; loader added; spans the middle 6 grid columns (§9.23) | ⚠️ (zero padding from another library) | ✅ |
+| 46 | `Plain Tooltip` | Tooltips | `476:752` | `FinTooltip` | Text Box · Type: Single line/Rich · Look: Black (Basic is no longer in Figma, 3 Nov 2026) | ⚠️ (§10 #16) | ✅ |
+| 47 | `Pagination group` | Table | `3151:14607` | `FinPagination` | **Pagination item**; its arrows (all-button instances with a grey outline override in Figma) are drawn by FinPagination itself (§9.39) · public, Components/Pagination | ⚠️ | ✅ |
+| 48 | `Main Selection` | Side nav | `3140:10997` | `FinSideNavItem` | Side nav `Icon`, sub selection, `20px` icon (the chevron; was `24px`, 29 Oct 2026) · `State` (Hovered / Pressed in CSS; Selected - BG / Selected → `selected: 'item' \| 'sub-item'`) · `Expanded` · `Type`: Full/Minimized · `Show dropdown` from the sub items · Expanded slot · **internal**, part of the side nav (§9.48) | ⚠️ (raw chevron colors, §10 #52) | ✅ |
+| 49 | `Header notification` | Header | `3178:24467` | `FinHeaderNotificationButton` | 48px bg, Badge - indicator, `24px` · State (runtime: Default/Hovered/Pressed/Disabled) · Notification: None/Dot/Number · **public** (§9.62) | ⚠️ (48px bg padding `Spacing 8px` from another library → `--fin-space-m`) | ✅ |
+| 50 | `Table header cell` | Table | `3151:14941` | `FinTableHeaderCell` | Base-Checkbox, Label · `Type`: White/Grey (was `Property 1`) · Slot · Show checkbox / title / trailing icon · `<th>`; no hover · **internal**, part of the table (§9.41) | ⚠️ (trailing arrow raw `#626262` → `fg-secondary`) | ✅ |
+| 51 | `Table - Cell` | Table | `3151:14990` | `FinTableCell` | Base-Checkbox, Badge-primary, all-button (checked 15 Oct 2026: uses Badge-primary, not Badge-base directly) · `Type`: Default/Badge/Link (was `Property 1`) · Leading accessories, Content and Action slots · Show leading accessories / content / action button · `<td>`; Content slot takes any component · **internal**, part of the table (§9.43) | ⚠️ (raw 14 font size, raw Electric-Indigo-600 icon, Link underline override) | ✅ |
+
+### 8.4 Organisms
+
+| # | Figma component | Page | Node | Code name | Built on / depends on | Figma check | Status |
+|---|---|---|---|---|---|---|---|
+| 52 | `Input field-base` | Input field | `49:5734` | `FinInputBase` | **Base** for single-line fields. Type: Default/Payment/Mobile number/Select · Destructive (= error) · Label, Placeholder, Prefix, Suffix, Caret, Focus ring · Leading, Trailing, Placeholder and Helper text slots · Helper text, Country selector, Flags, Divider, icons · **Follow-up when built:** replace the plain stand-in inputs in the Label "Usage" and Helper text "With a field" stories with this component · `Type` → `variant`; states in CSS, the same for every field (§9.58) · **internal** | ⚠️ (label padding raw 4 → `Space-XS`; label y −9 → centred on the border; raw white icon frames dropped) | ✅ |
+| 52a | `Input field-textArea-base` | Input field | `3094:26567` | `FinTextArea` (with #52b: one component) | Type: Default/Destructive (`Distructive`) → `error` · Label → `label` / `showLabel`, Helper text → `helperText`, Place holder → `placeholder`, Caret and Focus ring (runtime) · `rows` (4), `maxRows` (8; grows, then scrolls) · **public** (§9.78; built as the base, then made the public field, decided 27 Oct 2026) | ⚠️ (§10 #16: `Body L` → `--fin-font-body-large`; the focus halo's raw #EFEFFF → `bg-active`, as FinInputBase) | ✅ |
+| 52b | `Input field-base` (text area) | Input field | `3097:27497` | `FinTextArea` (with #52a) | the field set's `State` is runtime; its error variants are `error` · no separate code component (decided 27 Oct 2026) | 🔴 broken set and duplicate name (§10 #17) | ✅ |
+| 53 | `Input field-standard` | Input field | `52:2629` | `FinTextField` | **Input field-base**, Payment Icons (FinPaymentIcon), Country selector · Type (code `variant`): Default/Mobile number/Payment · State (runtime) · Trailing icon (code `trailingIcon`) · Error · Small size (code only) · dial code from the country, card brand from the number · **public** (§9.59) | ⚠️ (§10 #58 (5)–(6)) | ✅ |
+| 54 | `Input field-password` | Input field | `60:7165` | `FinPasswordField` | **Input field-base** · State (runtime) · Show password (code `showPassword` / `defaultShowPassword`, the eye button) · Error · Small size (code only) · **public** (§9.60) | ⚠️ (§10 #58 (1), (3), (4)) | ✅ |
+| 55 | `Input field-select` | Input field | `537:2736` | `FinSelectField` | **Input field-base** | ⚠️ (after #52) | ✅ §9.72 |
+| 56 | `Input field-Multi select` | Input field | `922:6170` | `FinMultiSelectField` | **Input field-base**, Chips-base | ⚠️ (after #52) | ⬜ |
+| 57 | `Search` | Search | `440:5164` | `FinSearchField` | **Input field-base** (Show Label off) · State: Enabled/Focus/Typing/Complete (runtime; hover from the base) · `search` icon, clear button (`cancel`, filled) · Small size (code only) · Sticky removed in Figma 21 Oct 2026 · **public** (§9.61) | ✅ | ✅ |
+| 58 | `File uploads` | Input field | `775:4280` | `FinFileUpload` | 40px bg, 48px bg, Text Box, Progress bar, all-button · Size: Large/Small · State: Enabled/Uploading/Complete/Error (updated by design 28 Oct 2026) · one file · **public** (§9.80) | ✅ | ✅ |
+| 59 | `List-base` | List | `77:10185` | `FinListItem` | **Base.** 40px bg, Label, Text Box, Divider · `Size` · leading / trailing accessory slots (preferred instances per scenario), top label, title + extra icon (swappable `20px`), body slot, divider · no states (§7.2) · **internal** (§9.49) | ⚠️ (Small title bound to H6 variables at 14/21 → Label/Medium) | ✅ |
+| 60 | `List_fill-base` (was `List-fill-base`; new node 20 Oct 2026, was `3169:6327`) | List | `3494:14233` | `FinListItemFilled` | **Base.** List-base in a frame (`bg-primary`, `border-subtle`, `Radius-L`, padding `Space-XL`), no divider · Avatar (leading default), Label, Text Box · slots · `Size` · filled items together 12 apart · no states · **internal** (§9.50) | ⚠️ (Small ignores `Show leading accessory`, §10 #53) | ✅ |
+| 60a | `List-standard` (added 20 Oct 2026) | List | `3491:5292` | `FinListStandard` | **List-base** (mapped), Icon `24px`, Flag sizes, Avatar, Caption, `24px` chevron · `State`: Default / Hovered / Selected / Selected+hovered / Disabled · `Description` · `Chevron` · `Leading accessory`: None / Icon / Flag / Payment / Avatar · `Trailing accessory`: None / Caption · Size from List-base (nested) · link, button, option or static per scenario · Payment: FinPaymentIcon (§9.52) · **public**, Components/List (§9.51) | ⚠️ (Size not exposed, §10 #54) | ✅ |
+| 60b | `List-radio_button` (added 20 Oct 2026) | List | `3503:21171` | `FinListRadio`, `FinListRadioGroup` | **List-standard** (as a control row), Base-Radio_box, Flag sizes, Payment Icons · `Type`: Default / Country / Payment · `State` (5, as List-standard; Selected = chosen) · `Item side`: Leading / Trailing · `Description` · Size (List-base) · **public**, Components/List (§9.53) | ✅ (Selected radio fixed in Figma 20 Oct 2026) | ✅ |
+| 60c | — (code first; no Figma component yet, §10 #55) | List | — | `FinListCheckbox`, `FinListCheckboxGroup` | **List-standard** (as a control row), Base-Checkbox, Flag sizes, Payment Icons · the radio list's properties (Type, Item side, Description, Size, Disabled) with a checkbox; ticked = Selected; `indeterminate` for a "select all" row · **public**, Components/List (§9.54) | — (code first) | ✅ |
+| 60d | `List-toggle` (added 20 Oct 2026) | List | `3506:21477` | `FinListToggle` | **List-standard** (as a control row), Toggle (Small), Icon `24px` · `State`: Default / Hovered / Selected (= on, **no fill**) / Selected+hovered / Disabled · `Leading accessory`: None / Icon · `Description` · Size (List-base) · no group (each row is a setting) · **public**, Components/List (§9.55) | ✅ | ✅ |
+| 60e | — (code first; no Figma yet, §10 #56) | List | — | `FinListStandardFilled`, `FinListRadioFilled`, `FinListCheckboxFilled`, `FinListToggleFilled` | **List_fill-base** versions of #60a–60d (separate components, shared rows) · cards 12 apart · Selected = 1px `border-active` edge, no fill (toggle on: none) · standard filled is always clickable with the chevron · **public**, Components/List/Filled (§9.56) | — (code first) | ✅ |
+| 61 | `Accordion-frame-base` | Accordion | `555:1767` | `FinAccordionFramed` | **Base.** Text Box, Badge-primary, Label · slots | ✅ | ⬜ |
+| 62 | `Accordion-bare-base` | Accordion | `555:1968` | `FinAccordion` | **Base.** Text Box, Badge-primary, Label, Divider · slots | 🔴 missing `20px` main (§10 #19) | ⬜ |
+| 63 | `Notification` | Notification banners | `77:10612` | `FinNotificationBanner` | all-button, icons · Type: Info/Success/Error/Warning/Neutral → `tone` · **public** (§9.75) | ⚠️ (§10 #16: the button's `Button M` → `--fin-font-button-medium`) | ✅ |
+| 64 | `Snackbar` | Snackbar | `268:992` | `FinSnackbar` (+ `FinSnackbarRegion`) | Text Box, all-button · State: Neutral/Success/Warning/Error → `tone` · `# of lines` → `lines` · **public** (§9.73) | ✅ (all Foundation – Loyalty; the action button's padding is overridden to 12, §10 #72) | ✅ |
+| 65 | `Empty state` | Empty state | `71:4588` | `FinEmptyState` | 48px bg, 64px bg, Text Box, all-button · Size: Small/Medium (Large removed by design 27 Oct 2026) · Icon slot · Show Button Group · **public** (§9.74) | ✅ | ✅ |
+| 66 | `Button dock` | Button dock | `75:5858` | `FinButtonDock` | Text Box, all-button · Sticky · Accessory slot · Show Tertiary / Secondary / Primary Button · **public** (§9.69) | ✅ | ✅ |
+| 67 | `Side sheet` | Side sheet | `3120:30707` | `FinSideSheet` | Text Box, all-button, Divider, Button dock · Body slot · on FinOverlay; **the page doesn't scroll while it's open** (decided 15 Oct 2026, §9.13); width from the layout grid · **public** (§9.70) | ✅ (remote `Views / Dividers` replaced by our Divider, 23 Oct 2026, §10 #25) | ✅ |
+| 68 | `Dialog box` | Dialog | `3234:11710` | `FinDialog` | Text Box, all-button, `24px` · Body slot · Leading button, Primary/Secondary buttons, Trailing buttons, Trailing icon · on FinOverlay; **the page doesn't scroll while it's open** (decided 15 Oct 2026, §9.13); width from the layout grid · **public** (§9.71) | ✅ | ✅ |
+| 69 | `Main header` | Header | `3178:24570` | `FinHeader` | all-button, Text Box, Header notification · Show Back Button, `body content` slot (was `Description`), Notification · **public** (§9.63) | ✅ | ✅ |
+| 70 | `Side Menu` | Side nav | `3142:11871` | `FinSideNav` | Main Selection, List-base, Avatar, Text Box, all-button · `Menu` (8; from `currentHref`) · `Type`: Expanded/Minimized → `type` · `logo` slot (Logo sizes is from another library, §10 #25) · `profile` · **public** (§9.57) | ⚠️ (logo from another library, a slot in code; gaps bound to variables since 29 Oct 2026) | ✅ |
+| 71 | `Table row` | Table | `3151:15248` | `FinTableRow` | Table - Cell, Base-Checkbox · `State` (was `Property 1`): Default/Hovered/Selected/Selected - Hovered (hover is CSS; Selected is `selected`) · `Select Cell`, `Cell Slot` (was `Sells Slot`) · `<tr>`, `onRowClick` opens details · **internal**, part of the table (§9.44) | ✅ | ✅ |
+| 72 | `Header row` | Table | `3151:15203` | `FinTableHeaderRow` | Table header cell, Base-Checkbox, Label · `Select Cell`, `Cell Slot` (were `Select Sell` / `Sell Slot`) · `<tr>`, Grey cells, no width of its own · **internal**, part of the table (§9.42) | ✅ | ✅ |
+| 73 | `Table footer` | Table | `3151:14830` | `FinTableFooter` | Row count dropdown, Pagination group · pages and summary worked out from `totalRows` / `rowsPerPage` · **internal**, part of the table (§9.40); the row count menu built 22 Oct 2026 (§9.38) | ⚠️ | ✅ |
+| 74 | — (code only; in Figma the table is assembled on each screen) | Table | — | `FinTable` | **Code-only organism** composed from Header row, Table row, Table footer: columns and rows as data, row selection (select all / indeterminate), footer pagination. No Figma node, so it only uses the parts above and adds no new visuals. **Widths (decided 20 Oct 2026):** the table is 100% of its container (Figma's 1088 is only a drawing frame); each column is **fixed** (checkbox, actions), **flexible** (the default, shares the remaining space) or has a **minimum width**; when the columns don't fit, the table scrolls horizontally; long cell text ends in "…". Header cells are Grey (§9.42). Built: §9.45, **public**, Components/Table. | ✅ (after #50–73) | ✅ |
+| 75 | `standard-menu` (`Type=Normal` `3549:11762`; slot `conten`) | Menu | `3549:12004` | `FinMenu`, `FinMenuDivider` | any list rows (List-standard, -radio_button, checkbox, toggle), Divider, all-button · `kind` (code only: action / filter / navigation), `footer` (code first), width, max height · **public** (§9.64) | ⚠️ (`Shadow/Sticky` → new `Shadow/Menu`; slot typo `conten`; no footer slot yet: §10 #59) | ✅ |
+| 76 | — (code first; Figma's header arrow is display only) | Table | — | `FinTableColumnFilter` | Table header cell's down arrow, FinMenu (filter), List checkbox / radio, Search, all-button · **internal**, part of the table header cell (§9.65) | — | ✅ |
+| 77 | — (code first; no Figma design yet) | Table | — | `FinTableRowActions` | `more_vert` icon button, FinMenu (action), List-standard menu items · **internal**, the ⋮ of FinTable `rowActions` (§9.66) | — | ✅ |
+| 78 | `Table Header` (`3313:18577`, added to the library after this inventory) | Table | `3313:18577` | `FinTableToolbar` (renamed in code so it isn't confused with the table's header cells and row; approved 22 Oct 2026) | Search (Small), Chips (filter slot), all-button · `Show search`, `Show filter` + Filter slot, `Show button` · the toolbar above a table · **internal**, part of the table (FinTable `toolbar`, §9.67) | ✅ (search width 343 → new `--fin-size-343`) | ✅ |
+| 79 | — (**code only**; no Figma component: the screens draw the shell each time) | Layout | — | `FinAppShell` | Side Menu, Main header · the page shell: a "Skip to content" link, the side nav (collapsed below 1280, handled here), the header and the `main` content in a panel · **public**, as the real app uses it (decided 22 Oct 2026) · Figma to add it later (§10 #63) · §9.68 | — | ✅ |
+| 80 | — (**code first**; no Figma component) | Loading | — | `FinSkeleton` | · `shape` text / rect / circle, `width`, `height` · a pulsing `bg-neutral` placeholder for content that's loading; FinTable `loading` uses it · **public** (§9.76) | — | ✅ |
+| 81 | — (**code first**; drawn on each Add reward screen, `367:19964`, `402:33879`) | Stepper | — | `FinStepper` | Icon `check` · `steps`, `current`, `onStepClick` · the steps of a multi-step form · **public** (§9.77) | — | ✅ |
+| 82 | — (**code first**; the Add reward screens draw an Input field-standard with `calendar_today`, `367:19964`) | Input field | — | `FinDateField` | FinInputBase, Icon `calendar_today` (added to the registry) · DD/MM/YYYY typed or picked; `value` / `onChange` as YYYY-MM-DD, `min`, `max` · the browser's date picker for now · **public** (§9.79) | — | ✅ |
+| 83 | — (**code first**; the Reports screens draw it each time, `435:90575`, `440:94624`) | Card | — | `FinStatCard` | — · `label`, `value` · a summary number on `bg-active` · **public** (§9.81) | — | ✅ |
+
+### 8.5 Assets (exported, not built as components)
+
+| Figma component | Page | Node | Export to |
+|---|---|---|---|
+| `Flag icons` (circle + rectangle) | Icon types | `49:6026` | **Not exported.** Visual reference only: the artwork comes from `flag-icons` in code |
+| `Flag sizes` | Icon types | `49:13408` | **Not exported.** The reference for `FinFlag`'s sizes (XSmall…XLarge), shapes (Circle / Rectangle) and states (Default / Disabled) |
+| `Logo sizes`, Sampath set (**Foundation – Loyalty**, page Logo) | Logo | `18276:4231` | **Exported** (4 Nov 2026): the Colored and White, With and Without text PNGs, committed in `packages/ui/src/logos/sampath/`, shown by `FinLogo` (§9.83). The generic set (`18074:5317`, "Company Name") isn't exported: Storybook draws its placeholder |
+
+**Flags (decided 19 Oct 2026):** flag artwork comes from the open-source library **`flag-icons`** (lipis, MIT, exact version pinned), self-hosted, one file per flag loaded only when shown. **Code is the source of truth for flag artwork, like icons (§6.1)**; Figma's `Flag icons` and `Flag sizes` are visual reference only, and nothing is exported from or changed in Figma for flags. The component is `FinFlag` (§9.35). Figma's 4:3 rectangles match the library's 4:3; circles are the library's 1:1 squares rounded. Payment icons are separate (planned later).
+| `Payment Icons` | Icon types | `58:14556` | **Not exported** (except the look of `Default card`, drawn in code). Visual reference only: the logos come from `activemerchant/payment_icons` in code |
+
+**Payment icons (decided 20 Oct 2026):** brand logos come from Shopify's open-source **`activemerchant/payment_icons`** (MIT; the logos themselves are the brands' trademarks, shown to say a method is accepted). It isn't on npm, so the version is pinned in `src/payment/finPaymentMethods.ts` (`FIN_PAYMENT_LIBRARY`, today `v1.7.69`) and **`pnpm payment-icons`** copies the registered logos and the library's `MIT-LICENSE` into `src/payment/library/`, removing logos no longer registered; the files are **committed**, so builds never fetch. **To get newer logos:** bump the version, run the script, review the diff. **To add a library brand:** one registry line (`library: '<file name>'`), then run the script. **To add our own logo** (a local brand, or a newer logo the library doesn't have yet): put the SVG in `src/payment/custom/<file>.svg` and add a registry line (`custom: '<file>'`); a custom logo can replace a library one. A test fails if a registered method has no file. **Custom logo template:** a 38 × 24 SVG (`viewBox="0 0 38 24"`), the card's corners at radius 3 with the brand's background or white with a 1px `#000` 7% outline (as the library's cards), the logo centred with at least 3 of space on every side; no text outside the card. **Default card:** our own (Figma `Default card`), drawn from tokens (`bg-primary`, 1px `border-subtle`, `Radius-XS`, `credit_card` icon `fg-secondary`, 16 / 20 / 24 / 36 by size); also the fallback for unknown methods and logos that fail to load. Methods (20 Oct 2026): Visa, Mastercard, American Express, Diners Club, Discover, Maestro, UnionPay, PayPal, Apple Pay, Google Pay, Amazon Pay (the library's `amazon`), Alipay (the current logo, for Figma's Alipay and Alipay new), WeChat Pay, UPI, Stripe, Klarna, Affirm, Interac, and the Default card. Dropped: Bitpay, Verifone, IPS (not in the library).
+
+---
+
+### 8.6 Pages (Storybook; added 22 Oct 2026)
+
+Real screens from the Figma screens file `9eRxGGC7YQ6TPzi5PHYCgw`, page **Admin UIs** (`6:122`), built as Storybook pages in `apps/storybook/src/pages/<area>/` (folder approved 22 Oct 2026; never in the library; rules in CLAUDE.md "Pages"). Titles `Pages/<Area>/<Page>`, the areas following the side nav. The login options and the Nav Bar section (it only shows the nav collapsing) are out of scope. Widths: §4.4. **Order: one page at a time, Programme Configuration first.**
+
+Components the screens use (status from §8): Side Menu ✅, Main header ✅ (with Header notification ✅), the table parts and FinTable ✅, Search ✅, Text field ✅, Toggle ✅ (Figma still calls some instances `Switch`), Radio ✅, Checkbox ✅, Text Box ✅, Overlay ✅, Button ✅ (Figma still has some `Button-Primary`, an older component); **not built:** **Table Header** (the toolbar above a table, `3313:18577`, newer than this inventory), Side sheet (🔴 §10 #25), Dialog box, Snackbar, Button dock, Input field-select, Notification banner; plus an unidentified "1 2 3 4" step indicator in the Reward catalog form. Each page's own list is checked in detail when it's planned.
+
+**Table style (decided by design 3 Nov 2026):** every list page's table is **bordered** (FinTable `variant="bordered"`, §9.45, §10 #77), set once in `pageShell.tsx` (`PAGE_TABLE_VARIANT`): Programme configuration, Tier management, Reward catalog, Badges, Focus areas (all three levels) and Reports (both levels). The tables in side sheets (Record details, Add reward's Added rules) keep the default.
+
+| Area | Page (Figma section) | Figma frames | Shows | Status |
+|---|---|---|---|---|
+| Loyalty Management | **Programme Configuration** (`52:9929`) | `312:15165` list, `312:15899` add (side sheet), `328:25843` remove (dialog), `328:26929` removed (snackbar) | Table of configurations per segment; add / edit in a side sheet; remove with a dialog. **Intentionally differs from Figma** (decided 22 Oct 2026): the three round view / edit / delete buttons in each row are the built **row actions menu** (⋮, §9.66); the "Segment: All" filter is the **Assist chip with a select menu** as built (two-tone label: §10 #64); the table has no outer border (§9.45); the toolbar's search is the Small one (§9.67); text is in sentence case ("Programme configuration", §10 #65). **Add** (decided 26 Oct 2026): the toggle cards are the built FinListToggleFilled, Small (white with a border, not the screen's grey); the section titles are fieldset legends in **Label/Small (12, semibold)** `text-primary`, **16** above their fields (the screen: Title/Small 14, 12 above; changed by design 26 Oct 2026), the one text style set in page CSS; **no close button** (Cancel closes it; Esc and a scrim click still do; decided 26 Oct 2026); the Status card reads "Active" / "Members in this segment earn and use points" (the screen repeats the sheet title); fields 48 (not 56; Small, 40, since 2 Nov 2026, as in every side sheet, §9.69); the cash conversion fields stay enabled with the toggle off and every field is needed (whole numbers above 0, Equal rate an amount above 0, errors under the fields after Save, the first focused); Segment offers only segments without a configuration (none left: disabled); a scrim click closes the sheet (as decided for the Side sheet); a saved configuration joins the table; Max conversion isn't in the form, so a new row shows "N/A" (was "—"; changed 27 Oct 2026). **Details** (code first, no Figma; decided 26 Oct 2026): View in the ⋮ menu, or a click on the row, opens a FinSideSheet titled "<segment> details" ("Staff details"; up to two lines, then "…"; changed by design 26 Oct 2026 from "Details" with the segment as a description) with the close button; the body is a FinTable (no select column, no footer, no hover) with two columns, **Attribute** (the list's column titles) and **Added record** (the row's values: badges as in the list, the conversion rate as plain text); the dock has **Edit** (Primary) and **Remove** (Secondary, destructive); a scrim click closes it. **Edit** (code first, no Figma; decided 27 Oct 2026): Edit in the ⋮ menu or the details sheet (which closes) opens the add form titled "Edit programme configuration", filled with the row's values (Equal rate as an amount, 1.00 when unset), no close button, **Cancel** and **Save**; Save is disabled until a value differs from the row's (changing it back disables it again); the same checks as Add; Segment offers the row's own segment and those without a configuration; saving updates the row (Max conversion kept). The details sheet's dock: **Remove** with the bin (`delete`) as wide as its label, **Edit** taking the rest (FinButtonDock `leadingIcon`, `width`, §9.69; since 2 Nov 2026 both hug their labels at the right); the Segment column has the table's filter, replacing the toolbar's Segment chip (decided 27 Oct 2026). **Remove** (Figma `328:25843`; built 27 Oct 2026): Remove in the ⋮ menu or the details sheet (which closes) opens FinDialog "Remove segment" with the close button, the body "Are you sure you want to remove the “<segment>” segment?" (the screen: "Are you really want to remove "Staff" segment?"), **Cancel** and **Remove**, the destructive Primary (red, §9.71 decision 3; purple on the screen); 608 wide at 1920 from the grid (Figma 696), 200 tall as Figma; Remove takes the row out (its segment is offered in Add again); Cancel, the close button, Esc and a scrim click keep it. **Removed** (Figma `328:26929`; built 27 Oct 2026): after Remove, a Success FinSnackbar "Segment removed successfully" (the screen ends in "!") with the close button and no action, in a FinSnackbarRegion at the top right of the window; it closes itself after 6 seconds. Like the screen, it sits over the header's notification button while it shows (§9.73 decision 4). **Stories** (27 Oct 2026): a **Rows** control (0–60) on every story sets how many configurations the table starts with, from 60 fake segments (Figma's three, the edge cases, then varied values); Many segments has 40 (four pages, as the Figma footer); No configurations (0) shows the empty state. **Empty states** (code first, decided 27 Oct 2026): with nothing to show, a FinEmptyState **replaces the table and footer** (FinTable `empty`), centred in the space below the toolbar, which stays: **no configurations yet** (Medium, `loyalty`, "No programme configurations yet", "Add a configuration to set the loyalty and cash conversion rules for a customer segment.", **Add programme configuration**) or **nothing matching** the search and the Segment filter (Small, `search`, "No segments match "<search>"" / "No segments match the filter", "Check the spelling, or clear the search and filters." / "Clear the filter to see every segment.", **Clear search and filters** / **Clear filter**, which empties the search and the filter; the page keeps the filter, FinTable `filters`). Story: No matches | ✅ **List approved and merged** (23 Oct 2026); ✅ **Add (side sheet) approved and merged** (26 Oct 2026; open: §10 #70, #71); ✅ **Details (side sheet) approved and merged** (26 Oct 2026); ✅ **Edit (side sheet) approved and merged** (27 Oct 2026); ✅ **Remove (dialog) approved and merged** (27 Oct 2026); ✅ **Removed (snackbar) approved and merged** (27 Oct 2026); the red look for destructive menu actions is §10 #67 |
+| Loyalty Management | **Tier Management** (Figma `Tire Configuration`, `52:9930`) | `152:6162` list, `345:14560` add (side sheet), `347:15784` add with the Level menu, `347:16831` remove (dialog), `347:17774` removed (snackbar) | Tiers common to every segment; add / edit in a side sheet; remove with a dialog. **Built the same way as Programme configuration** (decided 27 Oct 2026, "very consistent throughout"): the inline view / edit / delete buttons are the **row actions menu** (⋮; Figma's action cell isn't updated yet); a **search** ("Search tier", by name) though the screen has none; **filters on the Level column** (Entry, Intermediate, Advanced, Highest) **and the Status column** (Active / Inactive) (decided 27 Oct 2026); the details sheet is the shared `RecordDetails` (`apps/storybook/src/pages/`, now used by both pages); no close button on the form; the remove dialog's Remove is destructive (red); the snackbar has no "!"; text in sentence case ("Tier management", not "Tire Management"; "Status", not "Ststus"). **Columns:** No., Level (the screen's "Order"), Tier name (Level first, as the screen; decided 27 Oct 2026), Upgrade threshold (pts), Downgrade threshold (pts), Earn multiplier, Status; sorted by level, then by upgrade threshold (Entry, Intermediate, Advanced, Highest; "Advanced", not the menu's "Advance"). Numbers as en-US ("5,000", the screen "5.000"); multipliers "2.00×" (the screen "2.00 X"). **Links** (decided 27 Oct 2026): the tier name, both thresholds and the multiplier are links as on the screen, but **go nowhere yet** (`PendingLink`: a click does nothing and doesn't open the row); design will say where. In the details sheet they're plain text. **Status badge:** Inactive is **neutral**, not the screen's red (decided 27 Oct 2026: inactive is switched off, not an error). **Add / Edit** (`345:14560`; Edit code first): the six fields **two by two, 24 apart** across and down (Space-3XL, from the screen; Programme configuration's paired fields are 16, as its screen): Tier name, Level (select: **every level**, as the screen's menu; several tiers can share a level, decided 27 Oct 2026), Upgrade threshold and Downgrade threshold (suffix **Points**, as Programme configuration; the screen "Pts"), Earn multiplier (×) (the screen's label; a × suffix looked like a clear button), Status (select Active / Inactive, as the screen; Programme configuration uses a toggle). Helper texts: "Points needed to reach this tier", "Members below this drop a tier" (the screen: "Points at which the tier is lose"). Checks on Save: every field needed; a name used once (any case), a level any number of times; whole numbers of points; the downgrade threshold below the upgrade threshold (both 0 allowed, for the Entry tier); a multiplier above 0 with up to 2 decimals. Edit's Save is disabled until a value changes. **Empty states:** "No tiers yet" (Medium, Add tier) and "No tiers match …" (Small: Clear search and filters; with only filters, "No tiers match the filter" / "the filters" and Clear filter / Clear filters). **Stories:** a Rows control (0–12; Many tiers has 12, two pages). | ✅ **Approved and merged** (27 Oct 2026). Open: the No. column is the record number, so it isn't in order when sorted by level; whether tiers on one level need different thresholds |
+| Shared | **Common states** (code first, no Figma; decided 27 Oct 2026) | — | The negative and loading states every list page shares, in `apps/storybook/src/pages/common/` (Pages/Common states, shown on Programme configuration; the page takes them through an `api` prop, a fake API: `load` ready / loading / fail, `save` and `remove` ok / fail (the first call fails, trying again works), `online`). **Loading:** FinTable `loading` (skeleton rows, no footer), **no toolbar** (decided 27 Oct 2026). **Couldn't load:** FinEmptyState (Medium, `warning`, reused) replaces the table: "Couldn't load <items>", "Something went wrong on our side. Try again in a moment.", **Try again** (loading, then the rows); no toolbar. **Network or server error** (connection down): an **Error** FinNotificationBanner (`role="alert"`) above the table, Space-4XL apart: "Network or server error. Nothing you change can be saved until the connection is back." (from design's "Network or server error. Couldn't save anything you did."); Add (FinTableToolbar `actionDisabled`), Edit and Remove (the ⋮ menu, the details sheet: `RecordDetails` `actionsDisabled`) and Save are **off** until it's back; an open form shows the banner at the top. **Back online:** the banner goes; a Success snackbar "You're back online". **Couldn't save:** the sheet stays open with the values; an Error banner at the top of the form: "Network or server error. Couldn't save your changes. Check your connection and try again."; Save works again. **Couldn't remove:** the dialog closes, the row stays; an Error snackbar "Couldn't remove the “<segment>” segment" with **Try again** (it stays until closed). Parts: `PageStates.tsx` (`LoadError`, `ConnectionError`, `SaveError`, `PageNotices`) and `pageApi.ts` (`PageApi`, `usePageLoad`, `useFlakyCall`, `useBackOnline`, `usePageNotices`). | ✅ **Approved and merged** (27 Oct 2026; on Programme configuration, Tier management not yet) |
+| Loyalty Management | **Reward Catalog** (`52:9931`) | `349:18532` list; `367:19964`, `388:31740`, `388:32199`, `388:32669`, `388:33159`, `402:33879`, `405:34974`, `408:35786`, `409:36106` create form (4 steps); `410:36648`, `410:37938` remove | **List built first** (decided 27 Oct 2026; the Add reward pages next), the same way as the other list pages: **"Reward catalog"** (as the side nav; the screen "Reward Catalogue Management") with the description "Rewards members can redeem with their points" (the screen has none); "Search reward" (name, ID or partner) and **Add reward**; the "Rewards: All" chip is a **filter on the Status column**; the ⋮ menu (View, Edit, Remove) for the inline buttons. **Columns:** ID ("RW-001"), Reward name, Partner, **User limit** (the screen "None"), **Users** (the screen "User Counts"; decided 27 Oct 2026, "for now"); a value that isn't available shows **"N/A"**, never a dash (design, 27 Oct 2026; the screen "--"; `pages/common/format.ts` `NOT_AVAILABLE`, also Programme configuration's Max conversion), Status. **Status badges as Figma** (decided 27 Oct 2026): Draft `secondary` (outline), Published `success`, **Limit exceed** `warning`, Expired `error`. One text size in every row (the screen has two). **Details:** the shared `RecordDetails`. **Remove** (`410:36648`): "Remove reward", "Are you sure you want to remove the “<name>” reward?", Cancel and the red Remove; **removed** (`410:37938`): "Reward removed successfully". **Add reward and Edit** only report for now (`onAction`): they'll open the Add reward pages. Empty states ("No rewards yet", "No rewards match …") and the Common states (`api`). Rows control 0–40 (Figma's ten rows first, kept as the screen, including Bonus's 10 users over a limit of 5). Figma leftovers: the remove frame's header says "Tire Management"; the removed frame's subtitle "One configuration per customer segment". The shared page layout class moved to `pages/common/PageStates.module.css`. **Add reward (planned 28 Oct 2026; in a side sheet, not Figma's page):** design decided the 4-step form (`367:19964`–`409:36106`) goes in a **FinSideSheet** "Add reward", the usual width, like the other add forms (no breadcrumb, no page back arrow). The **FinStepper** (`width="fill"`) at the top of the body (Reward, Rules, Eligibility, UX), done steps clickable; the header's **back button** goes to the previous step (none on step 1). **Dock:** steps 1–3 **Cancel** / **Next**; step 4 **Save as draft** (Tertiary) / **Cancel** / **Publish**. Each step checked on Next / Publish (errors under the fields, the first focused); Save as draft needs only Reward name. Published or Draft joins the table with a Success snackbar ("Reward published successfully" / "Reward saved as draft"). **Cancel, Esc or a scrim click with changes** opens a FinDialog "Discard this reward?" (**Keep editing** / **Discard**, the destructive Primary); with no changes it just closes (decided 28 Oct 2026). **Section titles without numbers** (the screens: "1. Basic details"; decided 28 Oct 2026). **Edit** reuses the sheet, "Edit reward", filled with the reward's values, every step clickable, the dock **Cancel** / **Save** on every step (decided 28 Oct 2026). **Layout at about 550:** step 1 stacks Reward name and Event; Start / End date stay side by side; Type and Value are 2-up FinListRadioFilled; Run for lifetime (FinListToggleFilled) hides End date; the amount field follows Type and Value (Discount amount LKR or %, Points awarded, Points rate %; Maximum capacity (optional) only for Percentage). Step 2 is one column; Count of event only for "nth qualifying event"; Promo code only with its toggle on (the screen shows it disabled); the two Limits selects side by side. Step 3: Type as a vertical radio list (four don't fit in a row); Tiers / Segments as FinListCheckboxFilled; Rules: Segment, Tier, then **Add rule**, the Note as a Warning FinNotificationBanner, added rules in a FinTable (No., Segment, Tier, a bin; no select column); Badge after completion. Step 4: Headline, Description (FinTextArea), Push notification (FinListToggleFilled). Fields 48, section titles Label/Small, as the other forms. **For design (Figma text):** "Cash to the customer" (Cost?), "Create a rules", "Max total uses of campaign" with an LKR suffix (a count), "Head line (En)" and QAR, "Maximum Claim duration"; which field is the list's User limit (Max total uses?). **Order:** FinStepper `width="fill"`, the sheet with step 1, steps 2–4, Draft / Publish, Edit; each shown before the next. **Built 28 Oct 2026** (`AddRewardForm.tsx`; design asked for Add reward to work, so the four steps, Draft / Publish and the discard dialog were built together): **as built, differs from the plan:** Type and Value (and every radio card list) **stack**, one card per row, as the filled List rows space themselves 12 apart down a column (2-up would need a List layout option); **Type and Value sit in grey panels** (requested by design 28 Oct 2026, as the screens' frames `385:31677`, `383:31633`): `bg-secondary`, `Radius-L`, 16 padding, a title in **Label/Small (12, semibold)** `text-primary` like the section titles (changed by design 28 Oct 2026 from the screens' H6, 16; hidden from screen readers, as the radio group has the same name) 12 above the white cards; drawn in page CSS (`.panel`, `.panelTitle`), as there's no card or panel component; **every radio and checkbox card group sits in a panel** (decided 28 Oct 2026): Type and Value, Give the reward, the eligibility Type, Tiers and Segments (whose panel title replaces the section title); a card's hover (`bg-secondary`) matches the panel, **kept as it is** (decided by design 28 Oct 2026); a new reward joins the table **at the top**, so it shows on the first page; **Provider and Max total uses of campaign are optional** (changed 28 Oct 2026 for Edit: the list has rewards with no partner and no limit, "N/A"; empty Provider = the bank's own reward, empty Max total uses = no limit, each with a helper text saying so), Badge after completion is optional ("(optional)" in its label); "Max total uses of campaign" has the suffix **Uses** (the screen's LKR); the added rules table has **Segment and Tier only** (no No. column, removed by design 28 Oct 2026), a rule removed from the ⋮ menu (FinTable `rowActions`, Remove with the bin), not an inline bin; the warning banner has **no title** (the screen's "Note"; removed by design 28 Oct 2026), only "Each list also offers all segments or all tiers."; the rule selects offer "All segments" / "All tiers" first; adding a rule already in the table shows "This rule is already added" under Tier. The new reward's User limit is Max total uses (assumed); Users "N/A". Event, Provider, claim duration, tier, segment and badge options are fake. Stories: Add reward, Add reward, errors, Add reward at 1024, Add reward, discard. **Edit (built 28 Oct 2026, code first):** Edit in the ⋮ menu or the details sheet opens the same sheet, **"Edit reward"**, filled with the reward's details (kept with each reward the sheet saves, `Reward.details`; the stories' fake rows get their list values and plausible fake ones, `rewardDetailsFrom`); every step but the current one is done and clickable (FinStepper `doneSteps="all"`, §9.77); the dock is **Cancel / Save** on every step, Save disabled until a value differs; Save checks every step and opens the first with an error, its first wrong field focused; Save updates the row (status, ID and users kept; a cleared partner or limit shows "N/A") with a Success snackbar "Reward saved successfully" (Programme configuration's Edit has none; this page's Add does); Cancel, Esc or a scrim click with changes asks "Discard your changes?" (Keep editing / Discard). Stories: Edit reward, Edit reward, no partner or limit. | ✅ **List approved and merged** (27 Oct 2026); ✅ **Add reward (side sheet) approved and merged** (28 Oct 2026); ✅ **Edit approved and merged** (28 Oct 2026) |
+| Gamification | Focus Areas (`57:13928`) | `413:39213` focus areas, `420:42435` lessons, `420:45368` questions; add sheets `420:40932` (focus area), `420:43923` (lesson), `420:46735` (question) | **Built 28 Oct 2026** as one page, **Pages/Gamification/Focus areas** (`apps/storybook/src/pages/gamification/`), with three levels, each built as the other list pages (search, ⋮ menu, add / edit side sheets with no close button and a discard dialog, a remove dialog and snackbar, empty states, the Common states on the first level, a Rows control 0–20): **focus areas** (Order, Focus area, Lessons link, Status) → **View, a row click or the lessons link opens its lessons** (Order, Lesson topic, Questions link, Status) → **View, a row click or the questions link opens its questions** (No., Question, Options, Points) → **View or a row click opens the question's details** (the shared `RecordDetails`, "Question 01 details": No., Question, Answer options, Correct option, Tiers, Explanation, Points) (decided by design 28 Oct 2026). The header shows the level: "Focus areas" (with a description, the screen has none); the focus area's name with "Focus areas › Lessons"; the lesson's topic with "Focus areas › <focus area> › Questions" (plain text: no breadcrumb component; the screens' titles "Using BNPL Responsibility - Lessons"), and a back button up a level. **As decided 28 Oct 2026:** a **Published** toggle card in the focus area and lesson sheets (off = Draft; the screens' forms have no status); the Status column's filter replaces the "Focused area: Published (4)" / "Lessons: All" chips; the questions list's "Question: All" chip is **dropped** (no column to filter); the **Question rule** banner keeps the screen's four rules as they are ("…at the lesson rate" stays, with the per-question points field); **answer options**: type one in Option and press **Add option** (or Enter), up to 4 (then the field and button turn off); each is a radio card in the panel, the radio marks the correct one, a **red** bin beside it removes it (destructive, changed by design 28 Oct 2026: a Tertiary icon button with `contentTone="error"`, as FinButton has no destructive Tertiary); **Add option is a Primary button**, as the screen (a Secondary's purple text is 4.31:1 on the grey panel); at 4 options the note "A question has up to 4 options. Remove one to add another." shows under the row as a plain helper text (the disabled field's helper text was too light on the panel) and focus moves to the new option's radio; a duplicate is refused ("This option is already added"); Save checks 2–4 options and one correct ("Add at least 2 options" / "Choose the correct option" under the cards). **As built (code first):** **Order** is a select of positions (01…; one more when adding), the others move down and lists sort by Order; questions have no order (added at the end, No. is the position); the remove dialogs say what goes with it ("Its 4 lessons will be removed too."); the empty states' Add buttons (Add focus area, Add lesson, Add question) have the **plus** icon, as the toolbar's (FinEmptyState `leadingIcon`, §9.74; changed by design 28 Oct 2026); snackbars "<Item> added / saved / removed successfully"; the ⋮ menu replaces the round pencil button; the tiers stack in grey panels (the screens: three in a row); checks (assumed): focus area name and short description; lesson topic, description and trigger event (example topic and description optional); question, explanation, whole points above 0; badge optional; tiers not checked. Sheet titles "Add / Edit focus area", "Add / Edit lesson" and "Add / Edit question" with the parent's name under the lesson and question titles; Save labels "Save focus area" / "Save lesson" / "Save question", "Save" (off until a change) when editing. Fake options: badges, trigger events ("Award points"…), tiers Basic / Silver / Gold. **For design (Figma text):** "Ststus", the list's "Add Reward" button and the add sheet frame's "Search reward", "interst", "Using BNPL Responsibly" vs "Responsibility", the side nav's "Focus & Learning" (built: "Focus areas"), "Trigger event (After successful)" (built: "Trigger event (after success)"). **Open:** on a grey panel, the empty Option field shows the panel's grey through it, so it can look disabled; after View the focus isn't moved to the new level (the ⋮ button it came from is gone). Stories: List, Many focus areas, No focus areas, No matches, At 1024, Add / Edit / Remove focus area, Lessons, No lessons, Add lesson, Questions, No questions, Question details, Add question, Add question, errors, Edit question. | ✅ **Approved and merged** (28 Oct 2026) |
+| Gamification | Badges (`57:14322`) | `420:49815` list, `428:51250` add (side sheet), `428:52089` remove (dialog), `428:52801` removed (snackbar) | **Built 28 Oct 2026**, Pages/Gamification/Badges (`apps/storybook/src/pages/gamification/`), as the other list pages. **Columns:** ID ("01"), **Badge name** (the icon, FinAvatar `image` **32** (`small`), decorative, then the name, in one cell as the screen; changed by design 28 Oct 2026 from a 24 icon in its own column; the screen's header "Reward name"), Status. The icon is the column's **`leading`** (FinTable, code only, §9.45): FinTable styles only plain-text values, so an icon and a name given together as one value left the name unstyled (black in the Dark details sheet); with `leading` the name stays the table's text. The details sheet shows it too (`RecordDetails` passes `leading`). **Status:** Active `success`, **Inactive `neutral`** (as Tier management, decided 27 Oct 2026; the screen red). **Decided 28 Oct 2026:** **search** ("Search badge") and a **filter on the Status column** (the screen has neither); the ⋮ menu (View, Edit, Remove) for the screen's round buttons; the sheet's Status is an **Active toggle card** (the screen a Status select), its description "Inactive badges are hidden from the badge list when creating a reward" (the screen's note "Inactive badges are hidden from dropdown in eligibility step in reward creation"); the badges are **not yet connected** to Add reward's and Add focus area's "Badge after completion" lists (later). **Add / Edit badge** (`428:51250`): the icon in a **FinFileUpload** Large ("Upload badge icon", JPEG / PNG up to 5 MB; the upload is faked in the stories: 10% every 120 ms, then Complete with the file's name and Delete), the Badge name, the Active card; **the close button at the top right and no Cancel** (changed by design 28 Oct 2026, unlike the other add forms: the dock has only Save badge / Save); the close button, Esc and a scrim click ask first when something changed (the discard dialog); the icon and the name are needed (Save with no icon puts the upload in Error, "Upload a badge icon", and focuses its Upload button) and the name must be new ("A badge with this name already exists"); Save is off while the icon uploads; Edit opens with the icon Complete (its file name), Cancel during an upload goes back to it, Save off until a change. A new badge joins at the top; snackbars "Badge added / saved / removed successfully". **Details:** the shared `RecordDetails`. **Remove:** "Remove badge", "Are you sure you want to remove the “<name>” badge?", Cancel and the red Remove (the screen purple, "Are you really want…"). Empty states ("No badges yet", with the plus on Add badge; no matches), the Common states (`api`), Rows 0–20. The stories' icons are placeholders drawn in code (a coloured disc and the first letter): real icons are uploaded artwork. **For design (Figma text):** "Reward name", "Ststus", "Add Badge" / "Save Badge" / "Remove Badge" (title case), the side nav's "Badge Management" (built "Badges"). Stories: List, Many badges, No badges, No matches, At 1024, Add badge, Add badge, errors, Edit badge, Details, Remove badge, Removed. | ✅ **Approved and merged** (28 Oct 2026) |
+| Report Management | Reports (`162:18060`) | `435:90575` customers, `440:94624` a customer's points history | **Built 28 Oct 2026**, Pages/Report management/Reports (`apps/storybook/src/pages/report-management/`), read only, with two levels as Focus areas. **Customers:** four **FinStatCard**s (§9.81: Total points, Reward redemption (pts), Cash conversion (pts), Points expired; for the whole programme, not the filtered rows), Space-4XL apart in four equal columns, over the table: No., Customer, Tier, Earned, Redeemed, Converted, Expired, **Active balance** (earned − redeemed − converted − expired, as Figma's first row; a link), Last activity (DD/MM/YYYY; the screen 28.09.2026). Search "Search customer name or number". **Decided 28 Oct 2026:** Tier is the **column's filter** (the screen's chip); **no Segment filter** (the screen's chip; removed by design 28 Oct 2026); the **Consumption type** chip is **dropped**; **View** (the ⋮ menu, for the screen's eye button), a row click or the **Active balance link** opens the customer's points history. **Points history:** the header's back button ("Back to reports"), the customer's name with "Reports › Points history" (the screen "Points consumption > Fatima Khan"); three FinStatCards (Active points, Lifetime points, and the next expiry as **"Expires 31/10/2026" / "1,200 pts"**: the date in a short label, so both stay one line at every width, changed by design 28 Oct 2026 from the screen's one value "1,200 Pts 31 Oct 2026"; "Next expiry" / N/A without one) in the first three of the four columns, as the screen; the table: No., **Date** (DD/MM/YYYY; not on the screen, added so the Duration filter's effect is seen), Type (the **column's filter**, the screen's chip), Description, Points (+1,240 / −450, a real minus), Active balance, Lifetime; search "Search activity" (description or type; the screen's "Search Customer name/ ID"); no row actions or row click; the screen's **Duration** chip as an **Assist chip with a select menu of ranges**: All, Last 7 days, Last 30 days, Last 3 months, Last 12 months ("Duration: Last 30 days"; counted back from the stories' fixed today, 31/01/2027); the **custom date range comes later** from design (decided 28 Oct 2026); the chip has the dropdown arrow, not the screen's calendar icon (FinAssistChip has no trailing icon option). Each level's table is new (`key`), so it starts scrolled to the left at narrow widths (Focus areas too). Empty states (no customers yet; no activity yet; no matches), the Common states on the list, Rows 0–25. Numbers "806,400" (the screens "806, 400", "4.500"); Fatima Khan's history is the screen's, with LKR for its QAR. **For design (Figma text):** "Cash convertion", "806, 400", "Life time points", "Points consumption" (the page is Reports), the history's search placeholder; the history's Active points (5,400) differs from the list's Active balance (5,900): built from the list's numbers. Stories: List, Many customers, No customers, No matches, At 1024, Points history, No activity, Points history at 1024, Duration filter (the open chip is Selected: its accepted contrast, §10 #3, is left out of that story's check). | ✅ **Approved and merged** (28 Oct 2026); the Duration chip's custom date range waits for design |
+| User Management | System Users (`188:13373`) | `428:53386`, `428:55936`, `428:58428`, `428:60618`, `428:62500`, `428:64429` | List; edit in a side sheet; remove | ⬜ |
+| User Management | Role Management (`196:18060`) | `428:66319`, `428:68571`, `434:74848`, `428:73285`, `434:74877`, `434:77457`, `434:77486`, `434:79954`, `434:81065`, `434:82196` | List; add and edit a role (permission toggles, button dock); remove | ⬜ |
+| System Audit | System Audit (`208:41600`) | `434:83306`, `435:86927`, `435:85266` | Audit log; details side sheet; filters | ⬜ |
+| Dashboard | — | none in Figma | — | ⬜ No design yet |
+
+Status: ⬜ not started · 🟨 planned or in progress · ✅ built and approved.
+
+## 9. Component specs
+
+Each component gets a full spec here **when it's built**. Exact measurements (padding, gaps, sizes) come from Figma at build time. Read the component node with the Figma tools rather than guessing.
+
+**Storybook grouping:** icon components are grouped in the sidebar under **Components/Icons**: Icon (`FinIcon`) and Icon container (`FinIconContainer`). Avatar components are grouped under **Components/Avatar**: Avatar (`FinAvatar`), Avatar group (`FinAvatarGroup`), Profile image (`FinProfileImage`) and Online indicator (`FinOnlineIndicator`) (15 Oct 2026). Badge components are grouped under **Components/Badge**: Badge indicator (`FinBadgeIndicator`) and Badge (`FinBadge`). Indicator components are under **Components/Indicator**: Page indicator (`FinPageIndicator`). Overlay is **Components/Overlay**; Toggle is **Components/Toggle**; Radio button is **Components/Radio button**; Progress bar, Spinner, Slider, Bar with text and Spinner with text are under **Components/Progress** (the Figma page they're on); Label, Helper text and Text box are under **Components/Text box**; Caption is under **Components/List**. Internal bases (§7.2) are under **Internal**, sorted last: Badge base (`FinBadgeBase`), Indicator (`FinIndicatorDot`), Base button (`FinButtonBase`), White button (`FinWhiteButton`), Destructive button (`FinDestructiveButton`), Checkbox base (`FinCheckboxBase`), Chip base (`FinChipBase`), Segment base (`FinSegmentBase`), **Internal/Pagination/** for parts of the pagination: Pagination item (`FinPaginationItem`), Row count dropdown (`FinRowCountSelect`) (moved there 19 Oct 2026), **Internal/Input field/** for parts of the input fields: Country selector (`FinCountrySelector`), Input field base (`FinInputBase`, 21 Oct 2026), and **Internal/Table/** for parts of the table: Table footer (`FinTableFooter`), Table header cell (`FinTableHeaderCell`) (19 Oct 2026). Checkbox (`FinCheckbox`) is **Components/Checkbox**; the three chips are **Components/Chips** (Assist chip, Filter chip, Input chip); Segmented button (`FinSegmentedButton`) is **Components/Segmented button**; Flag (`FinFlag`) is **Components/Flag**; Pagination (`FinPagination`) is **Components/Pagination** (19 Oct 2026). Button dock (`FinButtonDock`) is **Components/Button dock** (23 Oct 2026). The side nav (`FinSideNav`) is **Components/Side nav/Side menu**; its parts stay under **Internal/Side nav/** (21 Oct 2026). **Chip Playground controls** (all three chips and the Chip base): `Leading accessory` = none / icon / avatar, with an icon picker from `finIcons` or the avatar's initials (stories only; one shared helper, `chipStoryControls.ts`, so new accessory kinds are added once; decided 19 Oct 2026). **Buttons:** `FinButton` is under **Components/Buttons/Button**. **Button Playground controls** mirror Figma: `Show Leading Icon` / `Show Trailing Icon` toggles plus an icon picker from `finIcons` (shown only when on), and `Show Label` (stories only; the props stay `leadingIcon` / `trailingIcon`, decided 19 Oct 2026). Only the story titles are grouped; each component keeps its own folder.
+
+### 9.1 FinIcon (Icon sizes)
+
+**Figma:** page **Icon sizes**, component sets `16px` `3017:6258`, `20px` `3017:6323`, `24px` `3017:6352`, `36px` `3017:6388`, `48px` `3017:6417`, `64px` `3017:7083`. Each has `State` = Primary / Secondary / Disabled / Success / Warning / Error / Info. The icon in Figma is a flattened vector of the old Material Icons `perm_identity`; **for icons the code is the source of truth** (§6.1), so only size and color were compared.
+
+**Figma → code names:** component sets `16px`…`64px` → `size` (16…64); `State` → `color` (accepts every `fg-*` token, not only Figma's 7; pre-rule decision 14 Oct 2026); icon instance → `name`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| Component set `16px`…`64px` | `size: 16 \| 20 \| 24 \| 36 \| 48 \| 64` (default `24`) |
+| `State` (Primary…Info) | Examples of `color`, which accepts **every** `fg-*` token: Primary → `'primary'`, Secondary → `'secondary'`, Disabled → `'disabled'`, Success → `'success'`, Warning → `'warning'`, Error → `'error'`, Info → `'info'` |
+| Instance swap (the glyph) | `name: FinIconName` (the `finIcons` registry) |
+| — | `filled` (FILL 1), `label` (accessible name) |
+
+**Tokens used:**
+
+| Part | Token |
+|---|---|
+| Size (width, height, font size) | `--fin-size-16`, `-20`, `-24`, `-36`, `-48`, `-64` via `data-size`. **Raw values in Figma mapped to the `Size-*` primitives** (approved 14 Oct 2026), not spacing. |
+| Color | `color` → `--fin-fg-<name>` (set as the CSS variable `--icon-color`); none → `currentcolor` |
+| Glyph | Material Symbols Rounded subset (§6.2, §10 #14): `FILL` 0, or 1 with `data-filled`; wght 300, opsz 24, GRAD 0 fixed in the font |
+
+Raw values in the CSS: `line-height: 1` (unitless, so the glyph box equals the icon size) and the `FILL` axis values `0` / `1`. No px values.
+
+**API:**
+
+```tsx
+import { FinIcon } from '@finspace-loyalty/ui';
+
+<FinIcon name="home" />                                        // decorative, inherits color, 24px
+<FinIcon name="warning" size={20} color="warning" label="Warning" />
+<FinIcon name="home" color="active" filled={isActive} />
+```
+
+- `name` is typed from `finIcons` (`src/icons/finIcons.ts`). **Adding an icon is one line** there; the build regenerates the font (`pnpm icons`, also run by `build`, `storybook`, `test`). In development, a name that isn't in the registry logs a warning once and renders an empty box at the icon's size (production: no warning).
+- `color` is typed from the generated tokens (`FinFgColor`), so a new `fg-*` token is a valid value without code changes.
+- Presentational: no `'use client'`. `className` and other `<span>` attributes are passed to the root.
+
+**Accessibility:** a `<span>` whose text is the ligature name.
+- **Decorative by default:** `aria-hidden="true"`, so screen readers skip it.
+- **With `label`:** `role="img"` and `aria-label`, announced as an image with that name.
+- Always `translate="no"` (browser translation would break the ligature) and `user-select: none` (copying nearby text doesn't paste "home").
+- **Icon-only buttons** put the accessible name on the button (its `aria-label` or visually hidden text) and keep the icon decorative.
+- No interaction, so no keyboard behaviour or focus.
+
+**Built (14 Oct 2026).** Storybook: Playground (controls), All icons (outlined and filled), Sizes and states (Figma). Checked against Figma: all 42 size × state combinations are exactly 16/20/24/36/48/64 px square, and every Light color equals the Figma `fg-*` value; Dark uses the current Dark tokens. a11y: no violations in Light or Dark. Font: 28 icons (19 with a filled glyph), 6.2 KB, identical to the full font outlined and filled.
+
+### 9.2 FinIconContainer (Icon sizes)
+
+**Figma:** page **Icon sizes**, component sets `40px bg` `3017:6944`, `48px bg` `3017:6993`, `64px bg` `3017:7023` (was `68px bg`, 68 × 68; changed to 64 on 14 Oct 2026). Each has `State` = Primary / Secondary / Disabled / Success / Warning / Error / Info. Icon shapes in Figma are ignored (§6.1).
+
+**Figma → code names:** component sets `40px bg` / `48px bg` / `64px bg` → `size` (40 / 48 / 64); `State` → `tone`; icon instance → `name`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| Component set `40px bg` / `48px bg` / `64px bg` | `size: 40 \| 48 \| 64` (default `40`) |
+| `State` (only changes colors) | `tone: 'primary' \| 'secondary' \| 'disabled' \| 'success' \| 'warning' \| 'error' \| 'info'` (default `'primary'`), rendered as `data-tone` (§7.3) |
+| Icon inside (instance) | `name: FinIconName`; `filled` (default `false`) and `label` are passed straight to FinIcon |
+
+**Structure:** a `<span>` circle containing a `FinIcon` (no copied markup or styles). The circle has a fixed size and centers the icon. Figma's 8 px padding is unbound and has no effect on fixed, centered circles, so it isn't used.
+
+**Tokens used:**
+
+| Part | 40 | 48 | 64 |
+|---|---|---|---|
+| Circle width/height | `--fin-size-40` | `--fin-size-48` | `--fin-size-64` |
+| Icon (FinIcon `size`) | 24 | 24 | 36 |
+| Radius | `--fin-radius-full` | `--fin-radius-full` | `--fin-radius-full` |
+
+Widths and heights are unbound in Figma by convention and map to `--fin-size-*` (§3.8).
+
+| `tone` | Background (`data-tone`) | Icon (FinIcon `color`) |
+|---|---|---|
+| `primary` | `--fin-bg-icons` | `fg-primary` |
+| `secondary` | `--fin-bg-secondary` | `fg-secondary` |
+| `disabled` | `--fin-bg-disabled` | `fg-disabled-on_bg` (all sizes, fixed in Figma 14 Oct 2026) |
+| `success` | `--fin-bg-success-secondary` | `fg-success` |
+| `warning` | `--fin-bg-warning-secondary` | `fg-warning` |
+| `error` | `--fin-bg-error-secondary` | `fg-error` |
+| `info` | `--fin-bg-info-secondary` | `fg-info` |
+
+No raw values in the CSS, and nothing from another library.
+
+**API:**
+
+```tsx
+import { FinIconContainer } from '@finspace-loyalty/ui';
+
+<FinIconContainer name="check_circle" tone="success" />                  // 40px circle, 24px icon, decorative
+<FinIconContainer name="person" size={64} label="Profile" />             // 64px circle, 36px icon, announced
+```
+
+Presentational: no `'use client'`. `className` and other `<span>` attributes go to the circle. `filled` passes straight through to FinIcon, with no styling of its own (added 14 Oct 2026; Figma doesn't show a filled container).
+
+**Accessibility:** the circle has no role. The icon is decorative by default (hidden from screen readers); with `label` it's an image with that name (FinIcon). Not interactive, so no focus or keyboard behaviour.
+- Contrast (icons need 3:1): every tone passes in Dark. In Light, `warning` is 2.96:1 (`fg-warning` on `bg-warning-secondary`, already §10 #3). `disabled` is exempt.
+- In Dark, `primary` (`bg-icons` `#464646`) and `disabled` (`bg-disabled` `#363636`) now have different backgrounds (§10 #29, fixed 15 Oct 2026). White icon on `#464646` is 9.44:1.
+
+**Built (14 Oct 2026).** Storybook: Playground (controls), Sizes and tones (Figma). Checked against Figma: all 21 size × tone combinations have the exact circle size (40/48/64), icon size (24/24/36), centered icon, full radius, and in Light the exact Figma background and icon colors; Dark uses the current Dark tokens. a11y: no violations in Light or Dark.
+
+### 9.3 FinDivider (Divider)
+
+**Figma:** page **Divider**, component set `Divider` `28:367`: `Type=Divider` (`28:368`, 375 × 1) and `Type=Section Divider` (`28:370`, 375 × 8). Both fill with `border-default`.
+
+**Figma → code names:** `Type` → `type` (`divider`, `section-divider`). Code-only: `orientation` (vertical, a visual option added at design's request 15 Oct 2026, before this rule), `decorative` (accessibility).
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Type` = Divider / Section Divider | `type: 'divider' \| 'section-divider'` (default `'divider'`), rendered as `data-type` |
+| — (not in Figma) | `orientation: 'horizontal' \| 'vertical'` (default `'horizontal'`), rendered as `data-orientation`. Added at design's request (15 Oct 2026). |
+| — | `decorative` (default `false`) |
+
+**Tokens used:**
+
+| Part | Horizontal | Vertical |
+|---|---|---|
+| `divider` line | `border-block-start: 1px solid var(--fin-border-default)` | `border-inline-start: 1px solid var(--fin-border-default)` |
+| `section-divider` band | `block-size: var(--fin-size-8)`, `background-color: var(--fin-border-default)` | `inline-size: var(--fin-size-8)`, same color |
+| Length | full width of the container | stretches to the height of its flex row (`align-self: stretch`) |
+
+Decisions (15 Oct 2026): the 1px line is a border width, not a size (there's no `Size-1`); the Section Divider is full width in code (375 in Figma is a mobile width); no margins, the container owns the spacing (§2 rule 5). The only raw value is the `1px` border width.
+
+**API:**
+
+```tsx
+import { FinDivider } from '@finspace-loyalty/ui';
+
+<FinDivider />                                   // 1px line, announced as a separator
+<FinDivider type="section-divider" />            // 8px band between sections
+<FinDivider orientation="vertical" decorative /> // 1px vertical line in a flex row, hidden from screen readers
+```
+
+Presentational: no `'use client'`. `className` and other `<hr>` attributes go to the root.
+
+**Accessibility:** a native `<hr>` (role `separator`), not focusable. Vertical adds `aria-orientation="vertical"`. With `decorative`, it gets `aria-hidden="true"` and no orientation. Contrast: a divider is decorative and has no 3:1 requirement.
+
+**Built (15 Oct 2026).** Storybook: Playground (controls), Types (Figma), Vertical. Checked against Figma: 1px and 8px high at full width, Light color `#d4d4d4` equals Figma `border-default`; Dark uses the Dark token (`#464646`). a11y: no violations in Light or Dark.
+
+### 9.4 FinAvatar (Avatar)
+
+**Figma:** page **Avatar**, component set `Avatar` `932:1387`: `Type` = Image / Icon / Text × `Size` = Xsmall / Small / Medium / Large / XLarge / XXLarge / XXXLarge (21 variants). The icon in Figma is the old `perm_identity`; code uses `person` (§6.4).
+
+**Figma → code names:** `Size` → `size` (`Xsmall` → `xsmall`, typo); image fill → `src`; text `SD` → `initials`. Code-only: `label` (accessibility), `online` / `onlineLabel` (a visual option not in Figma, approved 15 Oct 2026 before this rule).
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Type` = Image / Icon / Text | `type: 'image' \| 'icon' \| 'text'` (default `'image'`). What's shown is rendered as `data-type` |
+| `Size` (`Xsmall` in Figma, §10 #21) | `size: 'xsmall' \| 'small' \| 'medium' \| 'large' \| 'xlarge' \| 'xxlarge' \| 'xxxlarge'` (default `'medium'`), rendered as `data-size` |
+| Image fill | `src` |
+| Text (`SD`) | `initials`, passed in as they should appear (decided 15 Oct 2026; not worked out from the name) |
+| — | `label`: the person's name |
+| — (not in Figma) | `online`, `onlineLabel` (default "Online"): see **Online** below (added 15 Oct 2026) |
+
+**Fallback** (not in Figma, decided 15 Oct 2026): `image` without a photo (no `src`, or it fails to load) shows the initials; without initials it shows the icon. `text` without initials shows the icon. `icon` ignores `src` and `initials`. A new `src` is tried again after a failure.
+
+**Tokens used:**
+
+| Size | Circle | Icon (FinIcon `size`) | Initials text style |
+|---|---|---|---|
+| `xsmall` | `--fin-size-24` | 16 | `--fin-font-label-small` |
+| `small` | `--fin-size-32` | 20 | `--fin-font-label-medium` |
+| `medium` | `--fin-size-40` | 24 | `--fin-font-label-large` |
+| `large` | `--fin-size-48` | 24 | `--fin-font-title-large` |
+| `xlarge` | `--fin-size-56` | 36 | `--fin-font-headline-medium-h5` |
+| `xxlarge` | `--fin-size-64` | 48 | `--fin-font-headline-large-h4` |
+| `xxxlarge` | `--fin-size-96` (was 100 in Figma; now 96 there too, §10 #30) | 64 | `--fin-font-display-medium-h2` |
+
+| Part | Token |
+|---|---|
+| Circle | `border: 1px solid var(--fin-border-subtle)`, `--fin-radius-full`, `position: relative`. Not clipped since 15 Oct 2026 (so the online indicator isn't cut off) |
+| Background (icon, text) | `--fin-bg-icons` (image: none) |
+| Icon | FinIcon `color="secondary"` (`fg-secondary`) |
+| Initials | `--fin-text-secondary`, centered (Figma's XSmall text is slightly off-center; centered in code, decided 15 Oct 2026) |
+| Photo | fills the circle inside the border, `object-fit: cover`, rounded itself with `--fin-radius-full` |
+
+Decisions (15 Oct 2026): XXXLarge is 96 so it maps to `Size-96`; the `"case"` font feature on the Figma initials is dropped (not part of the text style tokens, no visible effect on letters). The only raw value is the `1px` border width. Nothing from another library was found in the bindings.
+
+**API:**
+
+```tsx
+import { FinAvatar } from '@finspace-loyalty/ui';
+
+<FinAvatar src={user.photoUrl} initials="SD" label="Sathila De Silva" />  // photo, or initials if it's missing or fails
+<FinAvatar type="text" size="large" initials="SD" />                      // initials, decorative
+<FinAvatar type="icon" size="xsmall" />                                   // default icon
+<FinAvatar src={user.photoUrl} label="Sathila De Silva" online />          // announced "Sathila De Silva, Online"
+```
+
+`'use client'` (it remembers a photo that failed to load). `className` and other `<span>` attributes go to the circle.
+
+**Accessibility:**
+- Photo: `<img alt={label}>` (with `online`: "label, Online"); without `label`, `alt=""`.
+- Initials and icon: with `label`, the circle is `role="img"` with `aria-label`; without it, the circle is `aria-hidden` (decorative, next to a visible name), unless `online`: then only the indicator is announced (see **Online**). The initials themselves are always hidden, so the name is read instead of "S D".
+- Not interactive. Contrast on `bg-icons`: initials 4.97:1 Light / 4.71:1 Dark, icon 5.21:1 / 4.71:1.
+
+**Online** (added 15 Oct 2026; not in Figma, §10 #33): `online` places a `FinOnlineIndicator` (the component, not a redrawn dot) and `onlineLabel` (default "Online") names it.
+
+| Avatar | 24 | 32 | 40 | 48 | 56 | 64 | 96 |
+|---|---|---|---|---|---|---|---|
+| Indicator `size` | xsmall 6 | small 8 | medium 12 | medium 12 | large 16 | large 16 | xlarge 24 |
+| Inset from the bottom-right | 0 | 0 | 0 | 0 | 0 | `--fin-space-xxs` | `--fin-space-xxs` |
+
+- **Position:** `position: absolute` at the bottom-right corner of the avatar's padding box, on top of the content. Because the avatar has a 1px border, the indicator's ring is flush with the avatar's outer corner. 64 and 96 move in by `Space-XXS` (2px) so the dot stays on the circle, like Atlassian's larger avatar sizes (`@atlaskit/avatar` presence offsets, checked 15 Oct 2026). Measured: every dot center is within 2.3px of the circle edge (2.3px inside at 64, 1.3px at 96). Inset kept after review (15 Oct 2026).
+- **Clipping:** the avatar no longer clips its content (so the dot isn't cut off); the photo is rounded itself (`--fin-radius-full`, as in Figma). No visual change to the 21 variants (re-measured).
+- **Screen readers** (decided 15 Oct 2026): with `label`, the status joins the name ("Sathila De Silva, Online", also the photo's alt) and the dot is decorative, like Atlassian. Without `label`, the avatar stays hidden but the dot is announced ("Online"), so the status isn't lost.
+- Avatar Group and Profile image don't show the indicator (decided 15 Oct 2026).
+
+**Built (15 Oct 2026).** Storybook: Playground (controls, incl. `online`), Types and sizes (Figma), Fallback, Online. Checked against Figma: all 21 variants have the exact circle size (96 for XXXLarge), 1px `border-subtle` border, full radius, `bg-icons` background, centered icon at the Figma size in `fg-secondary`, and initials in the Figma text style and `text-secondary`; Light colors equal Figma, Dark uses the Dark tokens. a11y: no violations in Light or Dark.
+
+### 9.5 FinAvatarGroup (Avatar Group)
+
+**Figma:** page **Avatar**, component set `Avatar Group` `14:1155`: `Size` = XSmall / Medium / XLarge × `Count` = 2 / 3 / 5 / 7 (12 variants). Every circle is an `Avatar` instance (Image, and Text for the "+4").
+
+**Figma → code names:** `Count` (2/3/5/7) → no prop: the number of avatars comes from `people` (2–6 shown, then "+N"; pre-rule decision 15 Oct 2026). `Size` → `size`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Size` = XSmall / Medium / XLarge | `size: 'xsmall' \| 'medium' \| 'xlarge'` (default `'medium'`), passed to every FinAvatar and rendered as `data-size` |
+| `Count` = 2 / 3 / 5 / 7 | Not a prop: the count comes from `people`. **Rule (decided 15 Oct 2026):** 2–6 people are all shown; from 7, the first 6 are shown plus a "+N" circle for the rest (Figma's Count=7: 6 photos and "+4"). Figma's Count=3 (2 photos and "+4") doesn't follow this rule and isn't used. The limit is `FIN_AVATAR_GROUP_MAX` (6). |
+| Each Avatar instance | `people: { src?, initials?, label }[]`, in display order |
+| — | `label`: name of the group |
+
+**Structure:** a mapped component (§7.2). Each person is a `FinAvatar` (photo, or initials if there's no photo); the "+N" circle is `FinAvatar type="text"`. No markup or styles are copied from FinAvatar; the group only sets the overlap through a `className`.
+
+**Tokens used:**
+
+| Size | Circle (FinAvatar) | Overlap (Figma raw, approved 15 Oct 2026) | "+N" text style (FinAvatar) |
+|---|---|---|---|
+| `xsmall` | 24 | `--fin-space-xs` (−4) | Label/Small |
+| `medium` | 40 | `--fin-space-m` (−8) | Label/Large |
+| `xlarge` | 56 | `--fin-space-l` (−12) | Headline/Medium-H5 |
+
+The overlap is a negative `margin-inline-start` on every avatar after the first, so each avatar sits on top of the one before it (as in Figma). No raw values in the CSS.
+
+**API:**
+
+```tsx
+import { FinAvatarGroup } from '@finspace-loyalty/ui';
+
+<FinAvatarGroup
+  size="medium"
+  label="Team members"
+  people={members.map((m) => ({ src: m.photoUrl, initials: m.initials, label: m.name }))}
+/>  // 10 members → 6 avatars and "+4"
+```
+
+Presentational: no `'use client'` of its own (FinAvatar is a client component). `className` and other `<div>` attributes go to the group.
+
+**Accessibility:** the root is `role="group"` with `aria-label={label}`. Each avatar is announced by the person's name (FinAvatar `label`); the "+N" circle is announced as "N more". Not interactive: "+N" isn't a button (decided 15 Oct 2026).
+
+**Built (15 Oct 2026).** Storybook: Playground (size and number of people), Sizes and counts (Figma) with 2–6 and 10 people, Without photos. Photos are the five Unsplash photos used in Figma, for the stories only. Checked against Figma: circle sizes 24/40/56, overlap 4/8/12, group widths equal the Figma frames (XSmall 44/104/144, Medium 72/168/232, XLarge 100/232/320 for 2/5/7 circles), each avatar on top of the previous one, "+4" in the Figma text style and colors; Dark uses the Dark tokens. Figma crops some photos higher than center; code centers them (`object-fit: cover`). a11y: no violations in Light or Dark.
+
+### 9.6 FinProfileImage (Profile image)
+
+**Figma:** page **Avatar**, component set `Profile image` `432:1610`: `Type=Image` (`432:1609`) and `Type=Icon` (`432:1608`), 100 × 100. Each is an `Avatar` XXXLarge (96) and an **add image** badge (`432:1578`): a 32 circle at (68, 68) with a 16px camera.
+
+**Figma → code names:** `Type` (Image / Icon) → no prop: it follows `src` (pre-rule decision 15 Oct 2026). Code-only: `label`, `onClick`, `buttonLabel`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Type` = Image / Icon | Not a prop: `src` given → photo; no `src` → the default icon. Never initials (follows Figma, decided 15 Oct 2026). |
+| Badge icon (camera in both variants) | **Rule (design, 15 Oct 2026):** no photo → `photo_camera`; photo → `edit`. The badge follows `src`, so a photo that fails to load shows the icon with `edit` (accepted). |
+| — | `label` (the person's name, photo alt text), `onClick`, `buttonLabel` (default "Add profile photo" / "Change profile photo") |
+
+**Structure:** a `FinAvatar` (`size="xxxlarge"`, `type` image or icon) and a native `<button type="button">` holding a `FinIcon`. **Only the badge is clickable** (decided 15 Oct 2026); the component calls `onClick` and the app opens its own upload or edit flow.
+
+**Tokens used:**
+
+| Part | Token |
+|---|---|
+| Frame (100 × 100) | `calc(var(--fin-size-96) + var(--fin-space-xs))` (no `Size-100`) |
+| Badge | `--fin-size-32`, bottom right (0, 0) = Figma (68, 68), `--fin-radius-full`, `--fin-fg-action` fill (as in Figma) |
+| Badge stroke | 1px `--fin-border-subtle` outside the circle, as a spread `box-shadow` so `outline` stays free for focus |
+| Badge icon | FinIcon 16, `color="inverse"` (`fg-inverse`) |
+| Focus | `outline: 2px solid var(--fin-border-focused)`, `outline-offset: 2px` (decided 15 Oct 2026, §10 #6) |
+| Hover, pressed | **None yet**: only `cursor: pointer`. Added when design defines them (decided 15 Oct 2026, §10 #31) |
+
+Raw values: the `1px` stroke, and the `2px` focus width and offset.
+
+**API:**
+
+```tsx
+import { FinProfileImage } from '@finspace-loyalty/ui';
+
+<FinProfileImage src={user.photoUrl} label={user.name} onClick={openPhotoDialog} />  // photo, "Change profile photo" (edit)
+<FinProfileImage onClick={openPhotoDialog} />                                         // icon, "Add profile photo" (camera)
+```
+
+`'use client'` (interactive). `className` and other `<div>` attributes go to the root.
+
+**Accessibility:** the badge is a native button: focusable, Enter and Space activate it, and it has a visible focus ring. Its name says what it does ("Add profile photo" / "Change profile photo"); the glyph is decorative. The photo's alt text is `label`; the default icon is decorative. Pointer target 32 × 32. Contrast: badge icon 4.71:1 Light / 5.24:1 Dark; focus ring `border-focused` 3.35:1 on white.
+
+**Built (15 Oct 2026).** Storybook (under Components/Avatar): Playground, Types (Figma). Checked against Figma: frame 100 × 100, avatar 96 at (0, 0), badge 32 × 32 at (68, 68) with the 1px `border-subtle` stroke, `fg-action` fill, centered 16px icon in `fg-inverse`; Light colors equal Figma, Dark uses the Dark tokens. a11y: no violations in Light or Dark.
+
+### 9.7 FinOnlineIndicator (Online Indicator)
+
+**Figma:** page **Avatar**, component set `Online Indicator` `14:995` (updated by design 15 Oct 2026: 5 sizes, was 7 with two 14px sizes). Each is a dot (`fg-success`) with a 1px **outside** stroke (`fg-inverse`). Not placed on any Avatar in Figma (0 instances); placement is a code decision (§9.4 Online, §10 #33).
+
+**Figma → code names:** `Size` → `size`. Code-only: `label`, `decorative` (accessibility).
+
+**Variants:**
+
+| Figma `Size` | Prop `size` | Dot | Token |
+|---|---|---|---|
+| XSmall | `'xsmall'` | 6 | `--fin-size-6` |
+| Small | `'small'` | 8 | `--fin-size-8` |
+| Medium | `'medium'` (default) | 12 | `--fin-size-12` |
+| Large | `'large'` | 16 | `--fin-size-16` |
+| XLarge | `'xlarge'` | 24 | `--fin-size-24` |
+
+Also `label` (default "Online") and `decorative`.
+
+**Tokens used:** fill `--fin-fg-success`; ring `box-shadow: 0 0 0 1px var(--fin-fg-inverse)` (outside the dot, as the Figma stroke); `--fin-radius-full`. The only raw value is the 1px ring. The variants' frames have an unbound white square fill in Figma; code ignores it (§10 #32).
+
+**API:**
+
+```tsx
+import { FinOnlineIndicator } from '@finspace-loyalty/ui';
+
+<FinOnlineIndicator size="small" />               // announced as "Online"
+<FinOnlineIndicator label="Available" />          // custom label
+<FinAvatar src={url} label="Sathila De Silva" online />  // on an avatar: use FinAvatar `online` (§9.4)
+```
+
+Presentational: no `'use client'`. `className` and other `<span>` attributes go to the dot.
+
+**Accessibility:** `role="img"` with `aria-label` (default "Online", overridable), so the status doesn't rely on color; `decorative` hides it when the status is announced elsewhere. Contrast (non-text, 3:1): `fg-success` against the ring and page 3.64:1 Light / 10.75:1 Dark, against `bg-icons` 3.11:1 / 5.77:1.
+
+**Built (15 Oct 2026).** Storybook (under Components/Avatar): Playground, Sizes (Figma). Checked against Figma: all 5 sizes exact (6/8/12/16/24), 1px ring outside, Light fill `#2a9952` and ring `#ffffff` equal Figma; Dark uses the Dark tokens (`#9fd7b3` on a `#19191a` ring). a11y: no violations in Light or Dark.
+
+### 9.8 FinBadgeIndicator (Badge - indicator)
+
+**Figma:** page **Badge**, component set `Badge - indicator` `30:1500`: `Size` = Small / Large × `Digits` = None / Single / Double × `Style` = Red / Yellow / Green (18 variants). Small Single changed from 14 to 16 in Figma (15 Oct 2026).
+
+**Figma → code names:** `Style` (Red / Yellow / Green) → `tone` with values `error` / `warning` / `success` (pre-rule decision 15 Oct 2026; values renamed); `Digits` (None / Single / Double) → no prop: the shape comes from `count`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Size` = Small / Large | `size: 'small' \| 'large'` (default `'small'`) |
+| `Style` = Red / Yellow / Green | `tone: 'error' \| 'warning' \| 'success'` (default `'error'`), rendered as `data-tone` (only changes colors, §7.3) |
+| `Digits` = None / Single / Double | From `count`: none → dot; 1–9 → circle; 10 and up → pill, capped at `max` (default 99) as "99+". `count` 0 or less hides the badge (decided 15 Oct 2026). Rendered as `data-shape` (`dot`, `circle`, `pill`). |
+| — | `label`: accessible text |
+
+**Tokens used:**
+
+| Part | Small | Large |
+|---|---|---|
+| Dot (None) | `--fin-size-6` | `--fin-size-12` |
+| Circle (Single) | `--fin-size-16` | `--fin-size-20` |
+| Pill (Double) | padding `--fin-space-xxs` / `--fin-space-xs` (Figma 2/4, raw) → 19 tall | same → 22 tall |
+| Number | `--fin-font-caption-small` | `--fin-font-caption-large` |
+
+Fill `--fin-fg-error` / `-warning` / `-success`; number `--fin-text-inverse`; `--fin-radius-full`. Heights are kept as in Figma (Small circle 16 vs pill 19, Large 20 vs 22; decided 15 Oct 2026). Dropped: the `Spacing and Radius` library bindings (padding 0, gap 8) on variants without auto layout, the raw 0/3 padding on Large Single (no effect on a fixed, centered circle), and the `"case"` font feature. No raw values in the CSS.
+
+**API:**
+
+```tsx
+import { FinBadgeIndicator } from '@finspace-loyalty/ui';
+
+<FinBadgeIndicator count={3} label="3 unread notifications" />   // circle
+<FinBadgeIndicator count={120} size="large" />                   // pill "99+", read as "99+"
+<FinBadgeIndicator tone="success" />                             // dot, decorative
+```
+
+Presentational: no `'use client'`. `className` and other `<span>` attributes go to the badge.
+
+**Accessibility:** with `label`, `role="img"` and that name (the number isn't read separately). Without `label`, a count is read as its text and a dot is `aria-hidden`. Not interactive.
+- **Known contrast failures (§10 #3, decided 15 Oct 2026: build as Figma, document them):** the number on Light Yellow 3.24:1 and Light Green 3.64:1 (white), and on Dark Red 3.97:1 (`text-inverse` `#474748`); 4.5:1 needed. The Storybook a11y check leaves out only those badges, in that theme (`KNOWN_CONTRAST_ISSUES` in the stories); dots and every other combination are checked. Remove the exceptions when §10 #3 is decided. Dots pass (3:1): 3.24:1 or more on the page.
+
+**Built (15 Oct 2026).** Storybook (Components/Badge): Playground (controls, incl. a Figma `Digits` control: None, Single, Double or a custom count), Sizes, digits and tones (Figma). Checked against Figma: all 18 variants, dot 6/12, circle 16/20, pill height 19/22 with 2/4 padding, centered number in the Figma text style, Light colors equal Figma, Dark uses the Dark tokens. Pill widths are 27.5 and 31.1 against Figma's 28 and 32: Figma rounds the text box width up to whole pixels. a11y: no violations in Light or Dark apart from the three documented exceptions (checked: without them, exactly those fail).
+
+### 9.9 FinBadgeBase (Badge-base)
+
+**Figma:** page **Badge**, component set `Badge-base` `30:1454` (renamed from `Tag-base` 15 Oct 2026): `Size` = Small (`30:1455`) / Large (`3027:12293`), with `Show Leading Icon`, `Show Trailing Icon` and `Label`. Icons in Figma are the placeholder `perm_identity` with no swap property. **Base** of `Badge-primary` (§7.2). **Internal** (decided 15 Oct 2026): not exported from the package; FinBadge is the public badge. Checked 15 Oct 2026: in Figma only the 8 Badge-primary states use Badge-base directly (Table cell uses Badge-primary); the only other references are off-canvas leftovers (`Badge-primary/brand`, `Badge-primary/Gold`, not on any page).
+
+**Figma → code names:** `Show Leading Icon` / `Show Trailing Icon` + the icon → `leadingIcon` / `trailingIcon` (an icon name; none = hidden); `Label` → `children`. Code-only: `tone` (Badge-primary's colours, held in the base).
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Size` = Small / Large | `size: 'small' \| 'large'` (default `'small'`) |
+| `Label` | `children`: one line, no wrapping, no fixed max width; `max-width: 100%` with "…" in narrower containers such as table cells (decided 15 Oct 2026) |
+| `Show Leading Icon` + the icon | `leadingIcon?: FinIconName`: shown when set. **None by default** (decided 15 Oct 2026; Figma shows both placeholders by default) |
+| `Show Trailing Icon` + the icon | `trailingIcon?: FinIconName`. Decorative, not a dismiss button |
+| — (Badge-primary `State` colors) | `tone: 'primary' \| 'secondary' \| 'success' \| 'error' \| 'info' \| 'warning' \| 'disabled' \| 'neutral'` (default `'primary'`, Badge-base's own colors), rendered as `data-tone` (added 15 Oct 2026 with FinBadge, §9.10) |
+
+**Structure:** a `<span>` with the leading `FinIcon`, the label `<span>` and the trailing `FinIcon`. Icons are decorative and have no color of their own, so they inherit the label color (decided 15 Oct 2026; Figma's `fg-white_both` is the same white as `text-white_both`).
+
+**Tokens used:**
+
+| Part | Small | Large |
+|---|---|---|
+| Height | from content: 26 | `--fin-size-32` (fixed in Figma) |
+| Padding | `--fin-space-xs` / `--fin-space-m` (4 / 8) | same |
+| Gap | `--fin-space-xs` (4) | same |
+| Label | `--fin-font-label-small` | `--fin-font-label-medium` |
+| Icons (FinIcon `size`) | 16 | 20 |
+
+Colors come from `tone` (table in §9.10; `primary` = `--fin-bg-brand` and `--fin-text-white-both`); `--fin-radius-s` (8). All Figma bindings are Foundation – Loyalty; no raw values except the fixed Large height (a size). The `"case"` font feature is dropped.
+
+**Colors and tones (decided 15 Oct 2026):** the base was built with Figma's base colors only; the 8 Badge-primary tones were then added **to this file's CSS** with FinBadge (§9.10). Each tone sets `--badge-bg`, `--badge-text` (icons follow it) and `--badge-border`. The border is Figma's 1px *inside* stroke, drawn as `box-shadow: inset 0 0 0 1px` so it never changes the size (Small stays 26). FinBadge only passes `tone` and has no CSS of its own.
+
+**API:**
+
+```tsx
+// Internal: only other components in packages/ui import it (FinBadge). Not exported from '@finspace-loyalty/ui'.
+import { FinBadgeBase } from '../BadgeBase';
+
+<FinBadgeBase {...props} size="small" />                              // how FinBadge uses it
+<FinBadgeBase size="large" tone="success" leadingIcon="check_circle">Paid</FinBadgeBase>
+```
+
+Presentational: no `'use client'`. `className` and other `<span>` attributes go to the badge (for example `title` with the full text when it may be cut off).
+
+**Accessibility:** read as its label; icons are `aria-hidden`. Not interactive. Contrast: white on `bg-brand` 4.71:1 in Light and Dark (text and icons pass). A cut-off label is still read in full by screen readers.
+
+**Built (15 Oct 2026).** Storybook (**Internal/Badge base**, no Playground since it's internal): Sizes (Figma) with both icons, one, or none, Long label (240, 160 and 96 px containers). Checked against Figma: height 26 / 32, padding 4/8, gap 4, radius 8, `bg-brand`, Label/Small and Label/Medium in white, icons 16 / 20 in the label color; widths with both icons 110.2 / 127.2 against Figma's 111 / 128 (Figma rounds text widths up). Long labels end in "…" and stay inside the container. a11y: no violations in Light or Dark.
+
+### 9.10 FinBadge (Badge-primary)
+
+**Figma:** page **Badge**, component set `Badge-primary` `30:1465`: `State` = Primary / Secondary / Success / Error / Info / Warning / Disabled / Neutral (8 variants; `brand` removed by design 15 Oct 2026, and the Error variant's stray outer green stroke fixed). Each is a `Badge-base` instance with **Size=Small and both icons hidden**; only the colors change. **Mapped** from `Badge-base` (§7.2).
+
+**Figma → code names:** `State` → `tone` (values lower case). Code-only: `leadingIcon` / `trailingIcon` (pass-through to the base; Figma hides them, approved 15 Oct 2026 before this rule).
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `State` | `tone` (default `'primary'`), passed to FinBadgeBase. The tone list is defined once, `FIN_BADGE_TONES` / `FinBadgeTone` in FinBadgeBase, and exported publicly through FinBadge |
+| Badge-base `Label` | `children` |
+| Badge-base icons (hidden in Figma) | `leadingIcon`, `trailingIcon`: optional for any tone, in the tone's text color (decided 15 Oct 2026) |
+| Badge-base `Size` | Always `small` (fixed in Figma). Large isn't public: no Figma component uses a Large badge (0 instances) |
+
+**Structure:** `<FinBadgeBase {...props} size="small" />`. No markup or CSS of its own; the tone styles live in FinBadgeBase (§9.9).
+
+**Tones (FinBadgeBase CSS):**
+
+| `tone` | Fill | Border (1px, inside) | Text and icons | Text contrast Light / Dark |
+|---|---|---|---|---|
+| `primary` | `--fin-bg-brand` | none | `--fin-text-white-both` | 4.71 / 4.71 |
+| `secondary` | none | `--fin-border-strong` | `--fin-text-secondary` | 5.82 / 8.76 |
+| `success` | `--fin-bg-success-secondary` | `--fin-border-success` | `--fin-text-success` | 5.01 / 7.75 |
+| `error` | `--fin-bg-error-secondary` | `--fin-border-error` | `--fin-text-error` | 5.05 / 8.52 |
+| `info` | `--fin-bg-info-secondary` | `--fin-border-info` | `--fin-text-info` | 6.88 / 8.65 |
+| `warning` | `--fin-bg-warning-secondary` | `--fin-border-warning` | `--fin-text-warning` | 4.57 / 7.53 |
+| `disabled` | `--fin-bg-disabled` | none | `--fin-text-disabled-on-bg` | **2.44 / 1.98** (exception) |
+| `neutral` | `--fin-bg-neutral` | none | `--fin-text-secondary` | 4.80 / 4.71 |
+
+All Figma bindings are Foundation – Loyalty; no raw values.
+
+**API:**
+
+```tsx
+import { FinBadge } from '@finspace-loyalty/ui';
+
+<FinBadge>Active</FinBadge>
+<FinBadge tone="success" leadingIcon="check_circle">Paid</FinBadge>
+<FinBadge tone="warning" trailingIcon="keyboard_arrow_down">Pending</FinBadge>
+```
+
+Presentational: no `'use client'`. `className` and other `<span>` attributes go to the badge.
+
+**Accessibility:** read as its label; icons are decorative. Not interactive. **`disabled` tone (decided 15 Oct 2026: keep as designed):** a disabled look, 2.44:1 Light / 1.98:1 Dark; the Storybook a11y check leaves out only `[data-tone="disabled"]` badges (FinBadge and FinBadgeBase stories); every other tone is checked (verified: without the exception, only the disabled badges fail). Borders are decorative (the text carries the meaning), so they have no 3:1 requirement.
+
+**Built (15 Oct 2026).** Storybook (Components/Badge): Playground (tone, label, each icon or none), States (Figma) with each tone plain, with a leading and with a trailing icon. Checked against Figma: all 8 tones have the exact Light fill, border and text colors, 26 tall (also with icons), icons in the text color; width 70.2 against Figma's 71 (text rounding). Dark uses the Dark tokens. a11y: no violations in Light or Dark apart from the documented `disabled` exception.
+
+### 9.11 FinIndicatorDot (Indicator) — internal
+
+**Figma:** page **Indicator**, component set `Indicator` `98:3532`: `Type` = Default (6 × 6, `fg-placeholder`) / Selected (22 × 6, `fg-brand`), raw radius 8. Used only inside `Indicator set` (all 50 instances). **Internal base** (§7.2 rule 4): not exported; FinPageIndicator is the public component.
+
+**Figma → code names:** `Type` (Default / Selected) → `selected` (boolean). Code-only: `interactive`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Type` = Default / Selected | `selected?: boolean` (renders `data-selected`) |
+| — (clickable, decided 15 Oct 2026) | `interactive?: boolean`: a `<button>` with the hit area and focus ring; otherwise a decorative `<span>` (`aria-hidden`) |
+
+**Tokens used:**
+
+| Part | Token |
+|---|---|
+| Dot (Default) | `--fin-size-6` × `--fin-size-6`, `--fin-fg-placeholder` |
+| Pill (Selected) | `--fin-size-24` × `--fin-size-6`, `--fin-fg-brand`. **24 in code, 22 in Figma** (no `Size-22`; decided 15 Oct 2026, §10 #35) |
+| Radius | `--fin-radius-full` (Figma's raw 8 on a 6px shape is already a full pill) |
+| Clickable hit area | height `--fin-size-24`, padding `0 var(--fin-space-xxs)` (the 2px either side that the set's 4px gap leaves) |
+| Focus | on the visible dot: `outline: 2px solid var(--fin-border-focused)`, `outline-offset: 2px` (§10 #6) |
+| Hover, pressed | none yet: cursor only (no design; like the Profile image badge, §10 #31) |
+
+All styles live here (§7.2); FinPageIndicator only lays the dots out. Internal API: `<FinIndicatorDot selected interactive aria-label="Step 2" />` (ref goes to the button).
+
+**Built (15 Oct 2026).** Storybook: **Internal/Indicator** › Types (Figma), display-only and clickable.
+
+### 9.12 FinPageIndicator (Indicator set)
+
+**Figma:** page **Indicator**, component set `Indicator set` `98:3541`: `Active` = 1–5 × `Number` = 3 / 4 / 5 × `Size` = Small (12 variants): a row of `Indicator` instances with a 4px gap (`Space-XS`), one Selected. No instances yet. **Mapped** from the internal FinIndicatorDot.
+
+**Figma → code names:** `Number` → `count`; `Active` → `active`; `Size` (Small only) → no prop. Code-only: `onChange`, `label`, `dotLabel` (behaviour, accessibility).
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Number` = 3 / 4 / 5 | `count`: any number from 1, **no maximum** (decided 15 Oct 2026); 0 renders nothing |
+| `Active` = 1…5 | `active`: 1-based, kept between 1 and `count` |
+| `Size` = Small | only size; not a prop |
+| — (clickable, decided 15 Oct 2026) | `onChange?(position)`: makes the dots clickable; `label`; `dotLabel?(position, count)` |
+
+**Layout:** `display: inline-flex`, gap `--fin-space-xs`. Clickable: gap 0 (each hit area holds 2px either side) and negative margins (`calc((var(--fin-size-6) - var(--fin-size-24)) / 2)` and `calc(-1 * var(--fin-space-xxs))`) so the layout footprint stays the Figma size while the 24px-tall hit areas reach past it. Widths: 44 / 54 / 64 for 3 / 4 / 5 (Figma 42 / 52 / 62, from the 22px pill).
+
+**API:**
+
+```tsx
+import { FinPageIndicator } from '@finspace-loyalty/ui';
+
+<FinPageIndicator count={5} active={2} />                                  // display-only: "Step 2 of 5"
+<FinPageIndicator count={5} active={step} onChange={setStep} label="Onboarding steps" />  // clickable
+```
+
+`'use client'`. `className` and other `<div>` attributes go to the root.
+
+**Accessibility:**
+- **Display-only:** `role="img"`, named "Step {active} of {count}" (or `label`); the dots are hidden.
+- **Clickable (radio group pattern, decided 15 Oct 2026):** `role="radiogroup"` (named by `label`, default "Steps"); each dot is a native `<button role="radio">` with `aria-checked` and a name ("Step {n} of {count}", or `dotLabel`). One tab stop (the current dot); ←/↑ and →/↓ move and select (wrapping), Home/End jump to the ends; focus follows.
+- **Target size (WCAG 2.2 2.5.8), decided 15 Oct 2026:** the dots keep Figma's spacing, so each hit area is 24 tall but only as wide as the dot plus 4 (10 px for a dot, 28 for the pill). This relies on the **equivalent-control exception**: any screen that uses a clickable page indicator must also offer another way to change position (for example Previous / Next buttons).
+- The selected position differs by **shape** (24 vs 6 wide), not only color. Default dots are `fg-placeholder`: 2.96:1 on `bg-primary` and 2.71:1 on `bg-secondary` in Light (below the 3:1 non-text minimum; Dark 4.51 / 3.73), logged in §10 #3. The a11y check doesn't measure non-text contrast.
+- The focus ring (2px, 2px offset) reaches the neighbouring dots because of the 4px gap.
+
+**Built (15 Oct 2026).** Storybook (Components/Indicator): Playground (count, active, clickable), Active and number (Figma) with all 12, Clickable (3, 5 and 8 dots, keyboard). Checked against Figma: dots 6 × 6, selected 24 × 6, gap 4, full radius, Light colors `#625bff` / `#969696` equal Figma (Dark uses the Dark tokens), widths 44 / 54 / 64; clickable dots look the same, with 24px-tall hit areas side by side; Tab then → moves to and checks the next dot, with the focus ring on it. a11y: no violations in Light or Dark.
+
+### 9.13 FinOverlay (Overlay)
+
+**Figma:** page **Overlays**, component set `Overlay` `111:2495`, `Type=Desktop` only (`Type=Mobile` is kept in Figma for possible future mobile use and is out of scope, §10 #24): one 1920 × 1080 rectangle, fill `Alpha-md` (`#0b0b0b` @ 40%, Light and Dark), constraints Scale × Scale, no blur, radius or shadow. No instances yet; Dialog box and Side sheet sit on it (§4.2).
+
+**Figma → code names:** `Type` → no prop (only `Desktop` is in scope).
+
+**Size: responsive** (design rule, 15 Oct 2026). No fixed size: `position: fixed; inset: 0`, so it fills the browser window at any width and height and follows resizing. Figma's 1920 × 1080 is only the frame, so there's no `Size-*` token.
+
+**Tokens used:** background `--fin-alpha-md` (the scrim, §3.3). No raw values.
+
+**Stacking and scrolling (decided 15 Oct 2026):** FinOverlay has **no z-index**. Dialog box and Side sheet add the stacking when they're built (planned: a native `<dialog>` with `showModal()`, which uses the browser's top layer, with FinOverlay inside it and the panel on top). **While a Dialog box or Side sheet is open, the page behind doesn't scroll**; that belongs to those components, not to FinOverlay.
+
+**API:**
+
+```tsx
+import { FinOverlay } from '@finspace-loyalty/ui';
+
+<FinOverlay onClick={onClose} />   // "click outside"; the component on top decides what it does
+```
+
+Presentational: no `'use client'`, no props of its own. `className` and other `<div>` attributes (including `onClick`) go to the overlay. No animation (motion is deferred, §5).
+
+**Accessibility:** decorative: `aria-hidden="true"`, not focusable, no content; the dialog on top owns focus, Esc and labels. Not a control, so it isn't part of the tab order (`onClick` is a pointer shortcut; the dialog must also offer a close button and Esc).
+
+**Built (15 Oct 2026).** Storybook (Components/Overlay): Over page content (full screen, sample page behind). Checked against Figma: `#0b0b0b` @ 40% in Light and Dark; covers the window exactly at 1024 × 768, 1280 × 800, 1440 × 900, 1920 × 1080, 2560 × 1440 and 1100 × 600, and stays in place when the page scrolls. a11y: no violations in Light or Dark.
+
+### 9.14 FinToggle (Toggle)
+
+**Figma:** page **Toggle**, component set `Toggle` `34:2545` (renamed from `Switch` 15 Oct 2026): `State` = Enabled / Disabled × `Type` = Selected / Unselected × `Size` = Small / Large × `Focused` = True / False (16 variants). Updated by design 15 Oct 2026: Large track 52 → 56, handle `White` (alias) → `fg-white_both`, off track `border-default` → `fg-placeholder`, disabled on-track → `bg-disabled`. No hover or pressed variants; no instances yet.
+
+**Figma → code names:** `Type` (Selected / Unselected) → `checked` / `defaultChecked` (native input); `State` (Enabled / Disabled) → `disabled`; `Focused` → CSS. Code-only: `label`.
+
+**Variants:**
+
+| Figma | Prop / state |
+|---|---|
+| `Type` = Selected / Unselected | `checked` / `defaultChecked` + `onChange` (native checkbox) |
+| `Size` = Small / Large | `size: 'small' \| 'large'` (default `'small'`) |
+| `State=Disabled` | `disabled` (native; never focusable, so Disabled + Focused is ignored, §7.3) |
+| `Focused` | `:focus-visible` |
+| — | `label` (required): the accessible name, **visually hidden** (decided 15 Oct 2026; Figma shows no label) |
+
+**Structure:** a `<label>` holding a native `<input type="checkbox" role="switch">` laid invisibly over the track (it gets clicks, keyboard and focus), the track with its handle (`aria-hidden`), and the visually hidden label text. `ref` goes to the input; other input attributes (`name`, `value`, `checked`…) go to it too; `className` goes to the wrapper.
+
+**Tokens used:**
+
+| Part | Small | Large |
+|---|---|---|
+| Track | `--fin-size-40` × `--fin-size-24` | `--fin-size-56` × `--fin-size-32` |
+| Handle | `--fin-size-16` | `--fin-size-24` |
+| Handle inset | `--fin-space-xs` (track padding) | same |
+| Radius | `--fin-radius-full` (Figma raw 100 and 23) | same |
+
+| State | Track | Handle |
+|---|---|---|
+| Unselected | `--fin-fg-placeholder` | `--fin-fg-white-both`, left |
+| Selected | `--fin-fg-brand` | `--fin-fg-white-both`, right |
+| Unselected, disabled | `--fin-border-disabled` | `--fin-fg-disabled` |
+| Selected, disabled | `--fin-bg-disabled` | `--fin-fg-disabled-on-bg` |
+| Focused | `outline: 2px solid var(--fin-border-focused)`, `outline-offset: 1px` (as Figma: 2px ring 1px outside the track; Figma's ring radius is bound to another library, mapped to `Radius-Full`) | |
+| Hover, pressed | none yet: cursor only (no design) | |
+
+Raw values: the 2px / 1px focus ring and the 1px visually hidden label box. No animation: the handle moves instantly (motion is deferred, §5).
+
+**API:**
+
+```tsx
+import { FinToggle } from '@finspace-loyalty/ui';
+
+<FinToggle label="Email notifications" defaultChecked />
+<FinToggle label="Auto-renew" size="large" checked={autoRenew} onChange={(e) => setAutoRenew(e.target.checked)} />
+```
+
+`'use client'` (interactive).
+
+**Accessibility:** announced as a switch, on or off, with its label; Tab reaches it, Space toggles it; clicking anywhere on it toggles it. Disabled toggles are skipped. Pointer target 40 × 24 / 56 × 32 (≥ 24). Contrast (non-text, 3:1): selected track 4.71 Light / 5.24 Dark, handle on it 4.71 / 3.35. **Unselected track (decided 15 Oct 2026: build as Figma, logged in §10 #3):** `fg-placeholder` is 2.96:1 on `bg-primary` and 2.71:1 on `bg-secondary` in Light, handle on it 2.96:1 (Dark 4.51 / 3.73, handle 3.90). The a11y check doesn't measure non-text contrast.
+
+**Built (15 Oct 2026).** Storybook (Components/Toggle): Playground, States (Figma) with both sizes, on/off, enabled/disabled, Focused (Tab). Checked against Figma: tracks 40 × 24 and 56 × 32, handles 16 and 24 at (4, 4) off and (20, 4) / (28, 4) on, full radius, Light colors equal Figma for all 8 states (Dark uses the Dark tokens), focus ring 2px 1px out; Space switches it on. a11y: no violations in Light or Dark.
+
+**Added 20 Oct 2026:** `focusRing` (default `true`). List rows (FinListToggle, §9.55) turn it off and draw the ring around the row instead.
+
+### 9.15 FinRadio (Base-Radio_box)
+
+**Figma:** page **Radio button**, component set `Base-Radio_box` `37:104`: `State` = Enabled / Hovered / Pressed / Disabled × `Type` = Unselected / Selected (8 variants), no `Focused` variant, no label, no instances. Hover and Pressed fills swapped by design on 15 Oct 2026 (Hovered = `bg-active`, Pressed = `bg-active-hover`). **Public despite the "Base" name** (decided 15 Oct 2026): nothing in Figma is mapped from it, so it's the exception to §7.2 rule 4.
+
+**Figma → code names:** `Type` (Selected / Unselected) → `checked` / `defaultChecked` (native input); `State` Hovered / Pressed → CSS, Disabled → `disabled`. Code-only: `label`, `name`, `value`.
+
+**Variants:**
+
+| Figma | Prop / state |
+|---|---|
+| `Type` = Selected / Unselected | `checked` / `defaultChecked` + `onChange` (native radio) |
+| `State` = Hovered / Pressed | `:hover` / `:active` (enabled only) |
+| `State` = Disabled | `disabled` (native; not focusable, no hover or pressed) |
+| — (no Focused variant) | `:focus-visible`: the default ring (§10 #6) |
+| — | `label` (required): the accessible name, **visually hidden** (decided 15 Oct 2026; visible option labels will come from the List component) |
+
+**Structure:** a `<label>` holding a native `<input type="radio">` laid invisibly over the 24px box (it gets clicks, keyboard and focus), the ring with its dot (`aria-hidden`), and the visually hidden label. `name`, `value` and other input attributes go to the input, `ref` too; `className` goes to the wrapper. Radios that share a `name` behave as one group natively: one tab stop (the selected radio), arrow keys move and select. Grouping is up to the screen (`<fieldset>` + `<legend>`, or `role="radiogroup"` with a name); no FinRadioGroup (not in Figma).
+
+**Tokens used:** box `--fin-size-24`; ring `--fin-size-20`, 2px inside stroke (a border), centred (Figma inset 2); dot `--fin-size-12`, centred; `--fin-radius-full` (Figma's radius is bound to another library, `Alias Spacing & Radius`).
+
+| State | Unselected: ring / fill | Selected: ring and dot |
+|---|---|---|
+| Enabled | `--fin-border-strong` / none | `--fin-fg-action` |
+| Hovered | `--fin-border-hovered` / `--fin-bg-active` | `--fin-fg-hovered` |
+| Pressed | `--fin-border-pressed` / `--fin-bg-active-hover` | `--fin-fg-pressed` |
+| Disabled | `--fin-fg-disabled` / none | `--fin-fg-disabled` |
+| Focus | `outline: 2px solid var(--fin-border-focused)`, `outline-offset: 2px` | same |
+
+Raw values: the 2px ring stroke and focus ring, and the 1px visually hidden label box. No animation (§5).
+
+**API:**
+
+```tsx
+import { FinRadio } from '@finspace-loyalty/ui';
+
+<fieldset>
+  <legend>Billing period</legend>
+  <FinRadio name="billing" value="monthly" label="Monthly" defaultChecked />
+  <FinRadio name="billing" value="yearly" label="Yearly" />
+</fieldset>
+```
+
+`'use client'` (interactive).
+
+**Accessibility:** announced as a radio button with its label, selected or not, and its position in the group. Pointer target 24 × 24. Contrast (non-text, 3:1): selected `fg-action` 4.71 Light / 5.24 Dark; hovered ring on its fill 4.82 / 4.92; pressed 5.11 / 5.52. **Unselected ring** `border-strong`: 3.90:1 on `bg-primary` and 3.57:1 on `bg-secondary` in Light, 8.76 / 7.25 in Dark, since the token changed on 19 Oct 2026 (was 2.96 / 2.71 Light, 2.88 / 2.39 Dark; §10 #3). Disabled is exempt.
+
+**Built (15 Oct 2026).** Storybook (Components/Radio button): Playground, States (Figma) with Enabled and Disabled shown and Hovered/Pressed live, Group (fieldset, keyboard). Checked against Figma: box 24, ring 20 at (2, 2) with a 2px stroke, dot 12 at (4, 4); Light colors equal Figma for all 8 states (Hovered and Pressed measured with a real mouse); Dark uses the Dark tokens; Tab then ↓ moves to and selects the next radio, with the focus ring. a11y: no violations in Light or Dark.
+
+**Added 20 Oct 2026:** `focusRing` (default `true`). List rows (FinListRadio, §9.53) turn it off and draw the ring around the row instead.
+
+### 9.16 FinProgressBar (Progress bar)
+
+**Figma:** page **Progress**, component set `Progress bar` `31:2113`: `Filled` × `Size` = Large / Small × `Steps` = 4 / 5 (16 variants): a `bg-active-hover` track with an `fg-brand` fill, both `Radius-XS`, 311 wide (fixed). Base of `bar-with-text` (§8 #44; its 8 instances are all there). **Public** (decided 15 Oct 2026): §7.2 rule 4 exception, because it will also be used on its own, for example in layouts.
+
+**Figma → code names:** `Filled` → `value` (any number, not only Figma's steps); `Steps` → no prop. Code-only: `max`, `label`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Filled` (0/25/50/75/100%, or 0/20/…/100% with `Steps=5`) | `value`: **any** number from 0 to `max`, clamped (decided 15 Oct 2026; the logic may come from the back end or the front end) |
+| `Steps` = 4 / 5 | not a prop: only the set of example `Filled` values |
+| `Size` = Large / Small | `size: 'large' \| 'small'` (default `'large'`) |
+| — | `max` (default 100), so counts can be passed as they are ("3 of 5"); `label` (required): accessible name |
+
+**Tokens used:**
+
+| Part | Token |
+|---|---|
+| Track | width **100% of its container** (decided 15 Oct 2026; Figma's 311 is a mobile-era frame width), height `--fin-size-8` (Large) / `--fin-size-4` (Small), `--fin-bg-active-hover`, `--fin-radius-xs`, clips the fill |
+| Fill | width `var(--progress)` (set on the element from `value / max`), `--fin-fg-brand`, `--fin-radius-xs` (Figma's fill radius is bound to the `Tokens` library, "Radius 4px") |
+
+No raw values. No animation: the fill jumps to its new width (§5). No indeterminate state (not in Figma).
+
+**API:**
+
+```tsx
+import { FinProgressBar } from '@finspace-loyalty/ui';
+
+<FinProgressBar value={40} label="Profile completion" />
+<FinProgressBar value={3} max={5} size="small" label="Step 3 of 5" />
+```
+
+Presentational: no `'use client'`. `className`, `style` and other `<div>` attributes go to the track (`style` is merged with `--progress`).
+
+**Accessibility:** `role="progressbar"` with `aria-label`, `aria-valuemin="0"`, `aria-valuemax` (= `max`) and `aria-valuenow`. Contrast (non-text, 3:1): fill on track 3.07 Light / 3.14 Dark, fill on the page 4.71 / 5.24.
+
+**Built (15 Oct 2026).** Storybook (Components/Progress): Playground, Values and sizes (Figma) with all 16 variants, Fills its container (120, 240, 480 px, with `max`). Checked against Figma: heights 8 / 4, radius 4, Light `#ceccff` / `#625bff` (Dark uses the Dark tokens), fill exactly `value`% of the track (25% of 311 = 77.75, as in Figma). a11y: no violations in Light or Dark.
+
+### 9.17 FinSpinner (Spinner)
+
+**Figma:** page **Progress**, component set `Spinner` `33:2331`: `Pregress` (typo for Progress, §10 #21) = 25% / 50% / 75% / Success / Error. Progress: a 48 box with a 40 ring (`bg-active-hover` track, 4px inside stroke) and an `fg-brand` arc (4px, flat ends). Success / Error: a 48 circle, `bg-success_secondary` / `bg-error_secondary`, with a 24px `check` (`fg-success`) / `warning_amber` (`fg-error`; current name `warning`, §6.4). Base of `spinner-with-text` (§8 #45; all 10 instances are there). **Public** (decided 15 Oct 2026): §7.2 rule 4 exception, used on its own.
+
+**Figma → code names:** `Pregress` (typo for Progress) → `status` (`progress` / `success` / `error`) plus `value` for the 25 / 50 / 75% options. Code-only: `max`, `label`; no `value` gives the spinning loader.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Pregress` = 25/50/75% | `status: 'progress'` (default) with `value` (any, 0 to `max`, default 100): a **still** ring whose arc is that share |
+| — (loading) | `status: 'progress'` **without** `value`: a **loader**, a quarter arc that spins (decided 15 Oct 2026) |
+| `Pregress` = Success / Error | `status: 'success' \| 'error'` |
+| — | `label` (required): accessible name |
+
+**Arc (decided 15 Oct 2026):** starts at 12 o'clock and runs clockwise, exactly `value / max` of the circle. Figma's arcs are hand-drawn (its "50%" is 168°, and the start points differ); code is exact.
+
+**Motion (decided 15 Oct 2026, the first animation; §5 is otherwise still deferred):** the loader turns clockwise once per second at a steady speed (`1s linear infinite`, raw until motion tokens exist). With `prefers-reduced-motion: reduce` it doesn't spin. A ring with a `value` never spins.
+
+**Tokens used:**
+
+| Part | Token |
+|---|---|
+| Box | `--fin-size-48`, `--fin-radius-full` |
+| Ring (progress) | `--fin-size-40`, centred (Figma inset 4); an SVG circle, r 18 in a 40 view box, stroke width `--fin-size-4`; track `--fin-bg-active-hover`, arc `--fin-fg-brand` with `stroke-dasharray: var(--arc) 100` on `pathLength="100"`, flat caps |
+| Success | `--fin-bg-success-secondary`, FinIcon `check` 24 `color="success"` |
+| Error | `--fin-bg-error-secondary`, FinIcon `warning` 24 `color="error"` |
+
+Sizes as in Figma (decided 15 Oct 2026): the progress ring is 40 inside the 48 box; Success and Error fill the 48. The SVG is drawing geometry, not an icon (icons still go through FinIcon).
+
+**API:**
+
+```tsx
+import { FinSpinner } from '@finspace-loyalty/ui';
+
+<FinSpinner label="Loading members" />                     // spinning loader
+<FinSpinner value={60} label="Uploading file" />           // still ring, 60%
+<FinSpinner status="success" label="Upload complete" />
+```
+
+Presentational: no `'use client'`. `className`, `style` (merged with `--arc`) and other `<div>` attributes go to the box.
+
+**Accessibility:** progress: `role="progressbar"` with `aria-label`; with a `value`, also `aria-valuemin`, `aria-valuemax`, `aria-valuenow` (without one it's an indeterminate progressbar). Success / Error: `role="img"` named by `label`; the icon is decorative. Contrast (non-text, 3:1): arc on track 3.07 Light / 3.14 Dark; check on its circle 3.28 / 6.56; warning 5.05 / 6.34.
+
+**spinner-with-text (§8 #45)** puts a Text Box under this spinner.
+
+**Built (15 Oct 2026).** Storybook (Components/Progress): Playground, States (Figma), Loading, Any value. Checked against Figma: box 48, ring 40 at (4, 4), stroke 4, arcs 90° / 180° / 270° from 12 o'clock, flat ends; Success / Error 48 circles with 24px icons at (12, 12); Light colors equal Figma (Dark uses the Dark tokens). The loader spins (1s, linear) and stays still with reduced motion. a11y: no violations in Light or Dark.
+
+### 9.18 FinSlider (slider)
+
+**Figma:** page **Progress**, component set `slider` `645:3136` (renamed from `dragger` 15 Oct 2026): `Filled` = 5 / 25 / 50 / 75 / 100% (5 variants). A 311 × 8 track (`bg-active-hover`, radius 4) with an `fg-brand` fill and a 24px `fg-brand` handle with a 2px white **inside** stroke (`border-inverse`) and `Shadow/Resting_cards`. No hover, pressed, focus or disabled variants; no instances. Figma's fills are hand-placed (its 25% is drawn at 33%, 5% at 11%, 75% at 72%).
+
+**Figma → code names:** `Filled` → `value` / `defaultValue`. Code-only: `min`, `max`, `step`, `label`, `valueText`, `disabled`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Filled` | `value` (controlled, with `onChange`) or `defaultValue` (uncontrolled, default `min`) |
+| — | `min` (default **0**), `max` (default 100), `step` (default 1): the screen sets the range for its scenario (decided 15 Oct 2026) |
+| — | `label` (required, **visually hidden**), `valueText` (optional spoken value, for example "1500 points"), `disabled` |
+
+**Geometry (decided 15 Oct 2026):** standard slider positions. The handle's centre travels from 12px to (width − 12px), so it never leaves the track, and the fill runs to its centre. Values are exact. Fills the width of its container (Figma's 311 is a mobile-era frame width).
+
+**Structure:** a native `<input type="range">`, restyled: dragging, clicking the track, the keyboard (arrows step, Page Up / Down jump, Home / End go to the ends) and screen readers come from the browser. The fill is a two-colour track background stopped at `calc(12px + fraction × (100% − 24px))`, with `--fraction` set on the element. `ref` and native attributes go to the input.
+
+**Tokens used:**
+
+| Part | Token |
+|---|---|
+| Input (hit area) | width 100%, height `--fin-size-24` |
+| Track | height `--fin-size-8`, `--fin-radius-xs` (Figma's radius is bound to another library, `Alias Spacing & Radius`), `--fin-bg-active-hover` |
+| Fill | `--fin-fg-brand` |
+| Handle | `--fin-size-24`, `--fin-radius-full`, `--fin-fg-brand`, 2px `--fin-border-inverse` border inside (`box-sizing: border-box`), `--fin-shadow-resting-cards` |
+| Disabled (decided 15 Oct 2026; no Figma design) | track `--fin-border-disabled`, fill and handle `--fin-fg-disabled`, no shadow |
+| Focus | on the handle: `outline: 2px solid var(--fin-border-focused)`, `outline-offset: 2px` (§10 #6) |
+| Hover, pressed | none yet: cursor only |
+
+Raw values: the 2px handle ring and focus ring. No animation (§5).
+
+**API:**
+
+```tsx
+import { FinSlider } from '@finspace-loyalty/ui';
+
+<FinSlider label="Points to redeem" min={500} max={5000} step={100} value={points}
+  valueText={`${points} points`} onChange={(e) => setPoints(Number(e.target.value))} />
+```
+
+`'use client'` (keeps the uncontrolled value to draw the fill).
+
+**Accessibility:** announced as a slider with its name, value (or `valueText`), minimum and maximum. Handle 24 × 24, input 24 tall. Contrast (non-text, 3:1): fill on track 3.07 Light / 3.14 Dark, handle on the page 4.71 / 5.24. Keyboard behaviour is the browser's own, so it's checked in a real browser (jsdom doesn't simulate range keys).
+
+**Built (15 Oct 2026).** Storybook (Components/Progress): Playground, Values (Figma) with 5 / 25 / 50 / 75 / 100% and disabled, Controlled (500–5000, step 100), Fills its container. Checked in Chrome: input 24 tall, handle 24 with its ring centred on the track; handle centre at exactly 12 + v × (width − 24) for every value; fill, track and handle colors equal Figma (Dark uses the Dark tokens; the handle ring is `border-inverse`, dark in Dark); Tab, →, Page Up, End, Home, clicking the track and dragging all work; the focus ring shows around the handle. a11y: no violations in Light or Dark.
+
+### 9.19 FinLabel (Label)
+
+**Figma:** page **Text box**, component set `Label` `28:968`: `Size` = Medium / Small, `Show badge` (default off), `Label` (text, default "Label text"). Text `text-tertiary`, Label/Medium (14/21) or Label/Small (12/18); with `Show badge`, a `Badge - indicator` (Small, Digits=None, Red) **before** the text, 8px gap (`Space-M`), centred. Used 61 times (Text Box, Table header cell, List, Accordion, Snackbar, Quick action), so it's mostly a caption or small heading, not only a form label.
+
+**Figma → code names:** `Show badge` → `badge`; `Label` → `children`. Code-only: `badgeLabel`, `htmlFor`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Size` = Medium / Small | `size: 'medium' \| 'small'` (default `'medium'`) |
+| `Label` | `children`: one line; "…" when the container is narrower (decided 15 Oct 2026, as Badge) |
+| `Show badge` | `badge` (boolean) |
+| — | `badgeLabel`: **required when `badge` is on** (enforced by the types; decided 15 Oct 2026). The dot's meaning depends on the screen (required, new, unread, error…), so there's no default |
+| — | `htmlFor`: renders a real `<label>` linked to that field; without it, a `<span>` (decided 15 Oct 2026) |
+
+**Structure:** `<span>` (or `<label htmlFor>`) with the `FinBadgeIndicator` dot (decorative), the text, and the `badgeLabel` visually hidden **after** the text, so it's read "Email address, Required" rather than "Required Email address".
+
+**Tokens used:** text `--fin-text-tertiary`, `--fin-font-label-medium` / `--fin-font-label-small`; gap `--fin-space-m`; the dot is FinBadgeIndicator `size="small" tone="error"` (`--fin-size-6`, `--fin-fg-error`). Figma's other-library bindings are only inside the badge instance (FinBadgeIndicator handles them). The only raw values are the visually hidden text's 1px box.
+
+**API:**
+
+```tsx
+import { FinLabel } from '@finspace-loyalty/ui';
+
+<FinLabel htmlFor="email" badge badgeLabel="Required">Email address</FinLabel>
+<FinLabel size="small" badge badgeLabel="Unread">Notifications</FinLabel>
+<FinLabel>Last transaction</FinLabel>
+```
+
+Presentational: no `'use client'`. `className` and other attributes go to the root.
+
+**Accessibility:** with `htmlFor`, the field's accessible name is the label text plus `badgeLabel`, and clicking the label focuses the field. The dot is never the only signal: `badgeLabel` gives its meaning in words. Contrast: text 9.28:1 Light / 5.94:1 Dark on `bg-primary` (8.51 / 4.92 on `bg-secondary`); dot 5.98 / 7.51.
+
+**Built (15 Oct 2026).** Storybook (Components/Text box): Playground, Sizes (Figma), Usage (form label, caption with badge, narrow caption). Checked against Figma: heights 21 / 18, Label/Medium and Label/Small in `#474748` (Dark uses the Dark tokens), dot 6 × 6 `fg-error`, 8px before the text and centred; widths 66 / 57 against Figma's 67 / 58 (text rounding). The field's name reads "Email address, Required"; clicking the label focuses the field; long captions end in "…". a11y: no violations in Light or Dark.
+
+### 9.20 FinHelperText (Helper text content)
+
+**Figma:** page **Text box**, component set `Helper text content` `28:973`: `State` = Default / Success / Warning / Error / Disabled, `Show Leading Icon` (default on), `Text`. A 20px icon (Icon sizes `20px`), 8px gap (`Space-M`), Body/Small text; fills its container. Icons updated by design 15 Oct 2026 (were placeholders). Used 78 times, in Input field-base, Input field-textArea-base and OTP. The Success variant's icon isn't linked to `Show Leading Icon` (§10 #36).
+
+**Figma → code names:** `State` → `tone`; `Show Leading Icon` → `showIcon` (pattern would give `leadingIcon`, §10 #37); `Text` → `children`. Code-only: `icon`, `announce`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `State` | `tone: 'default' \| 'success' \| 'warning' \| 'error' \| 'disabled'` (default `'default'`; only changes colors and the icon, so `tone`, §7.3; decided 15 Oct 2026) |
+| `Show Leading Icon` | `showIcon` (default `true`; works in every tone, Success included) |
+| `Text` | `children`: **wraps** onto more lines when long (decided 15 Oct 2026; messages aren't cut off) |
+| — | `icon` (optional, replaces the tone's icon), `announce` (see Accessibility), `id` (for the field's `aria-describedby`) |
+
+**Tokens used:**
+
+| `tone` | Icon (FinIcon 20, Figma glyph) | Text |
+|---|---|---|
+| `default` | `info`, `fg-secondary` | `--fin-text-secondary` |
+| `success` | `check_circle`, `fg-success` | `--fin-text-success` |
+| `warning` | `warning`, `fg-warning` | `--fin-text-warning` |
+| `error` | `warning`, `fg-error` (same glyph as warning, as in Figma) | `--fin-text-error` |
+| `disabled` | `info`, `fg-disabled` | `--fin-text-disabled` |
+
+Layout: flex, gap `--fin-space-m`, items at the top; text `--fin-font-body-small`. With the icon, the text has a 1px top offset (`calc(var(--fin-space-xxs) / 2)`), so its 18px line is centred on the 20px icon as in Figma, and a wrapped message keeps the icon beside its first line. Figma's text-layer radius (another library, `Spacing, Radius & Widths`) has no effect and is dropped.
+
+**API:**
+
+```tsx
+import { FinHelperText } from '@finspace-loyalty/ui';
+
+<input id="card" aria-invalid="true" aria-describedby="card-help" />
+<FinHelperText id="card-help" tone="error">Enter all 16 digits.</FinHelperText>
+<FinHelperText tone="error" announce>Payment failed. Try again.</FinHelperText>   // read as soon as it appears
+```
+
+Presentational: no `'use client'`. `className` and other `<div>` attributes go to the root.
+
+**Accessibility:** the icon is decorative; the message carries the meaning. **Announcing (decided 15 Oct 2026):** by default the field links to the message (`aria-describedby`), so it's read when the person reaches the field and a form doesn't announce every error at once; `announce` adds `role="alert"` for a message that must interrupt. Contrast: text ≥ 4.60:1 in every enabled tone (Light, on `bg-primary` and `bg-secondary`; Dark ≥ 7.25). Icons ≥ 3:1, except the warning icon on `bg-secondary` in Light (2.98, already in §10 #3). **`disabled`** (2.0:1 Light, 2.5:1 Dark): the message of a disabled field, exempt like the Badge's disabled tone; the Storybook a11y check leaves out only `[data-tone="disabled"]` (verified: without it, only disabled text fails).
+
+**Built (15 Oct 2026).** Storybook (Components/Text box): Playground, States (Figma) with and without the icon, With a field (long wrapping error, `aria-describedby`). Checked against Figma: 20 tall with the icon (18 without), icon 20 in the tone's color, 8px gap, Body/Small 12/18; Light colors equal Figma (Dark uses the Dark tokens); a long message wraps to two lines with the icon beside the first. a11y: no violations in Light or Dark apart from the documented `disabled` exception.
+
+### 9.21 FinTextBox (Text Box)
+
+**Figma:** page **Text box**, component set `Text Box` `28:1001`: `Type` = Display Large-H1 / Display Medium-H2 / Display Small-H3 / Headline Large-H4 / Headline Medium-H5 / Headline Small-H6 × `Alignment` = Left / Center / Right (18 variants), with `Show Label`, `Show Heading`, `Show Description` (all on by default). Its `Label` instance is **exposed**, so the Label's `Show badge` can be set from the Text Box in Figma. Used 113 times (Dialog box, Side sheet, Snackbar, Empty state, Button dock, Main header, Checkbox, OTP, File uploads, Tooltip, Accordion, List, spinner-with-text, bar-with-text…).
+
+**Figma → code names:** `Alignment` → `align` and `Type` values `Display Large-H1` … `Headline Small-H6` → `h1` … `h6` (both outside the patterns, §10 #37); `Show Label` / `Show Heading` / `Show Description` → `label` / `heading` / `description` (shown when passed); exposed Label `Size` / `Show badge` → `labelSize` / `labelBadge`. Code-only: `headingLevel`, `labelBadgeLabel`.
+
+**Variants:**
+
+| Figma | Prop |
+|---|---|
+| `Type` | `type: 'h1' … 'h6'` (default `'h1'`): the **look** of the heading and the description |
+| `Alignment` | `align: 'left' \| 'center' \| 'right'` (default `'left'`) |
+| `Show Label` + text | `label` (string): a `FinLabel`; shown when passed |
+| Label's `Size` (exposed) | `labelSize: 'medium' \| 'small'` (default `'medium'`, as in every Figma variant; added 15 Oct 2026 at design's request) |
+| Label's `Show badge` (exposed) | `labelBadge`, with a required `labelBadgeLabel` (screen-reader text), passed to FinLabel (decided 15 Oct 2026: follow Figma's exposed control) |
+| `Show Heading` + text | `heading`; shown when passed |
+| `Show Description` + text | `description`; shown when passed (a `<p>`) |
+| — | `headingLevel` (1–6): the heading **element** for the page's structure; defaults to the number in `type`; changes the structure only, never the look (decided 15 Oct 2026) |
+| — (Figma Checkbox `State=Disabled` overrides its Text Box) | `disabled`: heading and description use `--fin-text-disabled` (added 19 Oct 2026 for FinCheckbox, §9.30) |
+| — (code only) | `truncateHeading`: the heading stays on one line (`true`) or up to two (`2`) and ends in "…" (added 22 Oct 2026 for FinHeader, §9.63; `2` added 26 Oct 2026 for FinSideSheet; off by default) |
+| — (code only) | `tone: 'default' \| 'inverse'` (default `'default'`): `inverse` puts the heading and description in `--fin-text-inverse`, for a Text Box on a `bg-direct` surface (added 3 Nov 2026 for FinTooltip's rich type, §9.82; `data-tone`) |
+
+**Tokens used:**
+
+| `type` | Heading | Description | Heading → description gap |
+|---|---|---|---|
+| `h1` | `--fin-font-display-large-h1` | `--fin-font-body-large` | `--fin-space-m` |
+| `h2` | `--fin-font-display-medium-h2` | `--fin-font-body-large` | `--fin-space-m` |
+| `h3` | `--fin-font-display-small-h3` | `--fin-font-body-medium` | `--fin-space-m` |
+| `h4` | `--fin-font-headline-large-h4` | `--fin-font-body-medium` | `--fin-space-m` |
+| `h5` | `--fin-font-headline-medium-h5` | `--fin-font-body-medium` | `--fin-space-xs` |
+| `h6` | `--fin-font-headline-small-h6` | `--fin-font-body-medium` | `--fin-space-xs` |
+
+Heading `--fin-text-primary`, description `--fin-text-secondary`; label → content gap `--fin-space-none` (**no gap, exactly as Figma**, decided 15 Oct 2026). Fills its container; both texts wrap. Alignment moves the label row and aligns both texts. All Figma bindings are Foundation – Loyalty; no raw values.
+
+**API:**
+
+```tsx
+import { FinTextBox } from '@finspace-loyalty/ui';
+
+<FinTextBox type="h3" headingLevel={2} label="Step 2 of 3" heading="Confirm the reward" description="Check the details before you send it." />
+<FinTextBox type="h5" align="center" heading="No members yet" />
+<FinTextBox type="h6" label="Filters" labelSize="small" heading="Tier" />
+```
+
+Presentational: no `'use client'`. `className` and other `<div>` attributes go to the root.
+
+**Accessibility:** a real heading (`<h1>`–`<h6>` from `headingLevel`), so screen readers can navigate by headings; set `headingLevel` to fit the page's order. The label's badge meaning is read after the label (FinLabel). Contrast: heading `text-primary`, description `text-secondary` (5.82:1 Light / 8.76:1 Dark on `bg-primary`).
+
+**Built (15 Oct 2026).** Storybook (Components/Text box): Playground (type, alignment, each part, the label's badge), Types and alignments (Figma) at 342px, Parts on and off, Heading level. Checked against Figma at 342px: total heights 399 / 290 / 192 / 181 / 165 / 133 (within Figma's line-height rounding), label 21, the same number of heading and description lines, gaps 0 / 8 (H1–H4) and 0 / 4 (H5–H6), Figma's text styles and Light colors (Dark uses the Dark tokens), `<h1>`–`<h6>` by default; Center and Right align the label and both texts. a11y: no violations in Light or Dark.
+
+### 9.22 FinBarWithText (bar-with-text)
+
+**Figma:** page **Progress**, component set `bar-with-text` `31:2122` (was `Progress-full`, before that `Progress-progress bar`): `Progress` = 25 / 50 / 75 / 100% × `Description` = True / False (8 variants). A Progress bar (Large, 311 inset 32 in a 375 frame) above a Text Box (Center, Display Small-H3, label off, heading on, description per `Description`), gap 16 (`Space-XL`). No exposed nested instances; no instances. Mapped from the public FinProgressBar and FinTextBox.
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Progress` = 25 / 50 / 75 / 100% | `value` (any number from 0 to `max`) | Outside the §7.3 patterns (decided 15 Oct 2026, option (b)); listed in §10 #37 |
+| `Description` = True / False | `description` (text; shown when passed) | As Text Box's `Show Description` |
+| Heading text (instance text) | `heading` (required) | Also the bar's accessible name |
+| — | `max` (default 100), `headingLevel` (default 3) | Code-only: behaviour and structure, no change to the look |
+
+**Width (decided 15 Oct 2026):** spans the **middle 6 of the 12 grid columns** of its container, from the grid tokens: `calc((100% − 11 × gutter) / 12 × 6 + 5 × gutter)`, centred. In a 1240-wide content area that's **608**; on a full 1440 page (1392 content) 684. The bar fills that width (Figma's 32px inset comes from the mobile frame).
+
+**Tokens used:** gap `--fin-space-xl`, items centred; `--fin-grid-columns`, `--fin-grid-gutter` for the width. The bar and the Text Box keep their own styles (FinProgressBar `size="large"`, FinTextBox `type="h3" align="center"`). No raw values except the column counts (6 of 12, 5 gutters).
+
+**API:**
+
+```tsx
+import { FinBarWithText } from '@finspace-loyalty/ui';
+
+<FinBarWithText value={uploaded} max={total} heading="Uploading members" description="You can keep working." />
+```
+
+Presentational: no `'use client'`. `className` and other `<div>` attributes go to the root.
+
+**Accessibility:** the bar is a progressbar named by `heading` (with its value); the heading is a real `<h3>` (or `headingLevel`). Contrast as FinProgressBar and FinTextBox.
+
+**Built (15 Oct 2026).** Storybook (Components/Progress): Playground, Variants (Figma) with 25 / 50 / 75 / 100% and the description on and off, in a page-like content area (the window minus the 24px grid margins). Measured at window widths 1024 / 1288 / 1440 / 1920: 476 / **608** / 684 / 924 wide, equal gaps on both sides (centred). a11y: no violations in Light or Dark.
+
+### 9.23 FinSpinnerWithText (spinner-with-text)
+
+**Figma:** page **Progress**, component set `spinner-with-text` `33:2348` (was `Progress-Spinner`): `Progress` = 25% / 50% / 75% / Complete / Error × `Description` = True / False (10 variants). A Spinner (48, centred) above a Text Box (Center, Display Small-H3, label off, heading on, description per `Description`), gap 16 (`Space-XL`); 375 frame. Its zero padding is bound to another library (`Alias Spacing & Radius`, `Space-none`). No exposed nested instances; no instances. Mapped from the public FinSpinner and FinTextBox.
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Progress` = 25 / 50 / 75% | `status="progress"` (default) with `value` (any number from 0 to `max`) | Outside the §7.3 patterns (decided 15 Oct 2026, option (b)); §10 #37 |
+| `Progress` = Complete | `status="success"` | As FinSpinner; §10 #37 |
+| `Progress` = Error | `status="error"` | |
+| `Description` = True / False | `description` (text; shown when passed) | As Text Box's `Show Description` |
+| Heading text (instance text) | `heading` (required) | Also the spinner's accessible name |
+| — (not in Figma) | `status="progress"` **without** `value`: the spinning loader | **Extra option added at design's request** (15 Oct 2026) |
+| — | `max` (default 100), `headingLevel` (default 3) | Code-only: behaviour and structure |
+
+**Width and layout:** as FinBarWithText (§9.22): the middle 6 of 12 grid columns of its container (608 in a 1240 content area), centred column, gap `--fin-space-xl`; the spinner keeps its 48 box. Figma's other-library padding (0) needs nothing in code.
+
+**API:**
+
+```tsx
+import { FinSpinnerWithText } from '@finspace-loyalty/ui';
+
+<FinSpinnerWithText heading="Loading members" />                                   // spinning loader
+<FinSpinnerWithText value={60} heading="Importing transactions" description="You can keep working." />
+<FinSpinnerWithText status="success" heading="Import complete" />
+```
+
+Presentational: no `'use client'`. `className` and other `<div>` attributes go to the root.
+
+**Accessibility:** the spinner is a progressbar (or, for Complete / Error, an image) named by `heading`; the heading is a real `<h3>` (or `headingLevel`). The loader stops spinning with reduced motion (FinSpinner).
+
+**Built (15 Oct 2026).** Storybook (Components/Progress): Playground (status, loading or value, description), Variants (Figma) with all 10, Loading. Measured at window widths 1024 / 1288 / 1440 / 1920: 476 / **608** / 684 / 924 wide, centred; spinner 48 centred, gap 16, heading Display Small-H3 centred. a11y: no violations in Light or Dark.
+
+### 9.24 FinCaption (Caption)
+
+**Figma:** page **List**, component set `Caption` `77:10172`: `Size` = Small / Medium / Large × `Thickness` = Heavy / Light (6 variants). One text layer, `text-tertiary`, single line that grows; the text is typed over the layer (not a component property). Zero padding bound to another library (`Alias Spacing & Radius`, `Space-none`). Used twice (List-base/Notification-base, Face scan). Heavy Small/Medium look the same as Label Small/Medium (§9.19); kept as its own component, as in Figma (decided 15 Oct 2026).
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Size` = Small / Medium / Large | `size: 'small' \| 'medium' \| 'large'` (default `'small'`) | Same options |
+| `Thickness` = Heavy / Light | `thickness: 'heavy' \| 'light'` (default `'heavy'`) | Same options |
+| Text layer (typed over) | `children` | Main content; **wraps** when long (decided 15 Oct 2026) |
+
+**Tokens used:**
+
+| `size` | `heavy` | `light` |
+|---|---|---|
+| `small` | `--fin-font-label-small` | `--fin-font-body-small` |
+| `medium` | `--fin-font-label-medium` | `--fin-font-body-medium` |
+| `large` | `--fin-font-label-large` | `--fin-font-body-large` |
+
+Color `--fin-text-tertiary`. No raw values; Figma's other-library zero padding needs nothing in code.
+
+**API:**
+
+```tsx
+import { FinCaption } from '@finspace-loyalty/ui';
+
+<FinCaption>Last updated today</FinCaption>
+<FinCaption size="medium" thickness="light">Points expire after 12 months.</FinCaption>
+```
+
+Presentational: no `'use client'`. A `<span>`; `className` and other attributes go to it.
+
+**Accessibility:** plain text. Contrast `text-tertiary` 9.28:1 Light / 5.94:1 Dark on `bg-primary` (8.51 / 4.92 on `bg-secondary`).
+
+**Built (15 Oct 2026).** Storybook (Components/List): Playground, Sizes and thickness (Figma), Long text. Checked against Figma: heights 18 / 21 / 24, weights 600 (Heavy) and 400 (Light), sizes 12 / 14 / 16, `#474748` (Dark uses the Dark token); widths within 1px (Figma rounds text widths up); long text wraps. a11y: no violations in Light or Dark.
+
+### 9.25 FinButtonBase (Base-button) — internal
+
+**Figma:** page **Buttons**, component set `Base-button` `45:405`: `Type` = Primary / Secondary / Tertiary × `Size` = Large / Medium / Small / XSmall × `State` = Enabled / Hovered / Pressed / Disabled × `Focused` = True / False (96 variants), with `Show Leading Icon`, `Show Trailing Icon`, `Show Label` and `Button label`. Base of `all-button` (§7.2). **Internal** (§7.2 rule 4): products use FinButton. Icon-only buttons aren't part of the base in Figma; they come with `all-button` (decided 19 Oct 2026).
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Type` = Primary / Secondary / Tertiary | `variant: 'primary' \| 'secondary' \| 'tertiary'` (default `'primary'`) | **Renamed** so it doesn't clash with the native `type` (decided 19 Oct 2026). The base also takes `'white'` for FinWhiteButton (§9.26) and `'destructive'` / `'destructive-secondary'` for FinDestructiveButton (§9.27) |
+| `Size` = Large / Medium / Small / XSmall | `size: 'large' \| 'medium' \| 'small' \| 'xsmall'` (default `'large'`, Figma's default) | Same options |
+| `State` = Enabled / Hovered / Pressed / Disabled | `:hover`, `:active`; `disabled` (native) | Runtime state (§7.3) |
+| `Focused` | `:focus-visible` | Disabled + Focused ignored (§7.3) |
+| `Show Leading Icon` + icon | `leadingIcon?: FinIconName` | Shown when set |
+| `Show Trailing Icon` + icon | `trailingIcon?: FinIconName` | Shown when set |
+| `Show Label` | `showLabel` (default `true`) | Off: the label is visually hidden but still names the button |
+| `Button label` | `children` | One line |
+| — | `iconOnly`, `iconSide` (internal, set by FinButton only) | all-button's padding overrides: square icon-only, less padding on the icon side (§9.28). Not in Figma's Base-button, so its stories don't use them |
+| — | `type` (native, default `"button"`), `ref`, other button attributes | Code-only |
+
+**Tokens used:**
+
+| `size` | Height | Padding (v / h) | Radius | Text style | Icon |
+|---|---|---|---|---|---|
+| `large` | 56 | `--fin-space-xl` / `--fin-space-3xl` | `--fin-radius-m` | `--fin-font-button-xlarge` | 24 |
+| `medium` | 48 | `--fin-space-l` / `--fin-space-3xl` | `--fin-radius-m` | `--fin-font-button-large` | 24 |
+| `small` | 40 | `--fin-space-m` / `--fin-space-xl` | `--fin-radius-s` | `--fin-font-button-medium` | 20 |
+| `xsmall` | 36 | `--fin-space-s` / `--fin-space-xl` | `--fin-radius-s` | `--fin-font-button-medium` | 20 |
+
+Gap `--fin-space-m`. Each size uses the text style one step up (Large → Button XL); `Button S` isn't used.
+
+| `variant` | Enabled | Hovered | Pressed | Disabled |
+|---|---|---|---|---|
+| `primary` | `bg-action-primary`, `text/fg-white_both` | `bg-action-primary_hovered` | `bg-action-primary_pressed` | `bg-disabled`, `text/fg-disabled-on_bg` |
+| `secondary` | 2px `border-active`, `text/fg-action` | `bg-action-secondary_hovered`, `border-hovered`, `text/fg-hovered` | `bg-action-secondary_pressed`, `border-pressed`, `text/fg-pressed` | `border-disabled`, `text/fg-disabled` |
+| `tertiary` | `text/fg-action` | as Secondary, no border | as Secondary, no border | `text/fg-disabled` |
+
+Labels use the `text-*` token and icons the `fg-*` token, as in Figma (each icon sits in a span colored with it; FinIcon has no color and inherits). Inside strokes (Secondary and Destructive Secondary 2px: `inset-ring-2`; White 1px: `inset-ring`; since the Tailwind pilot, 5 Nov 2026, §3.11) are an inset box shadow, so they never change the size. **Focused:** `focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-focused` (2px `border-focused`, offset −1px) (Figma's ring straddles the edge: 1px outside, 1px inside), same radius. Raw values: the 2px stroke and ring, -1px offset, 1px visually hidden label box. `"case"` font feature dropped (as FinAvatar). No animation (§5).
+
+**API (internal):**
+
+```tsx
+<FinButtonBase variant="secondary" size="small" leadingIcon="person">Text here</FinButtonBase>
+<FinButtonBase type="submit">Save</FinButtonBase>
+```
+
+`'use client'` (forwards `ref`). A native `<button>`; `ref`, `className` and other attributes go to it.
+
+**Accessibility:** native button: Tab reaches it, Enter and Space press it; disabled buttons are skipped. Named by its label (icons are decorative); with `showLabel={false}` the hidden label still names it. Focus ring `border-focused` 3.35:1 on `bg-primary`, 3.08:1 on `bg-secondary` (Light). Contrast, enabled: Primary 4.71:1 both themes; Secondary/Tertiary label 4.71 Light / 5.24 Dark on `bg-primary`, but **4.32 / 4.34 on `bg-secondary`** (§10 #3). **Hovered and pressed contrast failures are accepted** (decided 19 Oct 2026, §10 #3): what matters is the enabled state.
+
+**Built (19 Oct 2026).** Storybook (Internal/Base button): Playground, States (Figma) with every Type and Size, Enabled and Disabled shown and Hovered/Pressed live, Content (icons, hidden label), Focused (Tab). Checked against Figma in a browser: heights 56 / 48 / 40 / 36, padding, radius 12 / 8, text 18 / 16 / 14 semibold on a 24 line, icons 24 / 20, gap 8; Light colors equal Figma for every Type in Enabled, Hovered (real mouse), Pressed and Disabled; Dark uses the Dark tokens, and label, icon and border match on hover and press since the §10 #39 fix (19 Oct 2026); focus ring 2px `#817cff` at -1px. Widths 0.8px narrower than Figma (text rendering). **Differences from Figma:** XSmall Tertiary Pressed uses `bg-active-hover` in Figma; code uses `bg-action-secondary_pressed` like every other size (§10 #38). a11y: no violations in Light or Dark.
+
+### 9.26 FinWhiteButton (white-button) — internal
+
+**Figma:** page **Buttons**, component set `white-button` `349:5042`: `Size` = Large / Medium / Small / XSmall × `State` = Enabled / Hovered / Pressed / Disabled × `Focused` = True / False (32 variants), with `Show Leading Icon`, `Show Trailing Icon`, `Show Label` (on every state since 19 Oct 2026) and `Button label`. No `Type`. Separate from Base-button in Figma, but the same sizes and layout, so in code it's **FinButtonBase with `variant="white"`** (§7.2, decided 19 Oct 2026). **Internal** (§7.2 rule 4): one of the three bases inside `all-button` (decided 19 Oct 2026); products use FinButton. White in both themes ("White call to action on brand"); Figma rebound to both-theme tokens on 19 Oct 2026.
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Size` = Large / Medium / Small / XSmall | `size: 'large' \| 'medium' \| 'small' \| 'xsmall'` (default `'large'`) | Same options |
+| `State` = Enabled / Hovered / Pressed / Disabled | `:hover`, `:active`; `disabled` (native) | Runtime state (§7.3) |
+| `Focused` | `:focus-visible` | Same ring as every button (decided 19 Oct 2026; Figma's ring sits 1px higher) |
+| `Show Leading Icon` / `Show Trailing Icon` + icon | `leadingIcon` / `trailingIcon?: FinIconName` | Shown when set; leave both out for a text-only button. One prop holds the toggle and the icon, so "on with no icon" can't happen (§7.3) |
+| `Show Label` | `showLabel` (default `true`) | Hidden label still names the button |
+| `Button label` | `children` | One line |
+| — | `type` (native, default `"button"`), `ref`, other button attributes | Code-only |
+
+**Tokens used:** sizes, padding, radius, text styles, icon sizes, gap and focus ring as FinButtonBase (§9.25).
+
+| State | Background | Label | Icon | Border (1px inside) |
+|---|---|---|---|---|
+| Enabled | `bg-action-inverse` | `text-dark_both` | `fg-dark_both` | `border-subtle` |
+| Hovered | `bg-active` | `text-hovered` | `fg-hovered` | `border-subtle` |
+| Pressed | `bg-action-secondary_pressed` | `text-pressed` | `fg-pressed` | `border-subtle` |
+| Disabled | `bg-disabled` | `text-disabled-on_bg` | `fg-disabled-on_bg` | `border-subtle` |
+
+The border is kept in every state at every size; Figma's Small and XSmall drop it on Hovered, Pressed and Disabled (§10 #40). Raw value: the 1px border width.
+
+**API:**
+
+```tsx
+<FinWhiteButton>Text here</FinWhiteButton>                        // text only
+<FinWhiteButton leadingIcon="person">Text here</FinWhiteButton>
+<FinWhiteButton size="small" type="submit">Continue</FinWhiteButton>
+```
+
+`'use client'` (forwards `ref`). Internal: not exported from the package.
+
+**Accessibility:** as FinButtonBase: native button, Tab, Enter and Space, disabled skipped, named by its label (icons decorative). Contrast, enabled: label and icon 17.57:1 in both themes; the button itself is 4.71:1 against `bg-brand`. Hovered 4.82 Light / 4.92 Dark, pressed 4.09 / 4.09 (hover/pressed accepted, §10 #3). The 1px `border-subtle` is barely visible on light grey (1.07:1 on `bg-secondary`); accepted by design (19 Oct 2026), the label identifies the button.
+
+**Built (19 Oct 2026).** Storybook (Internal/White button; moved from Components/Buttons the same day): Playground (Figma-style icon toggles), States (Figma) with every Size, Enabled and Disabled shown and Hovered/Pressed live, On brand, Content, Focused (Tab). Checked against Figma in a browser: heights 56 / 48 / 40 / 36, padding, radius, fonts and icons as the Base button; Light colors equal Figma in every state (Hovered and Pressed with a real mouse); Dark: white with dark text when enabled, Dark tokens for hover, pressed, disabled and the border; focus ring 2px at -1px. Base button stories unchanged (Secondary still 2px). a11y: no violations in Light or Dark.
+
+### 9.27 FinDestructiveButton (Destructive-button) — internal
+
+**Figma:** page **Buttons**, component set `Destructive-button` `523:2813`: `Type` = Primary / Secondary × `Size` = Large / Medium / Small / XSmall × `State` = Enabled / Hovered / Pressed / Disabled × `Focused` = True / False (64 variants), with `Show Leading Icon`, `Show Trailing Icon`, `Show Label` and `Button label`. Separate from Base-button in Figma, but the same sizes and layout, so in code it's **FinButtonBase with `variant="destructive"` or `"destructive-secondary"`** (§7.2). **Internal** (§7.2 rule 4): one of the three bases inside `all-button` (decided 19 Oct 2026); products use FinButton. Fixed in Figma before the build (19 Oct 2026): Medium Primary Enabled was bound to `bg-error`, XSmall Secondary Hovered to `bg-error_secondary`, and Disabled had no `Show Label`.
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Type` = Primary / Secondary | `variant: 'primary' \| 'secondary'` (default `'primary'`) | Named like the base's `variant`; maps to base `destructive` / `destructive-secondary` |
+| `Size` = Large / Medium / Small / XSmall | `size: 'large' \| 'medium' \| 'small' \| 'xsmall'` (default `'large'`) | Same options |
+| `State` = Enabled / Hovered / Pressed / Disabled | `:hover`, `:active`; `disabled` (native) | Runtime state (§7.3) |
+| `Focused` | `:focus-visible` | Same ring as every button (decided 19 Oct 2026; Figma's ring sits 2px higher) |
+| `Show Leading Icon` / `Show Trailing Icon` + icon | `leadingIcon` / `trailingIcon?: FinIconName` | Shown when set; leave both out for a text-only button |
+| `Show Label` | `showLabel` (default `true`) | Hidden label still names the button |
+| `Button label` | `children` | One line |
+| — | `type` (native, default `"button"`), `ref`, other button attributes | Code-only |
+
+**Tokens used:** sizes, padding, radius, text styles, icon sizes, gap and focus ring as FinButtonBase (§9.25).
+
+| State | Primary | Secondary (2px inside border) |
+|---|---|---|
+| Enabled | `bg-action-destructive`, `text/fg-white_both` | `border-error`, `text-error`, `fg-error` |
+| Hovered | `bg-action-destructive_hovered` | `bg-action-destructive-secondary_hovered`; border and text stay red |
+| Pressed | `bg-action-destructive_pressed` | `bg-action-destructive-secondary_pressed`; border and text stay red |
+| Disabled | `bg-disabled`, `text/fg-disabled-on_bg` | `border-disabled`, `text/fg-disabled` |
+
+In Dark, the Secondary label (`text-error`, Error-100 `#edb7b9`) is lighter than its icon (`fg-error`, Error-200 `#e49497`), as the tokens set it.
+
+**API (internal):**
+
+```tsx
+<FinDestructiveButton>Delete</FinDestructiveButton>
+<FinDestructiveButton variant="secondary" size="small" leadingIcon="cancel">Remove</FinDestructiveButton>
+```
+
+`'use client'` (forwards `ref`). Not exported from the package.
+
+**Accessibility:** as FinButtonBase: native button, Tab, Enter and Space, disabled skipped, named by its label (icons decorative). Contrast, enabled: Primary label 5.98:1 Light / 4.51:1 Dark; Secondary label 5.98 / 10.10 on `bg-primary` and 5.48 / 8.37 on `bg-secondary`; icon 5.98 / 7.51. Hovered and pressed failures are accepted (§10 #3): Primary Dark 3.53 / 2.34, Secondary pressed 3.44 Light / 3.97 Dark.
+
+**Built (19 Oct 2026).** Storybook (Internal/Destructive button): Playground (Figma-style controls), States (Figma) with every Type and Size, Enabled and Disabled shown and Hovered/Pressed live, Content, Focused (Tab). Checked against Figma in a browser: sizes, padding, radius, fonts and icons as the Base button; Light colors equal Figma for both Types in every state (Hovered and Pressed with a real mouse); Dark colors equal Figma's Dark page; focus ring 2px at -1px. a11y: no violations in Light or Dark.
+
+### 9.28 FinButton (all-button)
+
+**Figma:** page **Buttons**, component set `all-button` `47:1580`: `Type` = Primary / Secondary / Tertiary × `Size` = Large / Medium / Small / XSmall × `State` = Enabled / Hovered / Pressed / Disabled × `Icon` = None / Leading / Trailing / Only Icon (192 variants). Each variant is a Base-button instance with padding overrides: Only Icon is square, and Leading / Trailing have one step less padding on the icon's side so the button looks balanced (added by design 19 Oct 2026; the icon's own whitespace made that side look wider). **New property `Tone`** (Normal / White / Destructive, decided 19 Oct 2026, to be added in Figma) picks the base: Normal = Base-button, White = white-button, Destructive = Destructive-button. Combinations that exist: Normal × Primary / Secondary / Tertiary, White (one look, Type Primary), Destructive × Primary / Secondary. No `Focused` property: the ring comes from the base. **The only public button**; the three bases are internal (§7.2).
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Tone` = Normal / White / Destructive (new) | `tone: 'normal' \| 'white' \| 'destructive'` (default `'normal'`) | A property that only changes colors is `tone` (§7.3) |
+| `Type` = Primary / Secondary / Tertiary | `variant: 'primary' \| 'secondary' \| 'tertiary'` (default `'primary'`) | Named `variant` so it doesn't clash with the native `type` (as §9.25). White takes only `'primary'`, Destructive `'primary' \| 'secondary'`: other combinations are a type error |
+| `Size` = Large / Medium / Small / XSmall | `size` (default `'large'`) | Same options |
+| `State` = Enabled / Hovered / Pressed / Disabled | `:hover`, `:active`; `disabled` (native) | Runtime state (§7.3) |
+| `Icon` = None / Leading / Trailing / Only Icon | `icon: 'none' \| 'leading' \| 'trailing' \| 'only-icon'` (default `'none'`) | One icon at a time, as in Figma |
+| icon swap (nested, not exposed in Figma) | `iconName: FinIconName` | Required whenever `icon` isn't `'none'` (type error otherwise) |
+| button label (nested, not exposed in Figma) | `children` | Required. With `'only-icon'` it's visually hidden and names the button |
+| icon colour override (Tertiary, `fg-secondary`; Side sheet) | `iconTone: 'action' \| 'secondary'` (default `'action'`) | **Code only** (added 26 Oct 2026): `secondary` makes a Tertiary icon grey at rest; hover and press keep the Tertiary colors. Only Tertiary reads it (FinButtonBase `iconTone`, `data-icon-tone`) |
+| label and icon colour override (Tertiary; Snackbar, Notification banner) | `contentTone?: 'inverse' \| 'primary' \| 'secondary' \| 'info' \| 'success' \| 'error' \| 'warning'` (`FinButtonContentTone`) | **Code only** (added 27 Oct 2026, §9.73; `secondary` and the status tones added for §9.75): `text-<tone>` / `fg-<tone>` in every state (`inverse` on `bg-direct`; the others on status and neutral backgrounds); hover and press tint the background `alpha-light` (inverse) or `alpha-sm` (the others). Only Tertiary reads it (FinButtonBase `contentTone`, `data-content-tone`) |
+| — | `type` (native, default `"button"`), `ref`, other button attributes | Code-only |
+
+| `tone` + `variant` | Base look | Spec |
+|---|---|---|
+| `normal` + `primary` / `secondary` / `tertiary` | `primary` / `secondary` / `tertiary` | §9.25 |
+| `white` | `white` | §9.26 |
+| `destructive` + `primary` / `secondary` | `destructive` / `destructive-secondary` | §9.27 |
+
+**Tokens used:** all from FinButtonBase (§9.25–9.27); FinButton has no CSS. It turns on two base options that exist only for all-button (Figma's Base-button stays as it is):
+
+| `icon` | Base option | Padding (Large / Medium / Small / XSmall) |
+|---|---|---|
+| `'none'` | — | 24 / 24 / 16 / 16 both sides |
+| `'leading'` / `'trailing'` | `iconSide` | icon side `--fin-space-xl` 16 / 16, `--fin-space-l` 12 / 12; text side unchanged |
+| `'only-icon'` | `iconOnly` | the vertical padding on every side (`--fin-space-xl` / `-l` / `-m` / `-s`), so 56 / 48 / 36 / 32 square |
+
+**API:**
+
+```tsx
+import { FinButton } from '@finspace-loyalty/ui';
+
+<FinButton>Save</FinButton>
+<FinButton variant="secondary" icon="leading" iconName="arrow_back">Back</FinButton>
+<FinButton tone="destructive" variant="secondary" size="small">Remove</FinButton>
+<FinButton tone="white" icon="only-icon" iconName="edit">Edit profile</FinButton>
+<FinButton type="submit" disabled={!valid}>Continue</FinButton>
+```
+
+`'use client'` (forwards `ref`). Exports `FinButton` and the types `FinButtonProps`, `FinButtonTone`, `FinButtonIcon`, `FinButtonVariant`, `FinButtonSize`.
+
+**Accessibility:** native button: Tab, Enter and Space; disabled skipped. Named by its label; icons are decorative. Icon-only buttons keep the label as a visually hidden name, so they're never unnamed (required `children`). Pointer targets ≥ 32 × 32. Contrast per look in §9.25–9.27 (enabled passes everywhere except Secondary/Tertiary on `bg-secondary`, §10 #3).
+
+**Built (19 Oct 2026),** before `Tone` and the White/Destructive Types are in Figma (agreed: check against Figma once added). Storybook (Components/Buttons/Button): Playground (Tone, Type, Size, Icon, icon picker), States (Figma) with every look × Icon option + Disabled per Size, Icon only, White on brand. Checked against Figma in a browser: widths, heights and padding equal all-button (None 130 / 121 / 96 / 96, one icon 154 / 145 / 120 / 120 after the icon-side padding change, icon only 56 / 48 / 36 / 32; widths 0.8px narrower from text rendering); colors are the base's, already checked. a11y: no violations in Light or Dark.
+
+### 9.29 FinCheckboxBase (Base-Checkbox) — internal
+
+**Figma:** page **Checkbox**, component set `Base-Checkbox` `42:185`: `State` = Enabled / Hovered / Pressed / Disabled × `Type` = Unselected / Selected / Indeterminate × `Focused` = True / False (24 variants; Pressed added and hover colors updated by design 19 Oct 2026). A 24 frame with an 18 box, radius `Radius-XS`, 16px icon (`check` / `remove`). Base of `Checkbox` (§8 #37); also used directly by the Table parts (§8 #50, #51, #71, #72), which use it inside their own code. **Internal** (§7.2 rule 4); products use FinCheckbox.
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Type` = Unselected / Selected | `checked` / `defaultChecked` + `onChange` (native checkbox) | |
+| `Type` = Indeterminate | `indeterminate` (default `false`) | Set on the input (HTML has no attribute); announced as mixed. Clicking clears it in the browser; the parent sets the next value |
+| `State` = Enabled / Hovered / Pressed / Disabled | `:hover`, `:active`; `disabled` (native) | Runtime state (§7.3) |
+| `Focused` | `:focus-visible` | Disabled + Focused ignored (§7.3) |
+| — | `label` | Accessible name, visually hidden. Required unless the input is named another way: FinCheckbox leaves it out and uses `aria-labelledby` to its Text Box (19 Oct 2026) |
+| — | `name`, `value`, `ref` (to the input), other input attributes | Code-only |
+
+**Structure:** like FinRadio: a `<label>` holding a native `<input type="checkbox">` laid invisibly over the 24px frame (clicks, keyboard, focus), the box with both icons (`aria-hidden`; CSS shows the one for the input's state), and the hidden label. `className` goes to the wrapper.
+
+**Tokens used:** frame `--fin-size-24`; box **`calc(var(--fin-size-24) - var(--fin-space-s))` = 18** (no 18 token; decided 19 Oct 2026: derive it in code), `--fin-radius-xs`; 2px inside stroke as an inset shadow (so the 16px icon keeps the full box); icon `FinIcon` 16.
+
+| State | Unselected: fill / stroke | Selected, Indeterminate: fill / icon |
+|---|---|---|
+| Enabled | none / `border-default` (was `border-strong` until 29 Oct 2026; below 3:1, accepted, §10 #75) | `bg-action-primary` / `fg-white_both` |
+| Hovered | `bg-active-hover` / `border-hovered` | `fg-hovered` / `fg-white_both` |
+| Pressed | `bg-action-primary_pressed` / `border-pressed` | `fg-pressed` / `fg-white_both` |
+| Disabled | none / `fg-disabled` | `fg-disabled` / `fg-disabled-on_bg` |
+| Focused | `outline: 2px solid var(--fin-border-focused)` hugging the box (Figma: 22 around 18), radius follows | |
+
+The icon is white in both themes (`fg-white_both`; was `fg-inverse`, which turned near-black in Dark; changed by design 19 Oct 2026). Raw values: the 2px stroke and ring, the 1px hidden label box. Figma's raw `Primary-400` binding was removed by design (19 Oct 2026).
+
+**API (internal):**
+
+```tsx
+<FinCheckboxBase label="Select row" checked={selected} onChange={(e) => setSelected(e.target.checked)} />
+<FinCheckboxBase label="Select all rows" checked={all} indeterminate={some && !all} onChange={toggleAll} />
+```
+
+`'use client'` (ref and effect).
+
+**Accessibility:** announced as a checkbox with its label: checked, not checked or mixed. Tab reaches it, Space toggles it; disabled is skipped. Pointer target 24 × 24. Contrast (non-text, 3:1), enabled: unselected stroke 3.90 Light / 8.76 Dark on `bg-primary` (3.57 / 7.25 on `bg-secondary`), after `border-strong` changed on 19 Oct 2026; selected fill 4.71 / 3.73 (4.32 / 3.09 on `bg-secondary`); white icon on the fill 4.71 in both themes. Hovered / Pressed (accepted, §10 #3): icon 5.49 / 7.82 Light but 2.70 / 1.91 Dark, where the fills turn light purple. Disabled is exempt: the Disabled Selected icon is nearly invisible on its fill (1.4:1 Light, 1.1:1 Dark).
+
+**Built (19 Oct 2026).** Storybook (Internal/Checkbox base): Playground, States (Figma) with all three Types, Enabled and Disabled shown and Hovered/Pressed live, Select all (indeterminate), Focused (Tab). Checked against Figma in a browser: box 18 × 18 in the 24 frame, radius 4, 2px stroke, icons 16; Light colors equal Figma in every State and Type (Hovered and Pressed with a real mouse); Dark uses the Dark tokens; focus ring 2px. a11y: no violations in Light or Dark.
+
+**Added 20 Oct 2026:** `focusRing` (default `true`). List rows (FinListCheckbox, §9.54) turn it off and draw the ring around the row instead.
+
+### 9.30 FinCheckbox (Checkbox)
+
+**Figma:** page **Checkbox**, component set `Checkbox` `42:220`: `Type` = Unselected / Selected × `State` = Enabled / Disabled × `Focused` = True / False (6 variants), with `Show Leading Icon`, `Show Trailing Icon` (both on by default) and `Show Text Box`. A Base-Checkbox and a Text Box (description only: Body/Large, `text-secondary`; `text-disabled` when disabled) side by side, 12 apart (`Space-L`), top-aligned; fixed width 343. Focused draws a ring around the whole row. **Public.**
+
+**Decided 19 Oct 2026:** the checkbox is **always on the left** (one control per row; no trailing option); the text **is a FinTextBox**; focus shows **the checkbox's own ring** (not the row ring).
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Type` = Unselected / Selected | `checked` / `defaultChecked` + `onChange` (native checkbox) | Also `indeterminate`, from the base (not drawn in this set) |
+| `State` = Enabled / Disabled | `disabled` (native) | Hovered and Pressed come from the base (§9.29) |
+| `Focused` | `:focus-visible` on the checkbox | The base's box ring, not Figma's row ring (decided 19 Oct 2026) |
+| `Show Leading Icon` / `Show Trailing Icon` | — | Checkbox always on the left (decided 19 Oct 2026, §10 #44) |
+| `Show Text Box` + text | `children` (string), `showTextBox` (default `true`) | Off: the text is visually hidden (the base's hidden `label`) but still names the checkbox |
+| — | `name`, `value`, `ref` (to the input), other input attributes | `className` goes to the row |
+
+**Structure:** a row `<div>`: `FinCheckboxBase` (its input `aria-labelledby` the Text Box) and a `FinTextBox` with only `description`, inside a wrapper whose click focuses the checkbox (without the keyboard ring, like a `<label>` click) and toggles it. Not a `<label>`: the Text Box renders `<div>` / `<p>`, which a `<label>` can't contain. The click is a pointer shortcut only (the checkbox is the keyboard control); the two jsx-a11y rules about click handlers are disabled on that one line with that reason.
+
+**Tokens used:** gap `--fin-space-l`; top-aligned (the 24px checkbox lines up with the first 24px line); the text is FinTextBox `type="h1"` description (`--fin-font-body-large`, `--fin-text-secondary`, `disabled` → `--fin-text-disabled`); the checkbox as §9.29. Fills its container (Figma's 343 is the drawing width); the text wraps. No raw values.
+
+**API:**
+
+```tsx
+import { FinCheckbox } from '@finspace-loyalty/ui';
+
+<FinCheckbox name="prefs" value="summary" defaultChecked>Send members a monthly points summary</FinCheckbox>
+<FinCheckbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)}>I agree to the programme terms</FinCheckbox>
+<FinCheckbox disabled>Email receipts (not available on this plan)</FinCheckbox>
+```
+
+`'use client'`.
+
+**Accessibility:** announced as a checkbox named by its text: checked, not checked or mixed. Tab reaches it, Space toggles it; clicking the box or the text toggles it; disabled ignores both and is skipped. Contrast: text `text-secondary` 5.82:1 Light / 8.76:1 Dark on `bg-primary`; checkbox as §9.29. Disabled text is exempt.
+
+**Built (19 Oct 2026).** Storybook (Components/Checkbox): Playground (with Show Text Box), States (Figma) at 343px plus Disabled Selected and Indeterminate, Widths, Focused (Tab). Checked against Figma in a browser at 343px: row 343 × 72, checkbox at (0, 0), text at x 36 (24 + 12), Body L 16/24 on three lines; Light colors equal Figma (enabled and disabled), Dark uses the Dark tokens; clicking the text toggles and focuses without the ring; Tab shows the box ring. Line breaks differ slightly from Figma, whose text column is narrower (it leaves room for the trailing checkbox). a11y: no violations in Light or Dark.
+
+### 9.31 FinChipBase (Chips-base) — internal
+
+**Figma:** page **Chips**, component set `Chips-base` `95:1811`: `Type` = Unselected / Selected / Unselected-border × `Size` = Xsmall / Small / Large (9 variants), with `Show Leading Accessory` (a slot; default content an icon), `Show Trailing Icon` (a ✕) and `Label text`. The mapped `Chips` (§8 #38) adds Hovered, Pressed and Disabled; they live in this base (§7.2 rule 3, added 19 Oct 2026 with the three chips, §9.32). Base of Chips, Chips-group and Input field-Multi select. **Internal**; products use FinChip.
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Type` = Unselected / Selected / Unselected-border | `variant: 'unselected' \| 'selected' \| 'unselected-border'` (default `'unselected'`) | Named `variant`, like the buttons |
+| `Size` = Xsmall / Small / Large | `size: 'xsmall' \| 'small' \| 'large'` (default `'small'`) | Typo `Xsmall` fixed (§10 #21) |
+| `Show Leading Accessory` + its default icon | `leadingIcon?: FinIconName` | Sized (16 / 16 / 20) and colored by the chip |
+| `Show Leading Accessory` + other content | `leadingAccessory?: ReactNode` | Any content (avatar, flag…), laid out 8 apart; used instead of `leadingIcon` (decided 19 Oct 2026: the slot may hold other things) |
+| `Show Trailing Icon` + icon | `trailingIcon?: FinIconName` | Decorative here; removing a chip comes with the mapped components |
+| `Label text` | `children` | One line; "…" when the container is narrower (as FinBadgeBase) |
+| Chips `State` = Hovered / Pressed | `:hover` / `:active` when `as="button"` | Unselected (and Unselected-border) drop the stroke and shadow; Selected keeps one (`border-active` / `border-pressed`) |
+| Chips `State` = Disabled | `disabled` (`data-disabled`; native on a button) | `bg-disabled`, `text-disabled-on_bg`; Selected adds `border-disabled` |
+| — | `as: 'span' \| 'button'` (internal) | The whole chip as a button (Assist, Filter) |
+| — | `trailingAccessory` (internal) | Other trailing content instead of `trailingIcon` (Input chip's ✕ button) |
+
+**Tokens used:**
+
+| Size | Height | Padding (v / h) | Gap | Text style | Icons |
+|---|---|---|---|---|---|
+| `xsmall` | 26 | `--fin-space-xs` / `--fin-space-m` | `--fin-space-xs` | `--fin-font-label-small` | 16 |
+| `small` | 33 | `--fin-space-s` / `--fin-space-l` | `--fin-space-m` | `--fin-font-label-medium` | 16 |
+| `large` | 40 | `--fin-space-m` / `--fin-space-l` | `--fin-space-m` | `--fin-font-label-large` | 20 |
+
+Radius `--fin-radius-s`. The 1px stroke is an inset shadow (never changes the size).
+
+| `variant` | Background | Stroke (1px) | Text | Leading icon | Trailing icon |
+|---|---|---|---|---|---|
+| `unselected` | `bg-primary` | `border-subtle` | `text-primary` | `fg-secondary` | `fg-secondary` |
+| `selected` | `bg-active` | `border-active` | `text-action` | `fg-brand` | `fg-secondary` (stays grey, as Figma; decided 19 Oct 2026) |
+| `unselected-border` | `bg-primary` | `border-default` + `--fin-shadow-resting-cards` | `text-primary` | `fg-secondary` | `fg-secondary` |
+
+Figma binds Label/Large's font family to `Title XL/Font family` (same Inter); code uses `--fin-font-label-large` (§10 #45). Raw value: the 1px stroke.
+
+**API (internal):**
+
+```tsx
+<FinChipBase leadingIcon="person" trailingIcon="close">Gold</FinChipBase>
+<FinChipBase variant="selected" size="large">Silver</FinChipBase>
+<FinChipBase leadingAccessory={<FinAvatar size="xsmall" initials="SD" label="Sathila" />}>Sathila</FinChipBase>
+```
+
+`'use client'` (forwards `ref`). A `<span>`, or a `<button>` with `as="button"`; `className` and other attributes go to it.
+
+**States (Figma Chips, Small):** Hovered `bg-active-hover`; Pressed `bg-action-primary_pressed` with `text-inverse` (icons `fg-inverse`); Disabled `bg-disabled`, `text-disabled-on_bg` (icons `fg-disabled-on_bg`). Unselected / Unselected-border have no stroke in those states; Selected keeps `border-active` / `border-pressed` / `border-disabled`. Unselected-border has no states in Figma; it uses Unselected's (its shadow goes too). Focus: no design, the default ring (2px `border-focused`, 2px out).
+
+**Accessibility:** text and decorative icons only (no role yet). Contrast: Unselected text 17.57:1, icons 6.10 Light / 8.76 Dark. **Selected text `text-action` on `bg-active` is 4.13:1 Light / 3.95:1 Dark, below 4.5:1: accepted by design (19 Oct 2026, §10 #3)**; the a11y check skips only Selected chips.
+
+**Built (19 Oct 2026).** Storybook (Internal/Chip base): Playground (Figma-style toggles for the leading accessory and trailing icon, icon pickers), Types (Figma), Content (both parts optional, custom accessory), Long label. Checked against Figma in a browser: heights 26 / 33 / 40, widths 87.4 / 108.6 / 121.9 (Figma 88 / 109 / 122, text rendering), padding, gaps, radius 8, Label S / M / L, icons 16 / 16 / 20, Light colors and the shadow equal Figma; Dark uses the Dark tokens. a11y: no violations in Light or Dark apart from the accepted Selected text.
+
+### 9.32 FinAssistChip, FinFilterChip, FinInputChip (Chips)
+
+**Figma:** page **Chips**, component set `Chips` `95:1848`: `State` = Enabled / Hovered / Pressed / Disabled × `Type` = Unselected / Selected (8 variants, Small, no icons), built on Chips-base. **Decided by design 19 Oct 2026:** chips come in three types with different meanings, which Figma doesn't define yet; in code they're three public components on FinChipBase (§9.31), which holds every look and state:
+
+| | **FinAssistChip** | **FinFilterChip** | **FinInputChip** |
+|---|---|---|---|
+| Meaning | An action: date ranges, selections; may open a menu or picker | A filter, on / off; several can be on | A chosen value in a multi-select field |
+| Element | `<button>` | `<button aria-pressed>` | `<span>` + a `<button>` ✕ |
+| Base look | `unselected-border`; `selected` while `expanded` | `unselected` / `selected` | `unselected` |
+| Own props | `dropdown` (shows `keyboard_arrow_down`, sets `aria-haspopup`), `expanded` (`aria-expanded`) | `selected` / `defaultSelected` + `onSelectedChange` | `onRemove`, `removeLabel` (default "Remove {value}") |
+| Keyboard | Tab; Enter / Space run it | Tab; Enter / Space toggle | Tab to the ✕; Enter / Space / Delete / Backspace remove |
+| `ref` | the button | the button | the ✕ button (so a field can move focus after a removal) |
+
+Shared: `children` (label), `size` (`'xsmall' \| 'small' \| 'large'`, default `'small'`; all three sizes, decided 19 Oct 2026), `leadingIcon` / `leadingAccessory`, `disabled`, `className` and other attributes.
+
+**Figma → code:** Chips `Type` = Unselected / Selected → FinFilterChip `selected` (a data state, §7.3); `State` → CSS and `disabled`. Figma has no Assist / Input types, no dropdown arrow and no ✕ button design (§10 #46).
+
+**Input chip ✕:** a 16 / 16 / 20px icon button, its hit area `--fin-space-xs` past the icon on every side (24 for the 16px icon). No hover or pressed design: cursor only (decided 19 Oct 2026). Focus: a 2px `border-focused` ring on the icon's edge (no offset, so it clears the label at XSmall's 4px gap).
+
+**Tokens used:** all from FinChipBase (§9.31); the ✕ button's hit area and ring are FinInputChip's only CSS.
+
+**API:**
+
+```tsx
+import { FinAssistChip, FinFilterChip, FinInputChip } from '@finspace-loyalty/ui';
+
+<FinAssistChip dropdown expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)}>Last 30 days</FinAssistChip>
+<FinAssistChip leadingIcon="cloud_upload" onClick={exportCsv}>Export</FinAssistChip>
+
+<div role="group" aria-label="Filter by tier">
+  <FinFilterChip selected={gold} onSelectedChange={setGold}>Gold</FinFilterChip>
+</div>
+
+<FinInputChip size="xsmall" onRemove={() => remove('Gold')}>Gold</FinInputChip>
+```
+
+All `'use client'`. Exports also the type `FinChipSize`.
+
+**Accessibility:** Assist: a button; with a menu, `aria-haspopup` and `aria-expanded`. Filter: a toggle button (`aria-pressed`); name groups of filters (`role="group"` + `aria-label`, or Chips-group later). Input: the value is text, the ✕ is a named button; disabled skips it. Contrast: as §9.31; Selected text (open Assist chip, Selected Filter chip) is accepted (§10 #3), hover and press too; disabled is exempt (disabled Input chips are left out of the a11y check because the chip itself is a span).
+
+**Menu (22 Oct 2026):** the Assist chip's dropdown opens a FinMenu (§9.64); for a single choice such as a date range, a **select menu** (the chosen one Selected and shown on the chip, choosing closes it). **While the menu is open the arrow points up** (`keyboard_arrow_up`, as every dropdown) and the chip is Selected (as before). The "With a menu" story now uses the real menu (the stand-in list is gone).
+
+**Built (19 Oct 2026).** Storybook (Components/Chips): Assist chip (Playground, States in every size, With a menu), Filter chip (Playground, States (Figma) in every size, Filters group, Focused), Input chip (Playground, Sizes, In a field: remove with the ✕ or Delete / Backspace, focus moves on). Checked against Figma Chips in a browser: 60.6 × 33 (Figma 61 × 33); all 8 states equal Figma in Light (Hovered and Pressed with a real mouse); Dark uses the Dark tokens. ✕: 16 × 16 with a 24 hit area, Delete removes and focus moves to the next ✕. a11y: no violations in Light or Dark apart from the accepted ones above.
+
+### 9.33 FinSegmentBase (Segmented_button-base) — internal
+
+**Figma:** page **Segmented button**, component set `Segmented_button-base` `117:4667`: `Type` = Selected / Unselected × `State` = Enabled / Hovered / Pressed / Disabled (8 variants; Hovered and Pressed added by design 19 Oct 2026), with `Show Leading Accessory` (an icon). One segment; the mapped `Segmented button` (§8 #40) puts them on a track (`bg-tertiary`, padding `Space-XS`, gap `Space-L`, radius `Radius-L`) and is the public control. **Internal.**
+
+**Icon only and Small (code only, 2 Nov 2026):** `size` `medium` (Figma's) or **`small`**: padding `Space-XS` / `Space-L`, Button/Small, gap `Space-XS`, `Radius-S`, **32 tall**; **`xsmall`**: padding 0 / `Space-M`, Button/Small, `Radius-S`, **24 tall**, 16 icons. `iconOnly` shows just `leadingIcon`: a **36 square** (padding `Space-M` all round, the 20 icon; Small **28**, padding `Space-XS`; XSmall **24**, padding `Space-XS`, the 16 icon), the icon **filled when selected** (§6.2); the label stays in the button as visually hidden text, so it's still the button's name. Not in Figma.
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Type` = Selected / Unselected | `selected` (default `false`) | A data state (§7.3); the mapped component sets the ARIA (`role="radio"` + `aria-checked` in a radio group) |
+| `State` = Hovered / Pressed / Disabled | `:hover` / `:active`; `disabled` (native) | Runtime state (§7.3) |
+| `Show Leading Accessory` + icon | `leadingIcon?: FinIconName` | Icons only for now (decided 19 Oct 2026); 20px |
+| label | `children` | One line; "…" when the segment is narrower |
+| — | `type` (native, default `"button"`), `ref`, other button attributes | Code-only |
+
+**Tokens used:** padding `--fin-space-m` / `--fin-space-3xl` (40 tall), gap `--fin-space-m`, radius `--fin-radius-m`, `--fin-font-button-medium`, icon 20.
+
+| State | Selected: fill / text | Unselected: fill / text |
+|---|---|---|
+| Enabled | `bg-primary` / `text-primary` | none / `text-secondary` |
+| Hovered | `bg-secondary` / `text-primary` | none / `text-tertiary` |
+| Pressed | `bg-tertiary` / `text-primary` | none / `text-primary` |
+| Disabled | `bg-disabled` / `text-disabled-on_bg` | none / `text-disabled` |
+| Focused | no design: the default ring, 2px `border-focused`, 2px out | |
+
+Icon `fg-secondary` in every enabled state; `fg-disabled-on_bg` (Selected) / `fg-disabled` (Unselected) when disabled. No raw values besides the 2px ring.
+
+**API (internal):**
+
+```tsx
+<FinSegmentBase role="radio" aria-checked={value === 'monthly'} selected={value === 'monthly'} onClick={() => setValue('monthly')}>Monthly</FinSegmentBase>
+```
+
+`'use client'` (forwards `ref`). A native `<button>`; `className` and other attributes go to it.
+
+**Accessibility:** the role and keyboard come from FinSegmentedButton. Contrast on the track (enabled): Unselected text 4.97:1 Light / 6.03:1 Dark, icon 5.21 / 6.03; Selected text 17.57 on its fill. The Selected fill against the track is only 1.17:1 Light / 1.45:1 Dark, so Selected is shown mostly by the fill and the darker text (§10 #48). Hover and press are under the accepted rule (§10 #3).
+
+**Built (19 Oct 2026).** Storybook (Internal/Segment base): Playground (Show Leading Icon toggle + icon picker), States (Figma) on the track, Focused. Checked against Figma in a browser: 112.6 × 40 (Figma 113 × 40), padding 8 / 24, gap 8, radius 12, Button M, icon 20; Light colors equal Figma in all 8 states (Hovered and Pressed with a real mouse); Dark uses the Dark tokens. a11y: no violations in Light or Dark.
+
+### 9.34 FinSegmentedButton (Segmented button)
+
+**Figma:** page **Segmented button**, component set `Segmented button` `117:4688`: `State` = Enabled / Disabled, with `Show Button 1 / 2 / 3`. FinSegmentBase segments (§9.33, no icons in Figma's default) on a track, sharing its width equally; drawn 343 wide. **Public.**
+
+**Code only (2 Nov 2026), for the account menu's Theme row (§9.57):** `iconOnly` (every option needs `icon`): the segments show only their icons (§9.33) and the track is **as wide as they are** (three: 140 × 44; Small 100 × 36) instead of filling its container. **`size`** `medium` (default), **`small`** (small segments, §9.33; track gap `Space-XS`, `Radius-M`: 40 tall, icon only 36) or **`xsmall`** (the segments flush: no track padding or gap, `Radius-S`: 24 tall; three icons 72 × 24). In Dark, a selected XSmall segment at either end has the menu's own fill (`bg-primary`), so the track seems to stop before it; the filled icon still marks it. `behavior`: `radio` (default, the radio group above) or **`menuitemradio`**, the same choice inside a FinMenu: the track is a `group` (named by `label` or `aria-labelledby`) of `menuitemradio` segments with no tab stop of their own; the menu's ↑/↓ land on the checked one (§9.64); **←/→ move between them without picking**, Enter, Space or a click picks; picking doesn't close the menu.
+
+**Tooltips (code only, 3 Nov 2026), for the Theme row:** `tooltips` (with `iconOnly`; default off): each segment is the trigger of a single line **FinTooltip** (§9.82) with its label, above it, on hover (250 ms) and keyboard focus. The label is already the segment's name, so the tooltip doesn't describe it again (`describesTrigger={false}`, hidden from screen readers).
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `Show Button 1 / 2 / 3` + each segment's label and icon | `options: { value, label, icon?, disabled? }[]` | Data, one entry per segment; **at least 2, no maximum** (decided 19 Oct 2026; Figma shows up to 3) |
+| the selected segment | `value` / `defaultValue` + `onValueChange(value)` | Controlled or uncontrolled; default the first segment that isn't disabled |
+| `State` = Enabled / Disabled | `disabled` | The whole control: track look and every segment |
+| — | `option.disabled` | One segment unavailable (decided 19 Oct 2026), the segment's own Disabled look |
+| — | `label` or `aria-labelledby` (one required) | The group's name |
+| — | `name` | Submits the value in a form (a hidden input) |
+| — | `ref` (to the track), `className`, other attributes | Code-only |
+
+**Tokens used:** track `--fin-bg-tertiary`, padding `--fin-space-xs`, gap `--fin-space-l`, radius `--fin-radius-l` (48 tall with 40 segments); Disabled: no fill, a 1px `--fin-border-disabled` inside stroke. Segments as §9.33, each `flex: 1 1 0`. Fills its container.
+
+**API:**
+
+```tsx
+import { FinSegmentedButton } from '@finspace-loyalty/ui';
+
+<FinSegmentedButton
+  label="Billing period"
+  options={[{ value: 'monthly', label: 'Monthly' }, { value: 'yearly', label: 'Yearly' }]}
+  value={period}
+  onValueChange={setPeriod}
+/>
+```
+
+`'use client'`. Exports also `FinSegmentedButtonOption`.
+
+**Accessibility:** a radio group (decided 19 Oct 2026: it picks a value; switching panels of content would be a future Tabs component). `role="radiogroup"` named by `label` / `aria-labelledby`; each segment `role="radio"` with `aria-checked`. One tab stop (the selected segment, or the first enabled one); ← / → and ↑ / ↓ move and select, wrapping; Home / End jump to the ends; disabled segments are skipped; a disabled control is skipped. Focus: the segment's default ring, inside the track's padding. Contrast as §9.33.
+
+**Built (19 Oct 2026).** Storybook (Components/Segmented button): Playground (segments 2–5, Show Leading Icon, disabled), States (Figma) at 343px, Variations (two, icons, one unavailable, five), Keyboard. Checked against Figma in a browser at 343px: track 343 × 48, padding 4, gap 12, radius 16; segments 103.67 × 40 at x 4 / 119.66 / 235.33 (equal, as Figma); Enabled and Disabled colors and the Disabled stroke equal Figma in Light; Dark uses the Dark tokens. In Chrome: Tab lands on the selected segment, ← / → move and wrap, End jumps. a11y: no violations in Light or Dark.
+
+### 9.35 FinFlag (Flag sizes)
+
+**Artwork:** the open-source **`flag-icons` 7.5.0** (lipis, MIT, pinned exactly; a dev dependency like `material-symbols`), self-hosted. Code is the source of truth for flag artwork; Figma's `Flag icons` (`49:6026`) and `Flag sizes` (`49:13408`) are visual reference only (§6.1, §8.5). Coverage: all **249** current ISO 3166-1 alpha-2 countries in both shapes (the library also has non-ISO flags, such as Kosovo, the UK nations and EU, not used for now), plus its neutral **XX** flag as the fallback. Checked 19 Oct 2026: every rectangle is 640 × 480 (4:3, as Figma's), every square 512 × 512; no scripts or external references in any file.
+
+**How it's shipped:** `scripts/copy-flags.ts` (part of `pnpm icons`) copies `flags/4x3` → `src/assets/generated/flags/rectangle/` and `flags/1x1` → `.../circle/` (not committed) with the library's licence, and **fails if `src/flags/finFlags.ts` no longer matches the library's ISO list**. FinFlag loads each flag through a lazy `import.meta.glob` loader, so **each flag is its own file, fetched only when shown** (library build: a 86 KB main bundle with no flag artwork, and one small chunk per flag and shape; the heaviest flags, Serbia 177 KB and Bolivia 100 KB, cost nothing until shown). The box is sized before the artwork arrives, so nothing moves.
+
+**Figma (reference) → code:**
+
+| Flag sizes | Prop | Notes |
+|---|---|---|
+| `Country name` (Flag icons) | `country: FinFlagCountry` (required) | An ISO code (`'LK'`); typos fail at build time. `isFinFlagCountry(code)` narrows codes from data. An unsupported code at runtime shows the XX flag, named "Unknown country" |
+| `SIze` = XSmall / Small / Medium / Large / XLarge (typos fixed) | `size: 'xsmall' \| 'small' \| 'medium' \| 'large' \| 'xlarge'` (default `'medium'`) | |
+| `Type` = Rectangle / Circle | `shape: 'rectangle' \| 'circle'` (default `'rectangle'`) | |
+| `State` = Default / Disabled | `disabled` | |
+| — | `decorative` | Next to a visible country name: hidden from screen readers so the name isn't read twice (decided 19 Oct 2026) |
+| — | `label` | The alt text; default the country's English name (from the library's `country.json`, so it's the same on the server and in the browser). Pass a translated name for other languages |
+
+**Tokens used:**
+
+| `size` | Height | Rectangle (4:3) | Circle |
+|---|---|---|---|
+| `xsmall` | `--fin-size-12` | 16 × 12 | 12 |
+| `small` | `--fin-size-16` | **21.33** × 16 (Figma 22 × 16 is stretched; 4:3 kept, decided 19 Oct 2026) | 16 |
+| `medium` | `--fin-size-24` | 32 × 24 | 24 |
+| `large` | `--fin-size-40` | 53.33 × 40 | 40 |
+| `xlarge` | `--fin-size-48` | 64 × 48 | 48 |
+
+Rectangle: `--fin-radius-xs` and a 1px `--fin-border-subtle` edge drawn over the artwork (as Figma; white flags stay visible on white). Circle: the square artwork with `--fin-radius-full`, no edge (as Figma). The artwork is an `<img>` filling the box at its own ratio (`object-fit: cover`): never recolored or distorted. **Disabled:** the artwork at **opacity 0.4** (decided 19 Oct 2026): its colors aren't changed, it's only partly transparent, and it works on light and dark backgrounds (Figma's raw light wash `rgba(235,231,231,0.82)` would look wrong in Dark). Raw values: the 1px edge, `4 / 3`, opacity 0.4.
+
+**API:**
+
+```tsx
+import { FinFlag, isFinFlagCountry } from '@finspace-loyalty/ui';
+
+<FinFlag country="LK" />                                     // "Sri Lanka", 32 × 24
+<FinFlag country="LK" shape="circle" size="small" />
+<FinFlag country="AE" size="small" decorative /> United Arab Emirates
+{isFinFlagCountry(code) && <FinFlag country={code} disabled />}
+```
+
+`'use client'` (loads the artwork in an effect). Exports `FinFlag`, `finFlags` (code → name), `isFinFlagCountry` and the types `FinFlagCountry`, `FinFlagSize`, `FinFlagShape`.
+
+**Accessibility:** `role="img"` named by the country (on the box, so it's named before the artwork loads; the `<img>` itself has `alt=""`); `decorative` hides it. Not interactive.
+
+**Built (19 Oct 2026).** Storybook (Components/Flag): Playground (every country by name, size, shape, disabled, decorative, label), Sizes (Figma) with Bahrain and Sri Lanka as Figma, With a name, All flags. Checked in a browser: all 20 size × shape × state boxes equal the table above (artwork fills them exactly); a page with one flag requests only that flag's file (Playground: `rectangle/lk.svg`; Sizes: `rectangle/bh.svg`, `circle/lk.svg`); Disabled is 0.4 in Light and Dark. a11y: no violations in Light or Dark.
+
+### 9.36 FinCountrySelector (Contry selecter) — internal
+
+**Figma:** page **Input field**, component `Contry selecter` `49:5731` (typo kept in Figma; "Show icon" removed by design 19 Oct 2026): a Small flag and `keyboard_arrow_down` 24 (`fg-secondary`), padding 12 / 8 / 12 / 16, gap 8 (bound to another library, `Mobile/Component/icon-text`; code `--fin-space-m`), 78 × 48. No states. In the input field (Mobile number) it sits at the left inside the field border, 56 tall, with a divider after it and a `+94` prefix in the input (the dial code belongs to the field).
+
+**Decided 19 Oct 2026:** it opens a **small menu with the country list, built from the List component**. List-base is blocked in Figma (§10 #19) and has no row states or menu design yet (§10 #49), so **only the trigger is built now** (option 2); the menu is added once the List is built. **Internal**: part of the input field, whose hover and focus design it will take. Flags as FinFlag (4px / 1px at every size, decided 19 Oct 2026, not Figma's per-size 2px / 0.5px).
+
+**Country menu added 22 Oct 2026** (design's brief): a select menu (FinMenu `kind="select"`, §9.64). (1) **Rows:** List-standard Small options without lines: the flag (FinFlag medium), the country name and, **by default, the dial code as a trailing caption** ("+94"), turned off with `showDialCodes={false}`; every country with a dial code (242), **sorted by name**. (2) **A small search field at the top** (FinSearchField Small in the menu's `header`, kept while the list scrolls): it **filters as you type**, by **name, ISO code or dial code** (`countryMatchRank`): names starting with the text first ("uni" → United Arab Emirates, United Kingdom, United States), then an ISO code ("lk") or dial code ("94" / "+94"), then a word in the name ("kingdom"), then anywhere ("anka"); alphabetical within each. Nothing found: "No countries found" (a status message under the search). The search is empty each time it opens. (3) **The chosen country is Selected** and scrolled into view when it opens. **The search stays in its default state** (not focused; changed by design 22 Oct 2026): opened with a pointer, focus is on the list (no ring); with the keyboard, on the chosen country. **Typing moves into the search** and filters. ArrowDown moves into the list (on the chosen country when it's listed), ArrowUp from the first row returns to the search; Enter in the search chooses the first match; Escape clears the search, then closes. Placeholder **"Search by country or code"**. (3b) **The arrow points up while the menu is open** (`keyboard_arrow_up`; the Rows per page dropdown too, §9.38). Choosing (click, Enter, Space) closes it, focus back on the flag button. (4) **Width:** in the field, **the field's box** (`menuAnchor`), 4 below it; on its own, its content. `expanded` and `onClick` (for an outside menu) are gone.
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| the flag (Flag sizes Small) | `country: FinFlagCountry` | FinFlag `size="small"`, decorative |
+| — | `label` (default `'Country'`) | The button's name is "{label}, {country name}" |
+| — (the menu) | `onCountryChange`, `showDialCodes` (default `true`), `menuAnchor`, `searchLabel` ("Search countries"), `searchPlaceholder` ("Search by country or code"), `noResultsText` ("No countries found") | `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` from FinMenu; the list box is named by `label` |
+| — | `disabled` | Disabled flag and `fg-disabled` arrow |
+| — (code only) | `size: 'large' \| 'small'` | Default `large`. `small` (the Small input field, §9.58): 20 arrow, padding `--fin-space-m` above and below |
+| — | `ref`, `className`, other button attributes | |
+
+**Tokens used:** padding `--fin-space-l` / `--fin-space-m` / `--fin-space-l` / `--fin-space-xl`, gap `--fin-space-m`, arrow `--fin-fg-secondary` (`--fin-fg-disabled` when disabled). Focus: **temporary** default ring, 2px `--fin-border-focused` drawn inside (`outline-offset: -2px`), until the input field's focus design (CLAUDE.md: every interactive element shows focus). Hover: none yet.
+
+**API (internal):**
+
+```tsx
+<FinCountrySelector country={country} onCountryChange={setCountry} menuAnchor={fieldBox} />
+```
+
+`'use client'`.
+
+**Accessibility:** a button named "Country, Sri Lanka", `aria-haspopup="listbox"`; Tab, Enter, Space; disabled skipped.
+
+**Built (19 Oct 2026), trigger only.** Storybook (Internal/Input field/Country selector): Playground (every country, label, disabled), Countries, Focused. Checked against Figma in a browser: 77.33 × 48 (Figma 78: the flag is 21.33 wide, 4:3, not 22), flag at (16, 16), arrow 24 at (45.33, 12), `fg-secondary`. a11y: no violations in Light or Dark.
+
+### 9.37 FinPaginationItem (Pagination item) — internal
+
+**Figma:** page **Table**, component set `Pagination item` `3144:14184`: `State` = Default / Hovered / Selected / Dots (4 variants). A 32 × 32 square, padding `Space-XS`, `Radius-S`, a 1px stroke inside. Base of `Pagination group` (§8 #47), which adds the previous / next all-buttons, decides which pages show, and names the items. **Internal.** Raw `Primary-400` removed by design (19 Oct 2026).
+
+**Figma → code:**
+
+| Figma property | Prop | Notes |
+|---|---|---|
+| `State` = Default / Hovered | `:hover` | Runtime state (§7.3); press keeps the hover look (decided 19 Oct 2026) |
+| `State` = Selected | `selected` | A data state (§7.3): `aria-current="page"` |
+| `State` = Dots | `variant="dots"` (default `'page'`) | A `<span>`, not interactive, hidden from screen readers |
+| the number | `children` | |
+| — | `ref`, `onClick`, other attributes | A native `<button>` for a page (links, if wanted, are decided with the Pagination group) |
+
+**Tokens used:**
+
+| State | Fill | Stroke (1px, inset) | Text |
+|---|---|---|---|
+| Default | `bg-secondary` | `border-subtle` | `text-secondary`, `--fin-font-label-medium` |
+| Hovered (and pressed) | `bg-tertiary` | `border-default` | `text-primary` |
+| Selected | `bg-active` | `border-active` | `text-action` |
+| Dots | none | none | `text-secondary`, `--fin-font-label-large`: "…" (one character, decided 19 Oct 2026; Figma "....") |
+
+Size `--fin-size-32` (at least 32 wide: 3+ digit numbers widen it), padding `--fin-space-xs`, `--fin-radius-s`. Focus: no design, the default ring (2px `border-focused`, 2px out, decided 19 Oct 2026). No disabled state (decided 19 Oct 2026). Figma binds Dots' font family to `Title XL/Font family` (same Inter, as §10 #45); code uses `--fin-font-label-large`. Raw value: the 1px stroke.
+
+**API (internal):**
+
+```tsx
+<FinPaginationItem selected aria-label="Page 1">1</FinPaginationItem>
+<FinPaginationItem onClick={() => goTo(2)} aria-label="Page 2">2</FinPaginationItem>
+<FinPaginationItem variant="dots" />
+```
+
+`'use client'` (forwards `ref`). The group gives each page its name ("Page 2") and wraps them in a named `nav`.
+
+**Accessibility:** a page is a button; the current one has `aria-current="page"`; the dots are hidden. Contrast: Default text `text-secondary` on `bg-secondary` passes; **Selected text 4.13:1 Light / 3.95:1 Dark, accepted by design (19 Oct 2026, §10 #3)**: the a11y check skips the Selected item.
+
+**Built (19 Oct 2026).** Storybook (Internal/Pagination/Pagination item; moved into the Pagination folder the same day): Playground, States (Figma), Run (with 10 / 100 / 1000), Focused. Checked against Figma in a browser: 32 × 32, padding 4, radius 8, Label M 14/21 and Label L 16/24; all four states equal Figma in Light (Hovered with a real mouse); Dark uses the Dark tokens; 100 is 32.4 wide and 1000 41.6. a11y: no violations in Light or Dark apart from the accepted Selected item.
+
+### 9.38 FinRowCountSelect (Row count dropdown) — internal
+
+**Figma:** page **Table**, component set `Row count dropdown` `3151:14547`: `Property 1` = Default / Hovered (unnamed property, §10 #21). A pill: "Rows per page:" (Body S, `text-tertiary`), the value "10" (Label S, `text-primary`) and `keyboard_arrow_down` 24 (`fg-secondary`); padding `Space-XS` / `Space-L` (4 / 12; **Changed by design 29 Oct 2026:** was `Space-M` / `Space-L`, 40 tall), gap `Space-M`, `Radius-Full`, `bg-secondary` (Hovered `bg-tertiary`), a 1px `border-subtle` stroke; 166 × 32 (was 166 × 40). Part of the Table footer (§8 #73) with the Pagination group.
+
+**Decided 19 Oct 2026:** it opens a **menu of row counts built from the List component**, so (as the country selector, §9.36) **only the trigger is built now**; the menu comes after the List (§10 #49). **Internal**, under Internal/Pagination.
+
+**Menu added 22 Oct 2026:** a select menu (FinMenu `kind="select"`, §9.64) of **10, 25, 50, 100** (`options`), as wide as the button (`width="trigger"`), 4 below (or above when there's no room); rows are List-standard Small options without lines (so each has 16 of bottom padding, §9.49); the current count is Selected; choosing one (click, Enter or Space) calls `onValueChange` and closes the menu, focus back on the button. Opened with the keyboard, the current count has focus; typing a digit jumps to a count. The list box is named by the label without its colon ("Rows per page"). The arrow points up while the menu is open (22 Oct 2026, as the country selector). `expanded` and `onClick` (for an outside menu) are gone: the menu is part of the control.
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Property 1` = Default / Hovered | `:hover` | Runtime state (§7.3); press keeps the hover look (decided 19 Oct 2026) |
+| the value "10" | `value: number` | |
+| "Rows per page:" | `label` (default `'Rows per page:'`) | For translations |
+| — (the menu) | `options` (default `FIN_ROW_COUNT_OPTIONS`: 10, 25, 50, 100), `onValueChange` | `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` from FinMenu |
+| — | `ref`, `className`, other button attributes | No disabled state (none in Figma) |
+
+**Tokens used:** padding `--fin-space-xs` / `--fin-space-l`, gap `--fin-space-m`, `--fin-radius-full`, fill `--fin-bg-secondary` (hover `--fin-bg-tertiary`), stroke `--fin-border-subtle` (inset 1px), label `--fin-font-body-small` + `--fin-text-tertiary`, value `--fin-font-label-small` + `--fin-text-primary`, arrow `--fin-fg-secondary`. Focus: no design, the default ring (2px `border-focused`, 2px out). Raw value: the 1px stroke.
+
+**API (internal):**
+
+```tsx
+<FinRowCountSelect value={rowsPerPage} onValueChange={setRowsPerPage} />
+```
+
+`'use client'` (forwards `ref`).
+
+**Accessibility:** a button named "Rows per page: 10" (the arrow is decorative), `aria-haspopup="listbox"`; Tab, Enter, Space. Contrast: label `text-tertiary` and value `text-primary` on `bg-secondary` pass in both themes.
+
+**Built (19 Oct 2026), trigger only.** Storybook (Internal/Pagination/Row count dropdown): Playground (value, label), States (Figma), Focused. Checked against Figma in a browser: 165.3 × 40 (Figma 166 × 40), padding 8 / 12, gap 8, full radius, Body S / Label S, arrow 24; Default and Hovered (and pressed) equal Figma in Light; Dark uses the Dark tokens. a11y: no violations in Light or Dark.
+
+### 9.39 FinPagination (Pagination group)
+
+**Figma:** page **Table**, component set `Pagination group` `3151:14607`: `Property 1` = Limited / More than limit / Only one. A row (gap `Space-M`): a previous arrow, the Pagination items (§9.37) and a next arrow. The arrows are `all-button` instances (XSmall, Only Icon, 32 × 32) with a grey 1px `border-strong` outline override and an `fg-primary` `chevron_left` / `chevron_right` 20; at an end they're disabled (`fg-disabled`, `border-disabled`). Limited (4 pages) is 232 × 32. Part of the Table footer (§8 #73).
+
+**Decided 19 Oct 2026:** (1) the arrows' look isn't a FinButton variant, so FinPagination draws them in its own CSS, **with no change to the approved buttons or to Figma**; (2) at most **7 items**: every page up to 7, beyond that the first and last page, the current page with one either side, and dots for each gap (1 2 3 4 5 … 10 near the start, 1 … 4 5 6 … 10 in the middle, 1 … 6 7 8 9 10 near the end), so the width stays fixed while paging; Figma's "More than limit" sample (1 2 … 10) is one picture of that state; (3) arrow glyphs from Material Symbols (`chevron_left` added to `finIcons`). **Public**, under Components/Pagination.
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Property 1` = Limited / More than limit / Only one | `pageCount` | The variant follows from the count: ≤ 7 Limited, > 7 More than limit (dots), 1 Only one (both arrows disabled) |
+| the Selected item | `page` (controlled) or `defaultPage` (default 1) | Kept between 1 and `pageCount` |
+| — | `onPageChange(page)` | On a page click or an arrow |
+| — | `label` (default `'Pagination'`), `previousLabel` (`'Previous page'`), `nextLabel` (`'Next page'`), `pageLabel` (`n => 'Page n'`) | For translations |
+| — | `ref` (the `<nav>`), `className`, other attributes | |
+
+**Tokens used:** row gap `--fin-space-m`. Arrows: 32 × 32 (`--fin-size-32`), padding `--fin-space-s`, `--fin-radius-s`, no fill, icon 20 `--fin-fg-primary`, inset 1px `--fin-border-strong`; disabled `--fin-fg-disabled` and `--fin-border-disabled`. Items: FinPaginationItem (§9.37). No hover or pressed design for the arrows (cursor only). Focus: no design, the default ring (2px `border-focused`, 2px out). Raw value: the 1px stroke.
+
+**API:**
+
+```tsx
+<FinPagination pageCount={totalPages} page={page} onPageChange={setPage} />
+```
+
+`'use client'` (state, forwards `ref`). The page-range rule is `paginationRange(page, pageCount)` in the same folder.
+
+**Accessibility:** `<nav aria-label="Pagination">` with a list; pages are buttons named "Page n", the current one `aria-current="page"`; dots are hidden from screen readers; the arrows are named buttons, disabled at the ends. If a focused arrow becomes disabled (you reach the end), focus moves to the current page. Tab, Enter, Space. Contrast: arrow icon and outline pass 3:1 in both themes; the Selected item's text is the accepted exception (§9.37, §10 #3).
+
+**Built (19 Oct 2026).** Storybook (Components/Pagination): Playground (page count 1–50, start page), States (Figma: Limited, Only one, More than limit), Many pages (start, middle, end of 50), Keyboard. Checked against Figma in a browser: Limited 232 × 32 (Figma 232 × 32), gap 8; arrows 32 × 32, radius 8, 1px `border-strong` outline, icon 20 `fg-primary`; disabled arrows `fg-disabled` / `border-disabled`; Only one 112 × 32 with both arrows disabled; Dark uses the Dark tokens. More than limit shows 1 2 3 4 5 … 10 (7 items, the agreed rule) where Figma's sample shows 1 2 … 10. a11y: no violations in Light or Dark apart from the accepted Selected item.
+
+### 9.40 FinTableFooter (Table footer) — internal
+
+**Figma:** page **Table**, component `Table footer` `3151:14830` (no variants or properties), 1088 × 32 (was 40 until 29 Oct 2026, with the 40-tall Row count dropdown). Left: the summary "Showing 1 - 10 of 10 entries in page 01" (Body/Small, `text-tertiary`) and the Row count dropdown (§9.38), `Space-L` apart; right: the Pagination group (§9.39), centred; the two sides pushed apart. All values bound to Loyalty tokens. **Internal**, under Internal/Table; used by `FinTable` (§8 #74).
+
+**Decided 19 Oct 2026:** (1) summary "Showing 1–10 of 45 entries in page 1": an en dash and no leading zero (Figma's "1 - 10" and "01" are the sample text); (2) no rows: "Showing 0 of 0 entries" and one page with both arrows disabled; (3) when narrow, the pagination wraps onto a second line, `Space-M` below; (4) the summary is a polite live region, so a page change is announced. The Row count dropdown is the trigger only; its menu comes with the List component (§10 #49).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| the summary text | worked out from `totalRows`, `rowsPerPage` and the page | `summary({ from, to, total, page })` for other wording or languages |
+| Row count dropdown "10" | `rowsPerPage` | `onRowsPerPageChange`, `rowsPerPageOptions`, `rowsPerPageLabel` pass through to FinRowCountSelect (its menu, 22 Oct 2026) |
+| Pagination group | `pageCount = ceil(totalRows / rowsPerPage)` (at least 1) | `page` (controlled) or `defaultPage`, `onPageChange`; `paginationLabels` (label, previousLabel, nextLabel, pageLabel) |
+| the 1088 width | — | Fills its container |
+| — | `ref`, `className`, other attributes | On the root `div` |
+
+**Tokens used:** wrap gap `--fin-space-m`, left gap `--fin-space-l`, summary `--fin-font-body-small` + `--fin-text-tertiary`. Everything else comes from the parts. No raw values.
+
+**API (internal):**
+
+```tsx
+<FinTableFooter totalRows={rows.length} rowsPerPage={perPage} page={page} onPageChange={setPage} onRowsPerPageChange={setPerPage} />
+```
+
+`'use client'` (state, forwards `ref`).
+
+**Accessibility:** the summary is a `<p aria-live="polite">`; the Row count dropdown and the pagination keep their own semantics (§9.38, §9.39). Contrast: the summary `text-tertiary` on the page passes in both themes; the Selected page is the accepted exception (§10 #3).
+
+**Built (19 Oct 2026).** Storybook (Internal/Table/Table footer): Playground (total rows, rows per page, start page), Figma (10 rows, and 40 rows for Figma's 4 pages), Many rows, Empty, Narrow. Checked against Figma in a browser: 40 tall, summary Body S 12/18 `text-tertiary` 11 from the top, 12 to the dropdown (165.3 × 40), pagination 32 tall, 4 from the top, at the right edge; summary 202 wide against Figma's 218 (the en dash and no leading zero); Dark uses the Dark tokens; at 480 wide the pagination wraps under the summary (8 apart). a11y: no violations in Light or Dark apart from the accepted Selected page.
+
+### 9.41 FinTableHeaderCell (Table header cell) — internal
+
+**Figma:** page **Table**, component set `Table header cell` `3151:14941`: `Type` = White / Grey (was `Property 1`), `Show checkbox` (on), `Show title` (on), `Show trailing icon` (off), and a **Slot** holding a Label (Label/Medium, `text-tertiary`, "Table title"). 151 × 40 (**Changed by design 29 Oct 2026:** was 48); padding 0 / `Space-3XL`, gap `Space-L`, centred; Grey fills `bg-tertiary`, White has none; checkbox is Base-Checkbox (24); trailing icon `keyboard_arrow_down` 24, raw `#626262` (→ `fg-secondary`, the same colour in Light). **Internal**, under Internal/Table; used by the Header row (§8 #72) and FinTable.
+
+**Sort and filter added 22 Oct 2026** (code first, design's brief; §10 #50): (a) **sort**: with `sort` (`'none' | 'ascending' | 'descending'`) and `onSortChange`, the **title becomes a button** with a 20 sort icon 4 (`Space-XS`) after it: `unfold_more` (unsorted), `arrow_upward`, `arrow_downward`; clicking cycles none → ascending → descending → none; the `th` gets `aria-sort`. **The title keeps its colour; the icon is `fg-secondary`** (hover `fg-hovered`, pressed `fg-pressed`) **and turns purple (`fg-action`) once sorted**. (b) **filter**: with `filter`, **Figma's down arrow is kept and becomes the filter button** (FinTableColumnFilter, §9.65): `fg-secondary`, purple while its menu is open or a filter is applied, pointing up while open. Without `filter`, `trailingIcon` stays display-only. Focus: the standard ring (2px `border-focused`, 2 out) on both buttons. Still no hover on the cell itself.
+
+**Decided 19 Oct 2026:** (1) the trailing arrow is **display-only** for now; it becomes a sort control or a filter menu once design adds those states (§10 #50); (2) long titles stay on one line and end in "…"; (3) **no hover** or other states on the cell (the checkbox keeps its own).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Type` = White / Grey | `type: 'white' \| 'grey'` (default `'white'`) | Same name and values (a `th` has no native `type`) |
+| `Show checkbox` (on) | `checkbox` (default `true`) | FinCheckboxBase as "select all": `checked`, `indeterminate`, `onCheckedChange`, `checkboxLabel` (default "Select all rows") |
+| `Show title` (on) | `showTitle` (default `true`) | Not `title` (the HTML tooltip attribute). Off hides it on screen; it stays the column's name for screen readers (as FinButton `showLabel`) |
+| Slot (Label "Table title") | `children` | Text is shown with FinLabel (Label/Medium); other content as given |
+| `Show trailing icon` (off) | `trailingIcon` (default `false`) | `keyboard_arrow_down` 24, decorative |
+| — (code first, 22 Oct 2026) | `sort`, `onSortChange` | The title as a sort button, `aria-sort` |
+| — (code first, 22 Oct 2026) | `filter` (`options`, `value`, `onApply`, `multiple`, `label`) | The down arrow as the filter button (FinTableColumnFilter) |
+| — | `scope` (default `'col'`), `ref`, `className`, other `th` attributes | |
+
+**`narrow` (code only, decided by design 29 Oct 2026):** 16 padding either side (`--fin-space-xl`) instead of 24, for the checkbox and ⋮ columns; the rows and FinTable set it on those cells. Not a Figma option (Figma's cells have 24); to add in Figma if wanted.
+
+**Tokens used:** height `--fin-size-40` (was `--fin-size-48`), padding `--fin-space-3xl`, gap `--fin-space-l`, Grey fill `--fin-bg-tertiary`, arrow `--fin-fg-secondary`; the title from FinLabel (`--fin-font-label-medium`, `--fin-text-tertiary`), the checkbox from FinCheckboxBase. No raw values in code (Figma's raw arrow colour mapped above).
+
+**API (internal):**
+
+```tsx
+<tr>
+  <FinTableHeaderCell type="grey" checked={allSelected} indeterminate={someSelected} onCheckedChange={selectAll}>Name</FinTableHeaderCell>
+  <FinTableHeaderCell checkbox={false} trailingIcon>Status</FinTableHeaderCell>
+</tr>
+```
+
+`'use client'` (event handler, forwards `ref`).
+
+**Accessibility:** a native `<th scope="col">` named by its title; the checkbox is named "Select all rows" and announced as mixed when `indeterminate`; the arrow is hidden from screen readers. Contrast: the title passes on White in both themes and on Grey in Light (7.93:1); **Grey in Dark is 4.08:1** (§10 #3, accepted by design 20 Oct 2026).
+
+**Built (19 Oct 2026).** Storybook (Internal/Table/Table header cell): Playground (controls match Figma: Type, Show checkbox, Show title, title, Show trailing icon), Types (Figma), Options, Hidden title, Long title. Checked against Figma in a browser: 150 × 48 (Figma 151, text rounding), padding 24, gap 12, checkbox 24, title Label/Medium 14/21 `#474748`, Grey `#ededed`; arrow 24 `#626262`; Dark uses the Dark tokens; a long title in a 160 column ends in "…". a11y: no violations in Light or Dark apart from the Grey title in Dark.
+
+### 9.42 FinTableHeaderRow (Header row) — internal
+
+**Figma:** page **Table**, component `Header row` `3151:15203` (was `Title row`, renamed 20 Oct 2026): `Select Cell` (on; was `Select Sell`), a Grey Table header cell with Show title off, so only the checkbox (72 wide (**56 in code since 29 Oct 2026**: the checkbox and ⋮ cells take 16 padding either side instead of 24, decided by design; `narrow`, code only)); and `Cell Slot` (was `Sell Slot`) holding the column headers, six Grey Table header cells "Table title" with no checkbox, sharing the rest of the width. 40 tall (was 48 until 29 Oct 2026), no gap; Figma's 1088 width is only a drawing frame. **Internal**, under Internal/Table; used by FinTable.
+
+**Decided 20 Oct 2026:** (1) header cells are **Grey** in this project (the select cell is always Grey; FinTable passes `type="grey"` to the column headers); (2) the row has **no width of its own**: it fills the table (100%) and column widths are FinTable's (§8 #74); (3) the Grey title contrast in Dark is accepted (§10 #3).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Select Cell` (on) | `selectCell` (default `true`) | FinTableHeaderCell, `type="grey"`, title hidden; "select all": `checked`, `indeterminate`, `onCheckedChange`, `checkboxLabel` (default "Select all rows") |
+| `Cell Slot` | `children` | The column headers, as `FinTableHeaderCell`s |
+| — | `selectTitle` (default "Select"), `ref`, `className`, other `tr` attributes | `selectTitle` names the select column for screen readers (hidden on screen, as in Figma) |
+
+**Tokens used:** none of its own; the cells use FinTableHeaderCell's (§9.41). The select cell is `width: var(--fin-size-0)`, so it shrinks to its content (16 + 24 + 16 = 56, the cell `narrow`; was 24 + 24 + 24 = 72).
+
+**API (internal):**
+
+```tsx
+<thead>
+  <FinTableHeaderRow checked={allSelected} indeterminate={someSelected} onCheckedChange={selectAll}>
+    <FinTableHeaderCell type="grey" checkbox={false}>Name</FinTableHeaderCell>
+    <FinTableHeaderCell type="grey" checkbox={false} trailingIcon>Status</FinTableHeaderCell>
+  </FinTableHeaderRow>
+</thead>
+```
+
+`'use client'` (event handler, forwards `ref`).
+
+**Accessibility:** a native `<tr>` of `<th scope="col">`s; the select column is named "Select" (hidden) and its checkbox "Select all rows", announced as mixed when `indeterminate`. Contrast: as §9.41 (Grey title in Dark 4.08:1, accepted).
+
+**Built (20 Oct 2026).** Storybook (Internal/Table/Header row): Playground (Select Cell, number of columns, Show trailing icon on the header cells, selection none / some / all; the arrow is a FinTableHeaderCell prop, so per column in code), Figma, Without select cell, Example. Checked against Figma in a browser: 48 tall, select cell 72 with the checkbox 24 from the left, 12 from the top; titles Label/Medium 14/21 `#474748`, 24 from each cell's left, 13.5 from the top; Grey `#ededed` (Dark `#363636`); the six columns share the rest equally (172 each at 1104 wide, Figma 169.3 at 1088). a11y: no violations in Light or Dark apart from the accepted Grey titles in Dark.
+
+### 9.43 FinTableCell (Table - Cell) — internal
+
+**Figma:** page **Table**, component set `Table - Cell` `3151:14990`: `Type` = Default / Badge / Link, `Show leading accessories` (on), `Show content` (on), `Show action button` (off), and three slots: **Leading accessories** (Base-Checkbox), **Content slot** (Default: text "Table cell text", Body/Medium, `text-secondary`, one line with "…"; Badge: Badge-primary "Text here"; Link: all-button XSmall Tertiary "Text here" with an underline override) and **Action Slot** (`24px` `edit` icon). 174 × 40 (**Changed by design 29 Oct 2026:** was 56; the Badge, 26, and the Link, 36, still fit); padding 0 / `Space-3XL`, gap `Space-M`, centred; no fill (the Table row draws fill and hover). In the Table row the first cell shows only the checkbox (72 wide (**56 in code since 29 Oct 2026**: the checkbox and ⋮ cells take 16 padding either side instead of 24, decided by design; `narrow`, code only)), as in the Header row. **Internal**, under Internal/Table; used by the Table row (§8 #71) and FinTable.
+
+**Decided 20 Oct 2026:** (1) the badge's colour is its nested Badge-primary `State`, so it's `badgeTone` (every FinBadge tone); (2) Link is a real link (`<a href>`, `linkAs` for a router's link component) styled as in Figma: Button/Medium, `text-action`, underlined, padding `Space-S` / `Space-XL` (**side padding removed 22 Oct 2026** by design: it pushed the link's text 16 in from the header's; now `Space-S` / 0, so the text lines up with the header and the other cells, and the link stays 36 tall); Figma has no hover or focus for it, so hover is `text-hovered` and focus the buttons' ring (§10 #6); (3) the action is an icon-only button, 24 × 24 with no padding (Figma's size), `fg-action`, hover `fg-hovered`, focus ring 2px out; **changed 22 Oct 2026 by design: it's the icon button** (FinButton Tertiary XSmall, icon only: a 32 square with a 20 icon, purple at rest, hover `bg-action-secondary_hovered` + `fg-hovered`, pressed `bg-action-secondary_pressed` + `fg-pressed`, the buttons' ring; named by its hidden label `actionLabel`); (4) the **Content slot takes any component**: Default, Badge and Link are the common kinds (`type` styles text), and other content (avatar, flag, chip…) is shown as given, so new kinds need no change to the cell; (5) an empty cell shows nothing.
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Type` = Default / Badge / Link | `type: 'default' \| 'badge' \| 'link'` (default `'default'`) | How text content is shown; other content is shown as given |
+| `Show leading accessories` (on) | `leadingAccessories` (default `true`) | |
+| Leading accessories slot (Base-Checkbox) | `leading` (default: the row checkbox) | FinCheckboxBase: `checked`, `onCheckedChange`, `checkboxLabel` (default "Select row") |
+| `Show content` (on) | `showContent` (default `true`) | |
+| Content slot | `children` | Text: Default Body/Medium `text-secondary`; Badge FinBadge; Link `<a>` |
+| Badge-primary `State` (nested) | `badgeTone` (default `'primary'`) | Every FinBadge tone |
+| — | `href`, `linkAs` (default `'a'`) | Link type |
+| `Show action button` (off) | `action` (default `false`) | |
+| Action Slot (`24px` `edit`) | `actionIcon` (default `'edit'`) | Any `finIcons` name |
+| — | `actionLabel` (required with `action`), `onAction` | The button's name and click |
+| — | `ref`, `className`, other `td` attributes | |
+
+**`narrow` (code only, decided by design 29 Oct 2026):** 16 padding either side (`--fin-space-xl`) instead of 24, for the checkbox and ⋮ columns; the rows and FinTable set it on those cells. Not a Figma option (Figma's cells have 24); to add in Figma if wanted.
+
+**Tokens used:** height `--fin-size-40` (was `--fin-size-56`), padding `--fin-space-3xl`, gap `--fin-space-m`; text `--fin-font-body-medium` + `--fin-text-secondary` (Figma's raw 14 → the Body/Medium style); link `--fin-font-button-medium`, `--fin-text-action` (hover `--fin-text-hovered`), padding `--fin-space-s` / `--fin-space-xl`, radius `--fin-radius-s`; action `--fin-size-24`, `--fin-fg-action` (Figma's raw `Electric-Indigo-600` `#5953E8` → token; hover `--fin-fg-hovered`), radius `--fin-radius-xs`; focus `--fin-border-focused`. The checkbox and badge bring their own.
+
+**API (internal):**
+
+```tsx
+<tr>
+  <FinTableCell showContent={false} checked={selected} onCheckedChange={toggle} />
+  <FinTableCell leadingAccessories={false}>Ann Perera</FinTableCell>
+  <FinTableCell type="badge" badgeTone="success" leadingAccessories={false}>Active</FinTableCell>
+  <FinTableCell type="link" href="/members/1" linkAs={Link} leadingAccessories={false} action actionLabel="Edit member" onAction={edit}>View profile</FinTableCell>
+  <FinTableCell leadingAccessories={false}><FinAvatar size="xsmall" initials="AP" /></FinTableCell>
+</tr>
+```
+
+`'use client'` (event handlers, forwards `ref`).
+
+**Accessibility:** a native `<td>`; the checkbox is named "Select row" (pass the row's name, e.g. "Select Ann Perera"); the link is a native link; the action is a native `<button type="button">` named by `actionLabel`, 24 × 24 (the minimum target), with a visible focus ring. Contrast: text, link and icon pass in both themes; the badge's `disabled` tone is the accepted exception (§9.10).
+
+**Built (20 Oct 2026).** Storybook (Internal/Table/Table cell): Playground (controls match Figma: Type, Show leading accessories, Show content, content, badge tone, Show action button, action icon), Types (Figma), With action, Badge tones, Select cell, Other content (avatar, flag), Long content. Checked against Figma in a browser: 56 tall, checkbox 24 / 16 from the cell's top left, content 56 from the left; text Body/Medium 14/21 `#656566`, 17.5 from the top; badge 26 tall; link 36 tall, Button/Medium 14/24 `#625bff`, underlined, text 16 in; action 24 × 24 `#625bff`, 8 after the content, centred (16 from the top; Figma's hidden slot sits at 14); Dark uses the Dark tokens; long text in a 160 column ends in "…". a11y: no violations in Light or Dark apart from the accepted `disabled` badge.
+
+### 9.44 FinTableRow (Table row) — internal
+
+**Figma:** page **Table**, component set `Table row` `3151:15248`: `State` = Default / Hovered / Selected / Selected - Hovered (was `Property 1`), `Select Cell` (on), and `Cell Slot` (was `Sells Slot`) holding the data cells (six Table - Cells, text only, no checkbox). The select cell is a Table - Cell with only the checkbox (72 wide (**56 in code since 29 Oct 2026**: the checkbox and ⋮ cells take 16 padding either side instead of 24, decided by design; `narrow`, code only)), as in the Header row. Cells 40 tall plus a 1px `border-default` line under the row (41; **Changed by design 29 Oct 2026:** were 56 and 57). Fills: Hovered `bg-secondary`, Selected `bg-active`, Selected - Hovered `bg-active-hover`; Default none. **Internal**, under Internal/Table; used by FinTable.
+
+**Decided 20 Oct 2026:** (1) a Selected row's checkbox is ticked (the checkbox selects the row); (2) **clicking the row opens its details** (for example a side sheet): `onRowClick`. A click on something interactive in the row (the checkbox, a link, an action button) does that thing instead. Rows that only show data leave `onRowClick` out. When a screen's whole-row click would clash, use a "view details" action in a cell (`FinTableCell` `action`) instead; this depends on the screen; (3) hover fills the whole row; (4) **rule: the last row never has a line under it** (added 20 Oct 2026, `:last-child`); (5) the Selected + hover contrast in Light, and a link on a Selected row (`text-action` on `bg-active`, 4.13:1 Light / 3.95:1 Dark), are accepted; links keep `text-action` in every row (§10 #3).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `State` = Hovered | — | CSS `:hover` (§7.3) |
+| `State` = Selected | `selected` (default `false`) | `data-selected`; Selected - Hovered is `selected` + hover |
+| `Select Cell` (on) | `selectCell` (default `true`) | FinTableCell with only the checkbox, ticked when `selected`; `onSelectedChange`, `checkboxLabel` (default "Select row"; pass the row's name) |
+| `Cell Slot` | `children` | The data cells, as `FinTableCell`s (`leadingAccessories={false}`) |
+| — | `onRowClick` | Opens details. Makes the row focusable (Enter opens it), with a pointer and a focus ring |
+| — | `hover` (default `true`) | Code only (26 Oct 2026): `false` drops the Hovered fill, for a row that only shows data (FinTable `hover`) |
+| — | `ref`, `className`, other `tr` attributes (including `onClick`) | |
+
+**Tokens used:** line `--fin-border-default` (1px; the row's border, so the table uses `border-collapse: collapse`); fills `--fin-bg-secondary` (hover), `--fin-bg-active` (selected), `--fin-bg-active-hover` (selected + hover); focus ring `--fin-border-focused` (2px, inside the row, §10 #6); select cell `width: var(--fin-size-0)` (shrinks to its 56). The cells bring their own.
+
+**API (internal):**
+
+```tsx
+<tbody>
+  <FinTableRow selected={isSelected} onSelectedChange={toggle} checkboxLabel="Select Ann Perera" onRowClick={openDetails}>
+    <FinTableCell leadingAccessories={false}>Ann Perera</FinTableCell>
+    <FinTableCell type="badge" badgeTone="success" leadingAccessories={false}>Active</FinTableCell>
+    <FinTableCell leadingAccessories={false} action actionLabel="Edit tier" onAction={editTier}>Gold</FinTableCell>
+  </FinTableRow>
+</tbody>
+```
+
+`'use client'` (event handlers, forwards `ref`).
+
+**Accessibility:** a native `<tr>` of `<td>`s; the checkbox is named by `checkboxLabel` ("Select Ann Perera"). With `onRowClick` the row is in the Tab order and opens with Enter, with a visible focus ring; the links and buttons inside keep their own keyboard behaviour. Screen reader users also reach the details through any link or action in the row, so screens that need it add a "view details" action. Contrast: every state passes in both themes except Selected + hover in Light (3.80:1) and a link on a Selected row (4.13:1 / 3.95:1), both accepted.
+
+**Built (20 Oct 2026).** Storybook (Internal/Table/Table row): Playground (Selected, Select Cell, number of columns, clickable), States (Figma), Interactive (selection, row click opening details, edit action and link doing their own job), Without select cell. Checked against Figma in a browser: cells 56 + 1px line (none under the last row), select cell 72, line `#d4d4d4` (Dark `#464646`); fills Hovered `#f5f5f5`, Selected `#efefff` with the checkbox ticked, Selected - Hovered `#ceccff` (Dark `#292929`, `#29266b`, `#36328c`), across the whole row; the keyboard focus ring sits inside the row; row click, Enter, checkbox, link and action button checked. a11y: no violations in Light or Dark apart from the accepted link on a Selected row.
+
+### 9.45 FinTable (code-only table) — public
+
+**Figma:** none; designers assemble tables on screens from the Table parts (§10 #26). FinTable puts together FinTableHeaderRow (§9.42), FinTableRow (§9.44) with FinTableCell (§9.43), and FinTableFooter (§9.40) with FinPagination (§9.39), from columns and rows as data. **Public**, under Components/Table; the parts stay internal.
+
+**Decided 20 Oct 2026:** (1) **widths:** the table is 100% of its container; each column is **fixed** (`width`), **flexible** (the default, sharing the remaining space equally) or has a **minimum** (`minWidth`); the select column is fixed at 56 (was 72 until 29 Oct 2026); when the columns don't fit, the table scrolls sideways; long text ends in "…"; (2) **"select all" acts on the current page**, and selection is by row ID and **kept across pages**; (3) **row click** opens the row's details (`onRowClick`, for example a side sheet); interactive content in a row (checkbox, link, action) does its own job; (4) **rule: while any row is selected, clicking a row selects it** (or clears it if it's selected) instead of opening details; with no rows selected, clicks open details again; (5) **rows per page** default 10; the dropdown's menu comes with the List component (§10 #49); (6) **no rows:** the header and "Showing 0 of 0 entries" for now; an empty state comes with the Empty state component (§8 #65); (7) **16 (`Space-XL`) between the last row and the footer**; (8) **no outer border**, background or radius, and the last row has no line under it (§9.44); (9) header cells are Grey (§9.42); a column's header arrow is display-only until sort and filter are designed (§10 #50); (10) pagination is **client** (all rows; FinTable makes the pages) or **server** (`totalRows`, and `rows` is the current page).
+
+**Props:**
+
+| Prop | Notes |
+|---|---|
+| `label` (required) | The table's name for screen readers |
+| `columns` | `key`, `header`, `value(row)` (default `row[key]`), `type` (default / badge / link), `badgeTone` (fixed or per row), `href(row)`, `linkAs`, `action` (`icon`, `label(row)`, `onAction(row)`), `width`, `minWidth`, `trailingIcon` |
+| `rows`, `getRowId` | Rows and a stable ID for each |
+| `getRowLabel` | The row's name for its checkbox ("Select Ann Perera"); default the first column's text |
+| `selectable` (default `true`) | Select cells and "select all" (Figma `Select Cell`) |
+| `selectedIds` / `defaultSelectedIds`, `onSelectionChange` | Controlled or uncontrolled selection |
+| `onRowClick(row)` | Opens details; see rule (4) |
+| `toolbar` (FinTableToolbar's props, §9.67) | **The toolbar above the table** (22 Oct 2026): search, filter slot and main action, 16 above it (Space-XL; 32 until 3 Nov 2026) |
+| `footer` (default `true`) | **The Table footer with pagination** (code only, 26 Oct 2026). `false` for a short table that never pages (a details table in a side sheet): every row shows, no footer |
+| `hover` (default `true`) | **The rows' Hovered fill** (code only, 26 Oct 2026; FinTableRow `hover`). `false` for a table that only shows data (the details table) |
+| `variant` (`default` / `bordered`) | **The table's style** (code only, 3 Nov 2026; like FinSideNav `variant`, §9.57). `default`: no outer border. `bordered`: a 1px `border-subtle` line with `Radius-S` (8) round the header and rows; the scroll area draws it and clips to its corners, so the header's grey and the rows' fills follow the curve, and the fixed columns and their shadows stay inside it. The empty state (`empty`) and the loading rows are inside the frame; the **toolbar and footer stay outside** it, 16 away (decided by design 3 Nov 2026). The root gets `data-variant`. Stories: Default and bordered, Bordered (scrolling sideways, ticked rows, empty, loading) |
+| `empty?: ReactNode` | **What replaces the table and its footer when there are no rows to show** (code first, 27 Oct 2026): none at all, or none left after the column filters; usually a FinEmptyState (§9.74). The toolbar stays. The root gets `data-empty` and grows (`flex: 1`), and the empty area fills it, so in a column layout (FinAppShell's content) the empty state sits in the middle of the space below the toolbar; elsewhere the area has `Space-12XL` above and below. Without it, the table shows its header and "Showing 0 of 0 entries" |
+| `loading?: boolean`, `loadingLabel?: string` | **Loading** (code first, 27 Oct 2026, §9.76): the header stays (sort and filter off), a page of skeleton rows (`rowsPerPage`, default 10) replaces the rows: a 20 square in the select column, 64 × 24 blocks in badge columns, text lines (128 / 88 / 152 / 104 px, varied by row and column, never wider than the cell) elsewhere, a circle in the ⋮ column; the footer and `empty` are hidden; the table has `aria-busy`, and a visually hidden `role="status"` (in the page whenever `loading` is passed) reads "Loading <label>" (`loadingLabel`). The toolbar is the page's to show or hide |
+| `rowActions` (actions for every row, or per row: `label`, `icon`, `onSelect(row)`, `disabled` (or per row), `separator`, `destructive`), `rowActionsPosition` (`end` default / `start`), `rowActionsLabel`, `rowActionsHeader` ("Actions") | **Row actions** (code first, 22 Oct 2026, design's brief): a 64-wide ⋮ column (80 until 29 Oct 2026), **last by default** or **first after the select column**; its header is **empty on screen** (named "Actions" for screen readers); the ⋮ (FinTableRowActions, §9.66) is **always visible** and opens the row's action menu. **It stays in place while the table scrolls sideways**: at the end on the right; at the start on the left together with the select column. It's painted with the row's fill (FinTableRow's `--fin-table-row-bg`, bg-primary otherwise), stopping half a pixel short at the top and bottom so the table's own 1px row line shows through (23 Oct 2026; it used to draw its own line, which showed 2px, §10 #68). **While content passes under it, it casts Shadow/Sticky sideways, only once the table has been scrolled sideways** (none at rest, even with columns hidden under it; decided by design 29 Oct 2026) (design, 22 Oct 2026: the Sticky shadow for consistency; on the column's inner side only, clipped so it doesn't fall on other rows; drawn by an empty layer, as table cells can't cast shadows with collapsed borders). Its clicks never open or select the row |
+| Column `sortable`, `sortValue`; `filter` (`options` default the column's distinct values, `multiple` default true, `value`) · table `sort` / `defaultSort` / `onSortChange` (`{ key, direction }` or `null`), `filters` / `defaultFilters` / `onFiltersChange` (values by column key) | **Sort and filter** (code first, 22 Oct 2026): one sorted column at a time; numbers and dates by value, text alphabetically with numbers in order; filters keep rows whose value is one of the column's applied values; both done on `rows`, or only reported with `totalRows` (server). A change goes back to page 1; the summary counts the filtered rows |
+| `rowsPerPage` (controlled) / `defaultRowsPerPage` (default 10), `onRowsPerPageChange`, `rowsPerPageOptions` (default 10, 25, 50, 100); `page` / `defaultPage`, `onPageChange` | Paging. The footer's Rows per page menu changes the count (22 Oct 2026); **a new count keeps the first row that was shown in view** (the page holding it), reported through `onPageChange` |
+| `totalRows` | Server pagination |
+| `ref`, `className`, other `div` attributes | On the root |
+
+**Tokens used:** gap above the footer `--fin-space-xl`; bordered style `--fin-border-subtle`, `--fin-radius-s`; select column `calc(var(--fin-size-24) + 2 * var(--fin-space-xl))` (56; was `--fin-space-3xl`, 72), ⋮ column `calc(var(--fin-size-32) + 2 * var(--fin-space-xl))` (64; was 80). Column widths and the table's minimum width are data from `columns`, passed as CSS variables (`--fin-table-column-width`, `--fin-table-min-width`). The parts bring everything else.
+
+**API:**
+
+```tsx
+<FinTable
+  label="Members"
+  rows={members}
+  getRowId={(m) => m.id}
+  getRowLabel={(m) => m.name}
+  columns={[
+    { key: 'name', header: 'Customer', minWidth: 160 },
+    { key: 'status', header: 'Status', type: 'badge', badgeTone: (m) => tones[m.status], width: 140 },
+    { key: 'tier', header: 'Tier', width: 160, action: { label: (m) => `Edit ${m.name}'s tier`, onAction: editTier } },
+    { key: 'profile', header: 'Profile', type: 'link', width: 180, value: () => 'View profile', href: (m) => `/members/${m.id}` },
+  ]}
+  selectedIds={selected}
+  onSelectionChange={setSelected}
+  onRowClick={(m) => openSideSheet(m)}
+/>
+```
+
+`'use client'` (state, event handlers, forwards `ref`).
+
+**Accessibility:** a native `<table>` named by `label`, with `<th scope="col">` headers; checkboxes named "Select all rows" and "Select <row>"; clickable rows are in the Tab order and open (or select, rule 4) with Enter; the footer summary is a polite live region. Contrast: the accepted exceptions of the parts (§10 #3): Grey header titles in Dark, a link on a Selected row, the current page.
+
+**`leading` (code only, added 28 Oct 2026, for the Badges page):** a column's `leading: (row) => ReactNode` goes in the cell's leading accessories slot (FinTableCell `leading`), before the value, per row: an avatar or an image before a name. The value stays text, shown as `type` says. A row whose `leading` returns nothing has no slot (never the default checkbox). Test: leading per row, the value keeps the text style.
+
+**Built (20 Oct 2026).** Storybook (Components/Table): Playground (row count, rows per page, selectable, clickable), Members (selection across pages, row click, selection-mode clicks, edit action, profile links), Server pagination, Narrow, No rows. Checked in a browser at 1280: select column 72, the two flexible columns 298 each, fixed columns 140 / 160 / 120 / 180; header 48, rows 57, no line under the last row; footer 16 below the table; Light and Dark use their tokens; a row click opens it, and once a row is ticked, clicks select rows instead; in a 480 container the columns keep their widths and minimums (160) and the table scrolls sideways. a11y: no violations in Light or Dark apart from the accepted exceptions.
+
+### 9.46 FinSideNavIcon (Side nav Icon) — internal
+
+**Figma:** page **Side nav**, component set `Icon` `3138:10976` (was `24px`, renamed 20 Oct 2026, §10 #20): `Type` = Unselected / Selected; a 24 `perm_identity` icon (the placeholder; `person` in the registry, §10 #23), raw `#626262` Unselected and raw `#5953E8` Selected, outlined in both. **20 × 20 since 29 Oct 2026** (was 24, then 16 the same day; design's Figma updates; the icon names stay as they are, Figma's names to follow). **Internal**, under Internal/Side nav; used by Main Selection (§8 #48) and FinSideNav.
+
+**Decided 20 Oct 2026:** (1) **Selected is filled** (FILL 1, the §6 rule for selected states); Figma to follow (§10 #51); (2) raw colors → tokens: Unselected `fg-secondary`, Selected **`fg-active`** ("icons in active state", the exact `#5953E8`); (3) the icon is a prop (`name`), since each item has its own; Figma to expose the swap (§10 #51).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Type` = Unselected / Selected | `selected` (default `false`) | Selected: filled, `fg-active`; Unselected: outlined, `fg-secondary` |
+| the icon (`perm_identity` placeholder) | `name: FinIconName` (required) | Not exposed in Figma yet (§10 #51) |
+| — | `className`, other `span` attributes | Passed to FinIcon |
+
+**Tokens used:** `--fin-fg-secondary`, `--fin-fg-active`, size 20 (`--fin-size-20` through FinIcon; was 24, then 16, on 29 Oct 2026). No markup or CSS of its own: FinIcon with fixed size, color and fill.
+
+**API (internal):**
+
+```tsx
+<FinSideNavIcon name="person" selected={isCurrent} />
+```
+
+Presentational (no `'use client'`).
+
+**Accessibility:** decorative (`aria-hidden`); the side nav item's label names it. Contrast (non-text, 3:1) on the side nav's `bg-secondary`: passes in both themes.
+
+**Built (20 Oct 2026).** Storybook (Internal/Side nav/Icon): Playground (icon, Selected), Types (Figma). Checked against Figma in a browser: 24 × 24; Unselected outlined `#626262`, Selected filled `#5953e8` (Dark `#b7b7b7` and `#9691ff`). a11y: no violations in Light or Dark.
+
+### 9.47 FinSideNavSubItem (sub selection) — internal
+
+**Figma:** page **Side nav**, component set `sub selection` `3140:11076`: `state` = Default / Hovered / Pressed / Selected (was `Property 1`, renamed 20 Oct 2026; lowercase, §10 #21) and the text "Text Here" (Label/Medium, `text-secondary`; Selected `text-action`). 280 × 37; padding `Space-M` / `Space-XL` / `Space-M` / `Space-6XL` (8 / 16 / 8 / 40, so the text lines up past the section icon; **changed by design 29 Oct 2026**, was 12 / 16 / 12 / 36, 45 tall), radius `Radius-M`. Fills: Default `bg-secondary` (the side nav's own), Hovered `bg-tertiary`, Pressed `bg-neutral`, Selected `bg-primary`. **Internal**, under Internal/Side nav; used by Main Selection (§8 #48) and FinSideNav.
+
+**Tree (code only, 2 Nov 2026):** `variant="tree"` (from FinSideNav, §9.57) draws its part of the tree lines: `::before` the line from the gap above (−`Space-XS`) to its middle and the `Radius-S` connector to `Space-6XL` − `Space-XS`; `::after` the line on below, from where the curve starts, except on the last sub item. 1px `border-default`, decorative.
+
+**Decided 20 Oct 2026:** (1) it's a **link** (it navigates): `href`, `linkAs` for a router's link component; Selected is the current page (`aria-current="page"`); (2) **Default has no fill** (transparent; the nav's `bg-secondary` shows, the same look); (3) **Selected doesn't change on hover or press** (it's the current page); (4) long labels stay on **one line and end in "…"**; (5) no Focused design: a 2px `border-focused` ring inside the item (§10 #6). It fills the nav's width (Figma's 280 is the drawing frame).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `state` = Hovered / Pressed | — | CSS `:hover` / `:active` (§7.3) |
+| `state` = Selected | `selected` (default `false`) | `data-selected`, `aria-current="page"` |
+| text "Text Here" | `children` | Not a Figma property yet (designers override the layer) |
+| — | `href`, `linkAs` (default `'a'`), `ref`, `className`, other `a` attributes | |
+
+**Tokens used:** padding `--fin-space-m` / `--fin-space-xl` / `--fin-space-6xl`, radius `--fin-radius-m`, text `--fin-font-label-medium`, `--fin-text-secondary` (Selected `--fin-text-action`); fills `--fin-bg-tertiary` (hover), `--fin-bg-neutral` (pressed), `--fin-bg-primary` (selected); focus `--fin-border-focused`.
+
+**API (internal):**
+
+```tsx
+<FinSideNavSubItem href="/members/tiers" linkAs={Link} selected={pathname === '/members/tiers'}>Tiers</FinSideNavSubItem>
+```
+
+Forwards `ref` (presentational, no `'use client'`).
+
+**Accessibility:** a native link named by its label (the full text, even when it ends in "…" on screen); `aria-current="page"` on the selected one; Tab and Enter as any link; visible focus ring. Contrast passes in every state, both themes (lowest: `text-action` on `bg-primary` 4.71:1 Light; `text-secondary` on `bg-neutral` 4.71:1 Dark).
+
+**Built (20 Oct 2026).** Storybook (Internal/Side nav/Sub selection): Playground (label, Selected), States (Figma), Example (a section's items, one selected, a long label). Checked against Figma in a browser (on a 280 nav column): 45 tall, padding 12 / 16 / 12 / 36, radius 12, Label/Medium 14/21 `#656566`; Hovered `#ededed`, Pressed `#e9e9e9`, Selected white with `#625bff` and no change on hover; Dark uses the Dark tokens; focus ring inside; the long label ends in "…". a11y: no violations in Light or Dark.
+
+### 9.48 FinSideNavItem (Main Selection) — internal
+
+**Figma:** page **Side nav**, component set `Main Selection` `3140:10997`: `State` = Default / Hovered / Pressed / Selected - BG / Selected, `Expanded` (False / True), `Type` = Full / Minimized, `Show dropdown`, and an **Expanded Slot** with sub selections. Full: 280 × 37, padding `Space-M` / `Space-L` (8 / 12), gap `Space-L`, radius `Radius-M`; the Icon (§9.46, 20; label at 32), the label (Label/Medium, `text-secondary`) and a 20 chevron (`keyboard_arrow_down`, raw `#626262`; 16 in Figma). **Changed by design 29 Oct 2026** (was 280 × 48, padding 12 / 16, a 24 icon and chevron, sub items 8 apart, Minimized 56 × 48). Fills: Default `bg-secondary` (the nav's own), Hovered `bg-tertiary`, Pressed `bg-neutral`, Selected - BG `bg-primary`; Selected states use `text-action`, the Selected Icon and an up chevron (raw `#5953E8`). Expanded: the sub items 4 (`Space-XS`) below the header, 4 (`Space-XS`) apart. Minimized: the icon only, 44 × 36 in Figma (44 × 37 in code, below). **Internal**, under Internal/Side nav; used by FinSideNav (§8 #70).
+
+**How the Side Menu uses it** (Figma `Side Menu` `3142:11871`, read 20 Oct 2026): **Selected - BG** is the current place itself (Dashboard; a section just opened); **Selected** is a section whose sub item is the current page (that sub item gets the white fill). **Only the active section is open**; the others are closed with a down chevron; items without sub items have no chevron. Minimized shows the icons only, the active one white.
+
+**Decided 20 Oct 2026:** (1) `selected`: `'item'` (Selected - BG) or `'sub-item'` (Selected); (2) the chevron points by open / closed (down / up), its color by selected (§10 #52); (3) **an item with sub items is a button** that reports clicks (the side nav makes it the active section and opens it); **an item without sub items is a link** (`href`, `linkAs`, `aria-current="page"` when `'item'`); the chevron shows whenever there are sub items (Figma `Show dropdown`, §10 #52); (4) Selected - BG doesn't change on hover or press; Selected (no fill) uses the normal hover and pressed fills; (5) the label is one line with "…" (as the sub items); (6) Minimized: the label stays the name for screen readers; no sub items; what a click does there (for example, widening the nav) is FinSideNav's decision; a hover label waits for the Tooltip (§8 #46); (7) no Focused design: a 2px `border-focused` ring inside.
+
+**Decided 29 Oct 2026** (the new spacing): (1) the chevron is 16, as Figma; (2) **the label keeps a 12 (`Space-L`) gap before the chevron** (Figma has none), so a long label's "…" doesn't touch it; (3) the sub items are **4 apart** in every state (Figma's *Selected, Expanded=True* has 8, and its second sub item is a detached `Frame 7`; to fix in Figma); (4) the chevron is centred in every state (Figma's *Selected* has it at y 8, *Selected - BG* at 10.5); (5) **Minimized is as tall as Full** (one line of the label, `1lh`, plus 8 top and bottom): 44 × 37 with the 20 icon (Figma 44 × 36), so the items don't move when the nav collapses; Figma's Minimized variants to follow. (6) **The icon and the chevron are 20** (changed by design later on 29 Oct 2026; Figma's chevron is still 16, to follow).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `State` = Hovered / Pressed | — | CSS `:hover` / `:active` |
+| `State` = Selected - BG / Selected | `selected: 'item' \| 'sub-item'` | Selected Icon, `text-action`; `'item'` also `bg-primary` |
+| `Expanded` | `expanded` (default `false`) | Full only; `aria-expanded` on the button |
+| `Type` = Full / Minimized | `type: 'full' \| 'minimized'` (default `'full'`) | |
+| `Show dropdown` | — | From the sub items (§10 #52) |
+| Expanded Slot | `children` | `FinSideNavSubItem`s |
+| the Icon / the text | `icon: FinIconName`, `label` | |
+| — | `href`, `linkAs`, `onClick`, `ref`, other attributes (on the link or button); `className` (on the item) | |
+
+**Tokens used:** padding `--fin-space-m` / `--fin-space-l`, gap `--fin-space-l`, radius `--fin-radius-m`, text `--fin-font-label-medium`, `--fin-text-secondary` / `--fin-text-action`; fills `--fin-bg-tertiary`, `--fin-bg-neutral`, `--fin-bg-primary`; chevron 20 `--fin-fg-secondary` / `--fin-fg-active` (Figma raw values); sub items `--fin-space-xs` below and apart; Minimized height `1lh` + 2 × `--fin-space-m`; focus `--fin-border-focused`. The icon from FinSideNavIcon.
+
+**API (internal):**
+
+```tsx
+<FinSideNavItem icon="home" label="Dashboard" href="/" linkAs={Link} selected={isHome ? 'item' : undefined} />
+<FinSideNavItem icon="person" label="Loyalty Management" selected={section === 'loyalty' ? (page ? 'sub-item' : 'item') : undefined}
+  expanded={section === 'loyalty'} onClick={() => openSection('loyalty')}>
+  <FinSideNavSubItem href="/loyalty/program" selected={page === 'program'}>Program Configuration</FinSideNavSubItem>
+</FinSideNavItem>
+```
+
+`'use client'` (`useId` for `aria-controls`, forwards `ref`).
+
+**Accessibility:** a link, or a button with `aria-expanded` and `aria-controls` pointing at its sub items; named by the label (also when minimized); `aria-current="page"` on a selected link; visible focus ring. Contrast: Selected - BG passes (`text-action` on `bg-primary` 4.71:1 Light); **a Selected section's label (`text-action` on `bg-secondary`) is 4.32:1 Light / 4.34:1 Dark, accepted by design** (§10 #3); the chevron and icon pass 3:1 on `bg-secondary`.
+
+**Built (20 Oct 2026).** Storybook (Internal/Side nav/Main selection): Playground (icon, label, Selected, Expanded, Type, sub items), States (Figma), Example (the Side Menu behaviour: one open section, sub items selecting pages). Checked against Figma in a browser: Full 280 × 48, icon 16 / 12 in, label at 52, chevron at 240; sub items 4 below the header and 53 apart; Minimized 56 × 48 (an 88 nav); Default / Selected - BG / Selected colors and chevrons as Figma (Light `#656566` / `#625bff`, chevron `#626262` / `#5953e8`), Dark uses the Dark tokens. a11y: no violations in Light or Dark apart from the accepted Selected section label.
+
+### 9.49 FinListItem (List-base) — internal
+
+**Figma:** page **List**, component set `List-base` `77:10185`: `Size` = Large / Small; `Show leading accessory` (on) with a **Leading accessory** slot (a `40px bg` Icon container, info, `person`; preferred instances added per scenario, 20 Oct 2026); a text column: `Show top label` (off; Label small, `text-tertiary`), the title (Text Box, `text-primary`) with `Show extra icon` and its swappable `20px` icon (`person` placeholder, `fg-secondary`), and `Show body content` (on) with a **Body content** slot (Text Box description, `text-secondary`); `Show trailing accessory` (on) with a **Trailing accessory** slot (`keyboard_arrow_right` 24, raw `#626262`); `Show divider` (on). 375 wide (the old mobile frame); padding `Space-XL` top and sides, 0 bottom; content and divider `Space-XL` apart; content gap `Space-L`, top aligned; text column gap `Space-XS`; title row gap `Space-M`. Large 82 tall (title Headline Small-H6 16/24, body Body/Medium); Small 76 (title 14/21, body Body/Small 12/18). **Internal**, under Internal/List; the base of menus and list rows (§10 #49).
+
+**Decided 20 Oct 2026:** (1) **no interaction states** on the base (§7.2 rule); (2) slots take any component per scenario (Figma's preferred instances); (3) the extra icon is a prop (`extraIcon`), hidden without it (Figma's `person` is a placeholder); (4) the Small title is bound to the H6 variables but shows 14/21 Semi Bold, so it's **Label/Medium** in code; (5) title and body wrap (as Figma); (6) it fills its container; (7) **without a body, the title and the trailing accessory are centred on the leading accessory** (with a body, the row is top aligned as Figma); (8) **rule: when several items are shown together, the last one has no divider and gets 16 (`Space-XL`) of bottom padding instead**, so it doesn't end flush with its content (padding added 20 Oct 2026; a single item keeps its divider; **extended 22 Oct 2026: any item without a divider (`divider={false}`) gets the same 16 of bottom padding**, through `data-divider="none"`, at class weight so a component that sets its own padding keeps it, as the side nav's user row (12); CSS `:last-child:not(:first-child)`, so the items must be siblings: use `as="li"` inside a `ul` / `ol`). This applies to every list built on List-base (List-standard, the radio list…).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Size` = Large / Small | `size: 'large' \| 'small'` (default `'large'`) | `data-size` |
+| `Show leading accessory` (on) + slot | `leadingAccessory` (default `true`) + `leading` | Default: FinIconContainer 40, info, `person` |
+| `Show top label` (off) | `topLabel?: string` | FinLabel small |
+| Title (Text Box) | `title` (required) | |
+| `Show extra icon` + `20px` | `extraIcon?: FinIconName` | FinIcon 20, `fg-secondary` |
+| `Show body content` (on) + slot | `showBody` (default `true`) + `children` | Text → description; other content as given |
+| `Show trailing accessory` (on) + slot | `trailingAccessory` (default `true`) + `trailing` | Default: FinIcon `keyboard_arrow_right` 24, `fg-secondary` |
+| `Show divider` (on) | `divider` (default `true`) | FinDivider (decorative) |
+| — | `as: 'div' \| 'li'` (default `'div'`), `className`, other attributes | `li` for items in a list |
+
+**Tokens used:** padding and gaps `--fin-space-xl`, `--fin-space-l`, `--fin-space-m`, `--fin-space-xs`; title `--fin-font-headline-small-h6` (Small `--fin-font-label-medium`), `--fin-text-primary`; body `--fin-font-body-medium` (Small `--fin-font-body-small`), `--fin-text-secondary`; icons `--fin-fg-secondary` (Figma's raw chevron color mapped). The icon container, label and divider bring their own.
+
+**API (internal):**
+
+```tsx
+<FinListItem title="Ann Perera" leading={<FinAvatar size="medium" initials="AP" />} trailing={<FinBadge tone="success">Gold</FinBadge>}>
+  ann.perera@email.com
+</FinListItem>
+```
+
+Presentational (no `'use client'`).
+
+**Accessibility:** plain content (a `div`, or an `li` in a list); the components built on it give it a role (option, link, list item) and keyboard behaviour. Icons are decorative; the divider is hidden from screen readers. Contrast: title and body pass in both themes.
+
+**Built (20 Oct 2026).** Storybook (Internal/List/List base): Playground (every Figma property), Sizes (Figma), All parts, Slots (avatar, flag, badge), Group (lists of items, the last without a divider; items without a body centred). Checked against Figma in a browser (in a 360 column): Large 82 tall, Small 76; leading 40 at 16 / 16; text column 52 after it; title 16/24 (Small 14/21) `#19191a`, body 28 (Small 25) below the title's top, 14/21 (Small 12/18) `#656566`; extra icon 20 at the end of the title row, 2 down; trailing arrow 24 at the right edge; divider 16 below the content; without a body the title and arrow are centred on the 40 accessory (both 36 from the top at Large); in a group the last item has no divider but 16 of bottom padding, and single items keep their divider; Dark uses the Dark tokens. a11y: no violations in Light or Dark.
+
+### 9.50 FinListItemFilled (List_fill-base) — internal
+
+**Figma:** page **List**, component set `List_fill-base` `3494:14233` (new 20 Oct 2026; was `List-fill-base` `3169:6327`): List-base's parts in a frame. `Size` = Large / Small; `Show leading accessory` (on; default an `Avatar` Image Medium, 40) with its slot; `Show top label`, the title with `Show extra icon`, `Show body content` with its slot, `Show trailing accessory` (`keyboard_arrow_right` 24) with its slot; **no divider**. Frame: `bg-primary`, 1px `border-subtle` (inside), `Radius-L`, padding `Space-XL` all round. Large 375 × 81, Small 375 × 75. Small always shows the avatar (§10 #53). **Internal**, under Internal/List.
+
+**Decided 20 Oct 2026:** (1) built **on FinListItem** (same parts, slots and rules: no states, centred without a body); it only adds the frame, removes the divider and defaults the leading accessory to a 40 avatar; (2) **filled items shown together sit 12 (`Space-L`) apart** (the item adds it to the one after it, so a stack needs no container spacing); (3) `leadingAccessory` works on both sizes (§10 #53); (4) the border is drawn inside the frame (inset shadow, as Badge and Chip), so the size matches Figma.
+
+**Figma → code:** as FinListItem (§9.49), without `divider`; the leading default is `FinAvatar size="medium"` (pass `leading` with a photo, initials or anything else).
+
+**Tokens used:** padding `--fin-space-xl`, border `--fin-border-subtle` (1px inset), radius `--fin-radius-l`, fill `--fin-bg-primary`, gap between items `--fin-space-l`. Everything else from FinListItem.
+
+**API (internal):**
+
+```tsx
+<ul>
+  <FinListItemFilled as="li" title="Ann Perera" leading={<FinAvatar size="medium" src={photo} />}>ann.perera@email.com</FinListItemFilled>
+  <FinListItemFilled as="li" title="Ravi Fernando" leading={<FinAvatar size="medium" initials="RF" />}>ravi.fernando@email.com</FinListItemFilled>
+</ul>
+```
+
+Presentational (no `'use client'`).
+
+**Accessibility:** as FinListItem: plain content (`div`, or `li` in a list); the components built on it add roles and keyboard behaviour. Contrast as FinListItem, on `bg-primary`.
+
+**Built (20 Oct 2026).** Storybook (Internal/List/List fill base): Playground (every Figma property), Sizes (Figma), Group (items 12 apart, one without a body centred). Checked against Figma in a browser (in a 360 column): Large 81 tall, Small 75; avatar 40 at 16 / 16, title 52 after it, arrow 16 from the right edge; 1px `#ededed` border inside, radius 16, white (Dark `#19191a` with `#363636`); stacked items 12 apart. a11y: no violations in Light or Dark.
+
+### 9.51 FinListStandard (List-standard) — public
+
+**Figma:** page **List**, component set `List-standard` `3491:5292` (added 20 Oct 2026, built on List-base): `State` = Default / Hovered / Selected / Selected+hovered / Disabled × `Description` (True / False) × `Chevron` (True / False) × `Leading accessory` = None / Icon / Flag / Payment / Avatar × `Trailing accessory` = None / Caption (200 variants). Leading: Icon `24px` (State Primary, `fg-primary`; Disabled `fg-disabled`), Flag sizes 32 × 24, Payment logo (FinPaymentIcon medium, 38 × 24; Figma 34.5 × 24), Avatar Image Medium 40. Trailing: Caption (Small, Heavy, `text-tertiary`) and the `keyboard_arrow_right` 24 chevron (`fg-secondary`), `Space-S` apart. Fills: Hovered `bg-secondary`, Selected `bg-active`, Selected+hovered `bg-active-hover`. Disabled: title and caption `text-disabled-on_bg`, description `text-disabled`, icon and chevron `fg-disabled` (chevron fixed in Figma 20 Oct 2026), flag disabled, line `border-disabled`. Layout, sizes and the centring without a description from List-base (§9.49). **Public**, under Components/List.
+
+**Decided 20 Oct 2026:** (1) **what a row does depends on the scenario**: `behavior` = `static` (shows data), `link` (`href`, `linkAs`; `aria-current="page"` when selected), `button` (`onClick`) or `option` (a choice in a list box or menu: `role="option"`, `aria-selected`); the look is the same; (2) a link or button row is **one target**: the title's link or button covers the whole row, so the row keeps its list semantics (`as="li"`) and the description describes the link or button; (3) the **standard focus ring** inside the row, **no pressed look**; hover only on rows that do something, and never on Disabled; (4) **Size** Large / Small as List-base (nested in Figma, §10 #54); (5) the top label and extra icon aren't exposed (as Figma); (6) **Payment** is FinPaymentIcon at medium (added 20 Oct 2026); `leading` takes any other content; (7) Selected+hovered contrast and the Dark Selected caption (4.48:1) accepted (§10 #3); (8) radio, checkbox and toggle lists will be **separate components** on List-base (different behaviour and layout: the control takes a side and other accessories move to the other).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `State` = Hovered / Selected+hovered | — | CSS `:hover` on interactive rows |
+| `State` = Selected | `selected` (default `false`) | `data-selected` |
+| `State` = Disabled | `disabled` (default `false`) | Not interactive; greyed |
+| `Description` | `description?: ReactNode` | Hidden without it (the row centres) |
+| `Chevron` | `chevron` (default `false`) | |
+| `Leading accessory` = None / Icon / Flag / Payment / Avatar | `leadingAccessory: 'none' \| 'icon' \| 'flag' \| 'payment' \| 'avatar'` + `icon` (default `person`), `country`, `paymentMethod` (default `default`), `avatar` (`src`, `initials`, `label`) | `leading` for anything else |
+| `Trailing accessory` = Caption | `caption?: string` | |
+| Size (nested List-base) | `size: 'large' \| 'small'` | |
+| — | `title` (required), `behavior`, `href`, `linkAs`, `onClick`, `as` (`div` / `li`), `className`, `id`, `style` | `behavior="menuitem"` added 22 Oct 2026 for FinMenu (§9.64): the title is a `<button role="menuitem">` out of the tab order, the row `role="none"` |
+| List-base `Show divider` (nested) | `divider` (default on) | Added 22 Oct 2026 for menus, on List-standard, -radio_button, checkbox and toggle rows (not the filled ones, which have none); the last of several rows never has one |
+| — | `trailing`, `labelFor`, `titleId`, `descriptionId` | Added 20 Oct 2026 for control rows (radio, checkbox, toggle lists): `labelFor` makes the title the control's label covering the row, with the focus ring around the row |
+
+**Tokens used:** fills `--fin-bg-secondary`, `--fin-bg-active`, `--fin-bg-active-hover`; description `--fin-font-body-medium` (Small `--fin-font-body-small`), `--fin-text-secondary` (Disabled `--fin-text-disabled`); Disabled title and caption `--fin-text-disabled-on-bg`, icon `--fin-fg-disabled`, line `--fin-border-disabled` (through FinDivider's `--divider-color`, added 20 Oct 2026); trailing gap `--fin-space-s`; focus `--fin-border-focused`. The rest from FinListItem, FinIcon, FinFlag, FinAvatar and FinCaption.
+
+**API:**
+
+```tsx
+<ul>
+  <FinListStandard as="li" behavior="link" href="/members" linkAs={Link} title="Members" description="All loyalty members" leadingAccessory="icon" icon="person" chevron />
+</ul>
+<ul role="listbox" aria-label="Country">
+  <FinListStandard as="li" behavior="option" size="small" title="Sri Lanka" leadingAccessory="flag" country="LK" selected={country === 'LK'} onClick={() => setCountry('LK')} />
+</ul>
+```
+
+`'use client'` (`useId` for the description, event handlers).
+
+**Accessibility:** links and buttons are native and named by the title, described by the description; options are `role="option"` with `aria-selected` / `aria-disabled` (the list box or menu owns the keyboard); a disabled link has no `href` and `aria-disabled`; a disabled button is `disabled`; the focus ring covers the row. Contrast passes in every state except the accepted Selected+hovered description and the caption on a Selected row in Dark (4.48:1) (§10 #3); disabled text is exempt (the a11y check skips only Disabled rows, as it can't tell a disabled row from enabled text).
+
+**Built (20 Oct 2026).** Storybook (Components/List/List standard): Playground (State, Size, Description, Chevron, Leading accessory, Caption, behavior), Accessories (Figma), States (Figma), Sizes, Behaviors (links, buttons, a country list box). Checked against Figma in a browser (in a 360 column): 82 tall with a description, 57 without (73 with an avatar); icon 24, flag 32 × 24, avatar 40 at 16 / 16; caption and chevron 6 apart at the right; Default / Hovered / Selected / Selected+hovered fills `#ffffff` (none) / `#f5f5f5` / `#efefff` / `#ceccff` (Dark none / `#292929` / `#29266b` / `#36328c`); Disabled title and caption `#969696`, description, icon and chevron `#b7b7b7`, line `#e9e9e9`, no hover; the focus ring covers the row; the last of several rows has no line. a11y: no violations in Light or Dark (Disabled rows and the accepted Dark Selected caption skipped).
+
+
+**Tone (code only, 23 Oct 2026):** `tone` = `default` / `destructive`. Destructive is for actions that delete or remove (in menus): the title `text-error` and the icon accessory `fg-error`, the destructive button's colours; states and fills unchanged; Disabled wins. Storybook: the Playground's `tone` control. To add in Figma (§10 #67).
+### 9.52 FinPaymentIcon (Payment Icons) — public
+
+**Figma:** page **Icon types**, component set `Payment Icons` `58:14556`: `Payment Method` (23 brands and `Default card`) × `Size` = Small 23 × 16 / Medium 34.5 × 24 / Large 46 × 32 / XLarge 69 × 48 × `State` = Enabled / Disabled (greyed). White cards with a light edge. **Visual reference only**: the logos come from `activemerchant/payment_icons` in code (§6.1, §8.5). **Public**, under Components/Payment icon; used by List-standard (§9.51) and later the payment input field (§8 #53).
+
+**Decided 20 Oct 2026:** (1) logos from Shopify's library (MIT, pinned, committed; updates by bumping the version), our own in `src/payment/custom/`; (2) the library's **38 × 24 card** for every logo, heights from Figma (16 / 24 / 32 / 48), so widths 25.3 / 38 / 50.7 / 76 (Figma's 23:16 cards are reference); (3) **Disabled = opacity 0.4**, colors unchanged (as FinFlag), so it works for every brand and in Dark; (4) the **Default card is ours**, drawn from tokens, and the fallback; (5) 18 brands + Default card; Bitpay, Verifone and IPS dropped; Alipay is the library's current logo.
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Payment Method` | `method: FinPaymentMethod` | The registry `finPaymentMethods`; unknown → Default card |
+| `Size` = Small / Medium / Large / XLarge | `size` (default `'medium'`) | Heights `--fin-size-16` / `24` / `32` / `48` |
+| `State` = Disabled | `disabled` (default `false`) | Opacity 0.4 |
+| — | `label` (default the brand's name), `decorative`, `className`, other `span` attributes | |
+
+**Tokens used:** heights `--fin-size-16`, `--fin-size-24`, `--fin-size-32`, `--fin-size-48`; Default card `--fin-bg-primary`, `--fin-border-subtle` (1px inset), `--fin-radius-xs`, icon `--fin-fg-secondary` via FinIcon. Brand artwork keeps its own colors.
+
+**API:**
+
+```tsx
+import { FinPaymentIcon } from '@finspace-loyalty/ui';
+
+<FinPaymentIcon method="visa" />
+<FinPaymentIcon method="mastercard" size="large" disabled label="Mastercard ending 4242" />
+```
+
+`'use client'` (loads the logo when shown).
+
+**Accessibility:** `role="img"` named by the brand (or `label`); `decorative` hides it next to a visible brand name. Logos are artwork (not checked for contrast); the Default card's icon passes 3:1 on `bg-primary`.
+
+**Built (20 Oct 2026).** Storybook (Components/Payment icon): Playground (method, size, disabled, decorative), Methods (all 19), Sizes, Disabled. Checked in a browser: 25.3 × 16, 38 × 24, 50.7 × 32, 76 × 48; every logo loads from its own file; the Default card's icon 16 / 20 / 24 / 36; in List-standard the logo is 38 × 24 at 16 / 16 in an 82 row. **In Dark, the Default card follows the tokens (dark card) while brand logos stay as drawn (light cards).** a11y: no violations in Light or Dark.
+
+### 9.53 FinListRadio and FinListRadioGroup (List-radio_button) — public
+
+**Figma:** page **List**, component set `List-radio_button` `3503:21171` (added 20 Oct 2026; 50 variants): `Type` = Default / Country / Payment × `State` = Default / Hovered / Selected / Selected+hovered / Disabled × `Item side` = Leading / Trailing × `Description`. List-base with the radio (Base-Radio_box, 24) in the leading accessory; Country (Flag sizes 32 × 24) or Payment (Payment Icons 34.5 × 24) either next to the radio (`Space-M` after it) or as the trailing accessory. Fills, Disabled colors and heights as List-standard (82 / 57). Selected rows show the chosen radio (fixed in Figma 20 Oct 2026). **Public**, under Components/List.
+
+**Decided 20 Oct 2026:** (1) **radio, checkbox and toggle lists are separate components** on List-base (different behaviour and layout); (2) built on **List-standard as a control row** (`labelFor`): the title is the radio's label and covers the row, so **clicking anywhere chooses it**; (3) **native radios** in a `radiogroup` (`FinListRadioGroup`, named by `label`): Tab enters and leaves the group, the arrow keys move the choice, disabled rows are skipped; (4) **the focus ring goes around the row** (the radio's own ring is off: FinRadio `focusRing={false}`, added 20 Oct 2026); (5) Country and Payment items for now; `item` takes any other component (an avatar…) for future scenarios; (6) contrast exceptions as List-standard (§10 #3).
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `Type` = Default / Country / Payment | `type` (default `'default'`) + `country` / `paymentMethod` | FinFlag medium / FinPaymentIcon medium (38 × 24), decorative |
+| `Item side` = Leading / Trailing | `itemSide` (default `'leading'`) | |
+| `State` = Selected | — | From the group's `value` (or `checked` outside a group) |
+| `State` = Disabled | `disabled` | Per row, or the whole group |
+| `State` = Hovered / Selected+hovered | — | CSS (List-standard) |
+| `Description` | `description?: ReactNode` | Also the radio's description |
+| Size (List-base) | `size` (row or group) | |
+| — | `value` (required), `title` (required), `item`, `className`; group: `label` (required), `value`, `onValueChange`, `name`, `disabled`, `size` | |
+
+**Tokens used:** item gap `--fin-space-m`; everything else from List-standard (§9.51), FinRadio (§9.15), FinFlag and FinPaymentIcon.
+
+**API:**
+
+```tsx
+<FinListRadioGroup label="Pay with" value={card} onValueChange={setCard}>
+  <FinListRadio value="visa" title="Visa ending 4242" description="Expires 09/28" type="payment" paymentMethod="visa" />
+  <FinListRadio value="lk" title="Sri Lanka" type="country" country="LK" itemSide="trailing" />
+</FinListRadioGroup>
+```
+
+`'use client'` (context, `useId`, event handlers).
+
+**Accessibility:** a `radiogroup` named by `label`; each native radio is named by the row's title (`aria-labelledby`) and described by its description; the row is its label; keyboard as native radios; the focus ring around the row. Contrast as List-standard.
+
+**Built (20 Oct 2026).** Storybook (Components/List/List radio): Playground (Type, Item side, Description, Size, Disabled), Types (Figma), Payment method (a real choice). Checked against Figma in a browser (in a 360 column): radio 24 at 16 / 16; Leading flag at 48 (title at 92), Leading logo at 48 (title at 98; Figma 94.5, the logo is 38 wide here); Trailing items 16 from the right; rows 82 / 57 (the last without a line); Selected `bg-active` with the radio chosen (Dark `#29266b`); Tab focuses the chosen radio and the ring goes around its row; clicking a title or anywhere on the row chooses it. a11y: no violations in Light or Dark (Disabled rows skipped).
+
+### 9.54 FinListCheckbox and FinListCheckboxGroup (code first) — public
+
+**Figma:** none yet (§10 #55). Built 20 Oct 2026 at design's request as **the radio list's twin** (§9.53): the same layout, properties and states, with Base-Checkbox (FinCheckboxBase, 24) in the radio's place. **Public**, under Components/List.
+
+**Decided 20 Oct 2026:** (1) same as the radio list: a control row on List-standard (`labelFor`), clicking anywhere ticks it, ticked = Selected (`bg-active`), the focus ring around the row (FinCheckboxBase `focusRing={false}`, added 20 Oct 2026), Country / Payment / any `item` on either side, Size, Disabled; (2) **native checkboxes** in a `group` named by `label` (`FinListCheckboxGroup`): each is its own Tab stop and Space ticks it; the group's `value` is the list of ticked values; (3) `indeterminate` for a "select all" row (the dash, announced as mixed).
+
+**Props:** as FinListRadio (§9.53), with `checked` / `onCheckedChange` outside a group and `indeterminate`; the group: `label` (required), `value` (`string[]`), `onValueChange`, `name`, `disabled`, `size`.
+
+**Tokens used:** item gap `--fin-space-m`; everything else from List-standard, FinCheckboxBase, FinFlag and FinPaymentIcon.
+
+**API:**
+
+```tsx
+<FinListCheckboxGroup label="Notifications" value={channels} onValueChange={setChannels}>
+  <FinListCheckbox value="email" title="Email" description="Weekly summary" />
+  <FinListCheckbox value="sms" title="SMS" />
+</FinListCheckboxGroup>
+```
+
+`'use client'` (context, `useId`, event handlers).
+
+**Accessibility:** a `group` named by `label`; each native checkbox is named by the row's title and described by its description; the row is its label; keyboard as native checkboxes; the focus ring around the row. Contrast as List-standard.
+
+**Built (20 Oct 2026).** Storybook (Components/List/List checkbox): Playground, Types, Select all. Checked in a browser against the radio list: checkbox 24 at 16 / 16, items and title at the same places, rows 82 / 57 (the last 16 padded, no line), ticked rows `bg-active`, the ring around the focused row. a11y: no violations in Light or Dark (Disabled rows skipped).
+
+### 9.55 FinListToggle (List-toggle) — public
+
+**Figma:** page **List**, component set `List-toggle` `3506:21477` (added 20 Oct 2026; 20 variants): `State` = Default / Hovered / Selected / Selected+hovered / Disabled × `Leading accessory` = None / Icon × `Description`. List-base with the Toggle (Small, 40 × 24) as the trailing accessory and an optional Icon `24px` (`fg-primary`; Disabled `fg-disabled`) as the leading one. **Selected is the toggle on, with no row fill**; Hovered and Selected+hovered are `bg-secondary`. Disabled as List-standard, with the disabled toggle. **Public**, under Components/List.
+
+**Decided 20 Oct 2026:** (1) a control row on List-standard (`labelFor`), like the radio and checkbox lists: clicking anywhere switches it; the focus ring around the row (FinToggle `focusRing={false}`, added 20 Oct 2026); (2) **no Selected fill when on** (as Figma: settings rows only show the hover); (3) **no group**: each row is its own setting (`checked` / `defaultChecked` / `onCheckedChange`); put rows in any list (`as="li"`); (4) `leading` takes other content for future scenarios.
+
+**Figma → code:**
+
+| Figma | Prop | Notes |
+|---|---|---|
+| `State` = Selected | `checked` (or `defaultChecked`), `onCheckedChange` | The toggle on; no fill |
+| `State` = Disabled | `disabled` | |
+| `State` = Hovered / Selected+hovered | — | CSS (List-standard) |
+| `Leading accessory` = None / Icon | `leadingAccessory` (default `'none'`) + `icon` (default `person`) | `leading` for other content |
+| `Description` | `description?: ReactNode` | Also the toggle's description |
+| Size (List-base) | `size` | |
+| — | `title` (required), `name`, `as`, `className` | |
+
+**Tokens used:** none of its own; List-standard (§9.51), FinToggle (§9.14) and FinIcon.
+
+**API:**
+
+```tsx
+<ul>
+  <FinListToggle as="li" title="Email" description="Tier changes and monthly statements" leadingAccessory="icon" icon="person" checked={email} onCheckedChange={setEmail} />
+</ul>
+```
+
+`'use client'` (`useId`, event handlers).
+
+**Accessibility:** a native `role="switch"` checkbox named by the row's title and described by its description; the row is its label; Tab focuses it, Space switches it; the focus ring around the row. Contrast as List-standard (no Selected fill, so no Selected exceptions).
+
+**Built (20 Oct 2026).** Storybook (Components/List/List toggle): Playground (State, Leading accessory, Description, Size), States (Figma), Settings (a real list). Checked against Figma in a browser (in a 360 column): toggle 40 × 24 at 16 from the top and the right; icon 24 at 16 (`#19191a`, Disabled `#b7b7b7`); rows 82 / 57 (the last 16 padded, no line); on rows have no fill, hover `#f5f5f5`; clicking the description switches it; the ring around the focused row. a11y: no violations in Light or Dark (Disabled rows skipped).
+
+### 9.56 Filled lists: FinListStandardFilled, FinListRadioFilled, FinListCheckboxFilled, FinListToggleFilled (code first) — public
+
+**Figma:** none yet (§10 #56). Built 20 Oct 2026 at design's request: the List-standard, radio, checkbox and toggle rows (§9.51, §9.53–9.55) on **List_fill-base** (§9.50) instead of List-base. **Public**, under **Components/List/Filled** in Storybook (the plain lists moved to **Components/List/Plain**); each in its own folder (`ListStandardFilled`, `ListRadioFilled`, `ListCheckboxFilled`, `ListToggleFilled`).
+
+**Decided 20 Oct 2026:** (1) **separate components**, sharing the plain components' rows (one row each, internal: `ListStandardRow`, `FinListRadioRow`, `FinListCheckboxRow`, `FinListToggleRow`, not exported), so behaviour and props are the same; (2) each row is a **white card** (1px `border-subtle`, `Radius-L`, padding `Space-XL`), no dividers, cards **12 (`Space-L`) apart**; (3) **Selected = a 1px `border-active` edge, no fill** (radio chosen, checkbox ticked, standard option or link selected); **toggle on: no edge** (as the plain toggle has no fill); (4) **hover as before** (`bg-secondary` on clickable cards; a selected card keeps its edge); Disabled: greyed content and a `border-disabled` edge, no blue; the focus ring follows the card's corners; (5) **List-standard filled is always clickable** (`behavior` link / button / option, default link), so **the chevron is always shown**, with or without the caption; (6) no default leading accessory (no avatar unless set); (7) the radio and checkbox cards use the **same groups** (`FinListRadioGroup`, `FinListCheckboxGroup`).
+
+**Props:** as the plain components; FinListStandardFilled without `chevron` (always on) and with `behavior` link / button / option.
+
+**Tokens used:** card from FinListItemFilled (`--fin-bg-primary`, `--fin-border-subtle`, `--fin-radius-l`, `--fin-space-xl`, `--fin-space-l` between cards); Selected `--fin-border-active` (1px inset), Disabled `--fin-border-disabled`, hover `--fin-bg-secondary`; the rest from the plain rows.
+
+**API:**
+
+```tsx
+<FinListRadioGroup label="Pay with" value={card} onValueChange={setCard}>
+  <FinListRadioFilled value="visa" title="Visa ending 4242" description="Expires 09/28" type="payment" paymentMethod="visa" />
+</FinListRadioGroup>
+<FinListStandardFilled href="/members" title="Members" caption="1,204" leadingAccessory="icon" />
+```
+
+**Accessibility:** as the plain components (native links, buttons, options, radios, checkboxes and switches; the row is the control's label; the ring around the card).
+
+**Built (20 Oct 2026).** Storybook (Components/List/Filled/…): List standard (Playground, States, Accessories), List radio (Playground, Payment method, Types), List checkbox (Playground, Countries, Types), List toggle (Playground, States, Settings); each Playground has the same controls as the plain version. Checked in a browser: cards 81 tall (16 padding), 12 apart, radius 16; edges `#ededed` / Selected `#625bff` (Dark `#363636` / `#817cff`) / Disabled `#e9e9e9`, no Selected fill; hover `#f5f5f5` keeps the blue edge; toggle on has no edge; the chevron on every standard card; the focus ring rounded. a11y: no violations in Light or Dark (Disabled cards skipped).
+
+### 9.57 FinSideNav (Side Menu) — public
+
+**Figma:** page **Side nav**, component set `Side Menu` `3142:11871` (read 21 Oct 2026): `Menu` (8: Dashboard, Loyalty Management, Loyalty Management - Program Configuration, Gamification, System Configuration, Report Management, User Management, System Audit) × `Type` = Expanded / Minimized. Expanded 312 × 1080: `bg-secondary`, padding `Space-3XL` / `Space-XL`; the header (48: `Logo sizes` Small Coloured With text, and all-button Tertiary Medium icon-only `dock_to_right`, space between), `Space-3XL` below it the 7 Main Selections (280, 8 apart, raw), and the user pinned at the bottom (List-base Small: Avatar 40, name Label/Medium `text-primary`, email Body/Medium `text-secondary`, `keyboard_arrow_right`; padding `Space-L` / 0). Top and bottom raw 40 apart at least. Minimized 88: the button (centred), the 56 icon items, the avatar only; no logo. **Updated by design 29 Oct 2026** (re-read): the header 12 (`Space-L`) above the first item when Expanded (24 when Minimized), the Main Selections 280 × 37, **4 (`Space-XS`) apart**; **Minimized 80** (a 48 column, the collapse button's size; the 44 × 36 items centred in it, the avatar 40). Padding, the header, the user row and the bottom stay as they were. A 1px right stroke weight with no stroke: no border (decided 21 Oct 2026). **Public**, under Components/Side nav/Side menu; built on FinSideNavItem (§9.48), FinSideNavSubItem (§9.47), FinListItem (§9.49), FinAvatar and FinButton.
+
+**Tree style (code only, 2 Nov 2026; §10 #76):** `variant` `default` (Figma's, the default) or **`tree`**: connected tree lines from an open section's icon to its pages, passed to the sub items (§9.47); through FinAppShell it's `sideNav={{ …, variant: 'tree' }}`. A **1px `border-default`** vertical line (was `border-subtle`, too faint; changed by design 2 Nov 2026: 1.36:1 on the nav in Light, 1.54:1 in Dark) starts below the section (in the 4 gap) under its **icon centre** (Space-L + half the 20 icon: 22 in; the 1px line at 21–22) and ends at the **middle of the last page**; each page gets a **connector** from the line ending **4 (`Space-XS`) before its text** (Space-6XL − Space-XS: 36 in), turning with a **`Radius-S`** curve; the line runs straight past each connector (a ├ with a rounded branch). Same colour on a selected page (drawn over its fill), hovered or pressed. **CSS only:** two pseudo-elements per sub item, no text and no pointer events, so screen readers, the keyboard and clicks are unchanged. A closed section and the minimized nav render no pages, so no lines. Long labels still end in "…". Stories: Tree style (one, two and many pages, long labels, groups closed, minimized), Default and tree; Playground and FinAppShell have a `variant` control. **The pages use the tree style** (decided by design 2 Nov 2026; `usePageSideNav`, `pageShell.tsx`).
+
+**Decided 21 Oct 2026:** (1) **data, not variants:** `sections` (icon, label, `href` or `pages`) and `currentHref`; Figma `Menu` follows from them. (2) **Only the active section is open:** the one holding `currentHref`, or the one last clicked; Selected - BG when it's the place itself (or just opened), Selected when the current page is one of its pages; clicking the open section closes it; a new `currentHref` makes its section active and open again. (3) **Type:** `type` / `defaultType` / `onTypeChange`; not controlled and no default, it's collapsed below 1280 and expanded from 1280 (§2 rule 4) and follows the window across 1280 (after the first render, so the server render is Expanded). (4) **Minimized:** the active section is white (Selected - BG) even when one of its pages is current, as Figma; clicking a section expands the nav and opens it; labels stay the names for screen readers (a hover label waits for the Tooltip, §8 #46). (5) **Logo:** a `logo` slot (any node), Expanded only. There's no logo yet; the stories use a placeholder like Figma's (`image` 36 `fg-brand` in a 40 box and the product name Title/Medium `text-primary`, 12 apart). The name reads **"Fintech loyalty"** (Figma: "Company Name"; decided by design 2 Nov 2026), in the side nav and app shell stories and every page; it stays text and tokens rather than the exported PNG, so it works in Dark. A real logo is an asset exported from Figma (§6.1, never recolored). (6) **User:** `profile` (name, email, photo / initials, `href` or `onClick`); with an action the row is one link or button named by the user (as List-standard) and shows the chevron; without, no chevron. Name and email one line with "…". No hover fill: Figma has none, and the nav's own `bg-secondary` would hide List-standard's (§10 #57). (7) **Height:** the window's (`100dvh`, sticky); a long menu scrolls on its own between the header and the user. (8) **Expand / collapse:** a width transition (§5 exception), none under reduced motion.
+
+**Decided 29 Oct 2026** (the new spacing): (1) the header is **12 above the first item in both types** (Figma's Minimized has 24), so the items don't move when the nav collapses, as the items' own height (§9.48); (2) the sub items stay **4 apart** (the Side Menu's Loyalty Management – Program Configuration frame has them 8 apart, with detached `Frame 8` / `Frame 7`; to fix in Figma); (3) Minimized **80** (`--fin-size-48` + 2 × `Space-XL`); the items are 44 × 37 in code (§9.48). (4) **Expanded 272, the menu column 240** (decided by design later on 29 Oct 2026; Figma 312 / 280): `5 × --fin-size-48` + 2 × `Space-XL`. At 240 every current label fits (the longest, "Programme configuration", needs 171 of the sub item's 184); the user's email ends in "…" when long ("oliviajames@email.com" does). A nav of 240 (a 208 column) was turned down: "Loyalty management", "User management" and "Programme configuration" would end in "…". Figma to follow.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Menu` | `sections` + `currentHref` (and the section last clicked) |
+| `Type` Expanded / Minimized | `type: 'expanded' \| 'minimized'` (controlled), `defaultType`, `onTypeChange`; default by width |
+| `Logo sizes` | `logo` (slot) |
+| all-button `dock_to_right` | the collapse button (`collapseLabel` / `expandLabel`, `aria-expanded`) |
+| Main Selection / sub selection | one per section / page, from `sections` |
+| List-base (Avatar, name, email, chevron) | `profile` |
+| — (code only) | `linkAs` (router link), `aria-label` (default "Main") |
+
+**Tokens used:** `--fin-bg-secondary`; padding `--fin-space-3xl` / `--fin-space-xl`; header `--fin-size-48`, `--fin-space-l` below (was `--fin-space-3xl` until 29 Oct 2026); sections `--fin-space-xs` apart (was `--fin-space-m`); top and user `--fin-space-6xl` apart at least; widths `5 × --fin-size-48` (240, no Size-240 token; was `5 × --fin-size-56`, 280, until 29 Oct 2026) and `--fin-size-48` (Minimized; was `--fin-size-56`), plus the padding; user row `--fin-space-l` / 0, email `--fin-font-body-medium` `--fin-text-secondary`, focus `--fin-border-focused` with `--fin-radius-m`; Avatar medium (40). The rest from the parts.
+
+**API:**
+
+```tsx
+import { FinSideNav } from '@finspace-loyalty/ui';
+
+<FinSideNav
+  sections={[
+    { icon: 'home', label: 'Dashboard', href: '/' },
+    { icon: 'loyalty', label: 'Loyalty Management', pages: [{ label: 'Program Configuration', href: '/loyalty/program' }] },
+  ]}
+  currentHref={pathname}
+  linkAs={Link}
+  logo={<img src={logoUrl} alt="Finspace" />}
+  profile={{ name: user.name, email: user.email, src: user.photoUrl, href: '/account' }}
+/>
+```
+
+**Accessibility:** a `<nav>` named "Main" (or `aria-label`), the sections in a list; sections with pages are buttons with `aria-expanded`, the rest links; the current page has `aria-current="page"`; the collapse button is named by its action and has `aria-expanded`; minimized items and the avatar keep their names. Keyboard: Tab through the button, sections, open pages and the user; Enter / Space opens a section.
+
+**Account menu, 2 Nov 2026 (code first, design's brief; plan approved):** **320** wide (`calc(2 × Size-120 + Size-80)`, both types). Top to bottom: the **header** (FinMenu `header`, `headerPadding="none"`, its line as the divider; not clickable): a static FinListStandard Small row, the name as title, the email as description and **`profile.role`** ("Admin", "Super admin") as a **neutral FinBadge** trailing; a long name or email wraps. Then the items (no leading icons in the product's menu): My profile, Settings, the **Theme row**, a line, Log out (normal tone). The Theme row is a `{ type: 'theme', value, onValueChange }` entry in `profile.menu` (`label` default "Theme", `optionLabels`): a static row titled "Theme" (an `<li role="none">`) with a FinSegmentedButton `iconOnly`, `size="xsmall"` (72 × 24), `behavior="menuitemradio"` trailing, named by the title: **System** `desktop_windows`, **Light** `light_mode`, **Dark** `dark_mode`; the current choice checked; **picking one keeps the menu open** so the change shows. The theme row is 56 tall (the 24 control; 68 with Small, 76 with Medium), the items 53: as close as the 24 × 24 minimum target allows (even would need a control 21 tall). The app applies the theme (`data-theme` on `<html>`; System follows `prefers-color-scheme`, also when it changes); in Storybook the row drives the theme toolbar (decided 2 Nov 2026: stories only for now; later, a `useFinTheme` hook and a pre-paint script in the library). Stories: Account menu, Account menu minimized, Account menu long name (opened by their play functions). **Every page** has it too (2 Nov 2026; Olivia James, Admin): `usePageSideNav` in `apps/storybook/src/pages/pageShell.tsx` builds the menu, and the `withPageTheme` decorator on every page story links the Theme row to the theme toolbar (the profile was a link to `#account` before).
+
+**Theme row tooltips (decided by design 3 Nov 2026):** System, Light and Dark each show their name in a single line **FinTooltip** (§9.82) above the icon, on hover (250 ms) and keyboard focus (FinSegmentedButton `tooltips`, §9.34). The first Escape closes the tooltip and the menu stays; the next closes the menu.
+
+**Account menu (code first, 22 Oct 2026, design's brief):** `profile.menu` (items: `label`, `icon`, `onSelect`, `disabled`, `separator`) makes tapping the user open an **account menu** (FinMenu `kind="action"`, §9.64) instead of `href` / `onClick`. **Expanded:** the row's name is the trigger (covering the row) and the chevron becomes a dropdown arrow (`keyboard_arrow_down`, up while open); the menu opens **above the user area, as wide as it** (`anchor`, `width="trigger"`), 4 from it. **Minimized:** the avatar is the trigger (named by the user; **when it shows initials, the name starts with them**, "OJ, Olivia James", for voice control, WCAG 2.5.3; also for the avatar link, fixed 22 Oct 2026); the menu opens **to the right of the nav** (new FinMenu placement `right-end`), 4 from it, along its bottom. The menu is named "Account". **The user row's hover and pressed look** (design, 22 Oct 2026; fixes §10 #57): when it does something (account menu, link or button), it takes **the nav items' look**, as List-standard's hover is the nav's own `bg-secondary`: padding `Space-L` / `Space-XL`, `Radius-M`, hover `bg-tertiary`, pressed `bg-neutral`, and the hover fill while its menu is open; its avatar then lines up with the items' icons (16 further in than before). A static row is unchanged.
+
+**Built (21 Oct 2026).** Storybook (Components/Side nav/Side menu): Playground (type, current page, logo, profile; links change the page), Menus (Figma) and Minimized (Figma) (the 8 menus), Long content. Checked against Figma in a browser: 312 × 1080, header 48 at 24 (button at 248), items 280 × 48 from 96, 56 apart, user row 70 at 986, Minimized 88 with 56 items; the 8 menus match Figma in Light and Dark. The `image` icon added to the registry for the placeholder. a11y: no violations in Light or Dark apart from the accepted Selected section label (§10 #3).
+
+### 9.58 FinInputBase (Input field-base) — internal
+
+**Figma:** page **Input field**, component set `Input field-base` `49:5734` (read 21 Oct 2026): `Type` = Default / Payment / Mobile number / Select × `Destructive`, with Show Label, Show Placeholder text (+ Place holder slot), Show Prefix, Show Suffix, Show Leading accessory (+ Leading slot), Show Trailing accessory (+ Trailing slot), Show Caret, Show Focus ring and Show Helper text (+ Helper text slot). Box **48** tall (changed from 56 by design 21 Oct 2026), fills its container, radius `Radius-M`, 1px `border-default`, Content padding `Space-L` / `Space-XL` (12 / 16), gap `Space-M`; Mobile number: the content starts `Space-M` (8) after the divider, the Country selector 78 × 48; helper text `Space-M` below (Helper text content, padding 0 / `Space-XL`). Value and placeholder Body/Large (`text-primary` / `text-placeholder`), prefix and suffix Body/Large `text-tertiary`, label Label/Small `text-tertiary` on a `bg-primary` patch centred on the top border, 16 in, padding 4 (raw). Payment is the same box as Default (the payment field adds the logo); Select has `keyboard_arrow_down` in the trailing slot; Mobile number puts the Country selector (§9.36) and a vertical Divider before the content. **The states are set by the mapped components** (Input field-standard `52:2629`, Input field-password `60:7165`, read 21 Oct 2026): Enabled (placeholder only), Hovered (`bg-secondary`; empty fields only), Focused (label, caret, ring, placeholder hidden), Typing (label, caret, ring), Complete (label, `border-strong`), Disabled (`border-disabled`, `text-disabled`; no Disabled + Error); Error swaps in `border-error`, the error ring and `text-error`. Ring: a 2px `border-focused` stroke outside the box with a 4px `bg-active` spread (error: `border-error`, `bg-error_secondary`). **Internal**, under Internal/Input field/Input field base; the base of FinTextField, FinPasswordField, FinSelectField, FinMultiSelectField and FinSearchField (§8 #53–57), as List-base is for the lists.
+
+**Decided 21 Oct 2026:** (1) **the states live in the base's CSS**, the same for all five fields, because in code the browser decides them (hover, focus, a value, `disabled`); Figma's Show Label / Caret / Focus ring follow automatically, and the mapped fields only add their own content (payment logo, password eye, country), never copying the base's styles. (2) **The label is always the input's `<label>`**: hidden visually (not removed) until the field is focused or has a value, then on the top border. (3) **The label shows the surface behind it:** the border, ring and halo are cut where the label sits (fieldsets with the label's text as an invisible legend), so it works on any surface, not just `bg-primary` (Figma's patch fits the usual white case). (4) Hovered only on an empty field that isn't focused, as Figma. (5) Disabled uses `fg-disabled` for icons and drops the error look; a disabled field with a value still shows its label (`text-disabled`). (6) The helper text uses FinHelperText's own tones without the icon (Default `text-secondary`, Error, Disabled); Figma's helper colors vary between variants (§10 #58). (7) `Type` is `variant`, so `type` stays the input's own (as FinButton). (8) Stacked fields are 24 apart (§2 rule 4). (9) **Small size (code only, decided 21 Oct 2026):** `size="small"` is a **40** box; Figma doesn't have it yet. Padding above and below drops to `Space-M` (8; the sides stay `Space-XL`), icons are **20** (the Select chevron, the Country selector's arrow, and the icons the mapped fields put in the slots), and the label is unchanged (Label/Small). **The value, placeholder, prefix, suffix and date mask are Body/Medium (14 / 21)** (decided by design 2 Nov 2026; was Body/Large), in the same 24-tall row (the input and the Select button are 24), so the box stays 40. Large (48, Body/Large) stays the default. To be added to Figma later. (10) Mobile number: while the label shows, the divider starts `Space-M` below the top, so a label longer than Figma's "Label" never sits on the line (added 21 Oct 2026, with FinTextField). (11) **Focused means the input (or `control`) has focus**, not a button in an accessory slot (the password eye): reaching that shows only the button's focus ring (decided 21 Oct 2026, with FinPasswordField). (12) **`showLabel`** (Figma `Show Label`, default on): off, the label is never shown and the border has no notch, but it still names the input (visually hidden); used by Search (added 21 Oct 2026). The browser's own search clear button is hidden, so a `type="search"` input shows only FinSearchField's.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Type` Default / Payment / Mobile number / Select | `variant: 'default' \| 'payment' \| 'mobile-number' \| 'select'` |
+| — (code only) | `size: 'large' \| 'small'` (default `large`; Small 40, see (9)) |
+| `Destructive` | `error` (`aria-invalid`, error helper tone) |
+| Show Label + text | `label` (required) |
+| Show Placeholder text + Place holder slot | `placeholder`; `control` (+ `filled`) replaces the input |
+| Show Prefix / Show Suffix | `prefix` / `suffix` |
+| Show Leading / Trailing accessory + slots | `leading` / `trailing` |
+| Show Helper text + slot | `helperText` |
+| Show Caret, Show Focus ring | runtime (`caret-color: fg-brand`; ring on focus) |
+| Mobile number: Contry selecter | `country` (default `LK`, as Figma), `onCountryChange`, `showDialCodes`; the country menu is as wide as the box (22 Oct 2026) |
+| States (in the mapped fields) | CSS; `disabled` |
+| — (code only) | the input's own attributes (`type`, `value`, `onChange`, `name`, `id`…), `ref` |
+
+**Tokens used:** `--fin-radius-m`, `--fin-space-l` (top and bottom padding; `--fin-space-m` when Small), `--fin-space-xl` (side padding, label inset, helper inset), `--fin-space-m` (gaps, helper, Mobile number's content start), `--fin-space-xs` (label sides), `--fin-size-24` (input line), `--fin-size-20` (Small icons); `--fin-font-body-large`, `--fin-font-label-small`; `--fin-text-primary`, `--fin-text-placeholder`, `--fin-text-tertiary`, `--fin-text-disabled`, `--fin-fg-secondary`, `--fin-fg-disabled`, `--fin-fg-brand`; borders `--fin-border-default` / `-strong` / `-disabled` / `-error`; ring `--fin-border-focused` + `--fin-bg-active`, error `--fin-border-error` + `--fin-bg-error-secondary`; hover `--fin-bg-secondary`.
+
+**API:**
+
+```tsx
+// Internal: used by the mapped fields, for example
+<FinInputBase label="Discount" suffix="%" helperText="Up to 50" />
+<FinInputBase variant="mobile-number" label="Mobile number" prefix="+94" country={country} onCountryChange={setCountry} />
+<FinInputBase size="small" label="Code" trailing={<FinIcon name="person" size={20} />} />
+```
+
+**Accessibility:** a native `<input>` with its `<label>` in every state; the helper text by `aria-describedby`; `aria-invalid` with an error; the border, ring and notch hidden from screen readers. Focus shows the ring (`border-focused`).
+
+**Mask** (code only, 27 Oct 2026, for FinDateField): `mask` (a format such as "DD/MM/YYYY") is shown in `text-placeholder` behind a controlled `value`, the part not typed yet, so the format stays while typing; hidden while the placeholder shows (empty, not focused); `text-disabled` when disabled.
+
+**Built (21 Oct 2026).** Storybook (Internal/Input field/Input field base): Playground (every Figma property, and `size`), Types (Figma), Sizes, States (Figma), Focused, Typing, Focused + error, Accessories, On a surface, Stacked. Checked against Figma in a browser: 343 × 74, box 48 (updated 21 Oct 2026), input 279 wide at 16 / 12, helper 8 below, label centred on the top border 16 in; Enabled, Complete, Disabled, Error, Focused and Typing colors as Figma, in Light and Dark; the notch shows the surface behind it; stacked fields 24 apart; Small: box 40, 343 × 66 with the helper, input at 16 / 8, every icon 20, the Country selector filling the 40. a11y: no violations in Light or Dark apart from disabled helper text (exempt, as §9.20).
+
+### 9.59 FinTextField (Input field-standard) — public
+
+**Figma:** page **Input field**, component set `Input field-standard` `52:2629` (read 21 Oct 2026, 66 variants): `Type` = Default / Mobile number / Payment × `State` = Enabled / Hovered / Focused / Typing / Complete / Disabled × `Trailing icon` (True / False) × `Error` (no Disabled + Error). Every variant is an Input field-base instance (§9.58): 343 × 74, the 48 box. Default: placeholder, helper text, `perm_identity` 24 in the trailing slot when Trailing icon is on. Mobile number: Country selector (LK), divider, `+94` prefix. Payment: a Payment Icons logo (Visa, Medium) in the leading slot; the value is a card number in four groups 8 apart (`1627 1526 4756 1726`). Inconsistencies in §10 #58 (5)–(7).
+
+**Decided 21 Oct 2026:** (1) the states, label, ring and helper text are all the base's; FinTextField only adds its content. (2) **Mobile number:** the prefix is the chosen country's dial code, from `libphonenumber-js` (`finDialCodes`, §6.1), so it follows `country`; the input is `type="tel"` (`autocomplete="tel-national"`). The country menu comes later, with the menus (§10 #49): the selector only reports clicks (`onCountryClick`). (3) **Payment:** the logo is FinPaymentIcon (§9.52, Shopify's library), medium; the brand comes from the number's first digits (Visa, Mastercard, American Express, Diners Club, Discover, Maestro, UnionPay; the default card until it's known, or for other brands), and `paymentMethod` sets it instead. The digits are grouped as they're typed, in fours (American Express 4-6-5, Diners Club 4-6-4), the caret kept after the same digit; only digits, up to the brand's length and **never more than 16** (decided by design 22 Oct 2026; American Express 15 and Diners Club 14 stay shorter); `inputmode="numeric"`, `autocomplete="cc-number"`. (4) `Trailing icon` is `trailingIcon` (an icon name; none by default, so Figma's `perm_identity` is just its example). (5) Small (code only) as the base: 20 icons; the payment logo stays medium (24 tall, fits the 24 line).
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Type` Default / Mobile number / Payment | `variant: 'default' \| 'mobile-number' \| 'payment'` |
+| `State` | runtime (the base's CSS); `disabled` |
+| `Trailing icon` + icon | `trailingIcon?: FinIconName` |
+| `Error` | `error` |
+| Label, placeholder, helper text (base) | `label` (required), `placeholder`, `helperText` |
+| Mobile number: Contry selecter, `+94` | `country` (controlled) / `defaultCountry` (default `LK`), `onCountryChange`, `showDialCodes` (the country menu, 22 Oct 2026); the prefix from `finDialCodes`, following the chosen country |
+| Payment: Payment Icons | `paymentMethod` (default: from the number) |
+| `Show Suffix` (base) | `suffix?: string` (added 26 Oct 2026, for units such as "Months", "Points", "LKR"; Body/Large `text-tertiary`, `text-disabled` when disabled) |
+| — (code only) | `size: 'large' \| 'small'`; the input's own attributes (`value`, `defaultValue`, `onChange`, `type`, `name`…), `ref` |
+
+**Tokens used:** none of its own; all from FinInputBase (§9.58), FinPaymentIcon (§9.52) and FinCountrySelector (§9.36).
+
+**API:**
+
+```tsx
+<FinTextField label="Email" type="email" placeholder="name@email.com" helperText="We'll send the receipt here" />
+<FinTextField variant="mobile-number" label="Mobile number" defaultCountry="LK" onCountryChange={saveCountry} />
+<FinTextField variant="payment" label="Card number" value={card} onChange={(e) => setCard(e.target.value)} />
+```
+
+**Accessibility:** as FinInputBase (a native input with its label, helper text by `aria-describedby`, `aria-invalid`). The country selector is a button named "Country, {country}". The payment logo is an image named after the brand (it changes as the number is typed); the value keeps its spaces for reading.
+
+**Built (21 Oct 2026).** Storybook (Components/Input field/Text field): Playground, Types (Figma), States (Figma), Sizes, Focused, Mobile number, Payment, Payment typing, Form, Suffix (26 Oct 2026). Checked against Figma in a browser: 343 × 74, box 48, Default input at 16, Mobile number +94 after the divider, Payment logo 38 × 24 at 16 (Figma 34.5, §9.52) and the value 8 after it; Light and Dark. The Label "Usage" and Helper text "With a field" stories now use FinTextField instead of stand-in inputs. a11y: no violations apart from disabled helper text (exempt, as §9.20).
+
+### 9.60 FinPasswordField (Input field-password) — public
+
+**Figma:** page **Input field**, component set `Input field-password` `60:7165` (read 21 Oct 2026, 22 variants): `State` = Enabled / Hovered / Focused / Typing / Complete / Disabled × `Show password` (False / True) × `Error` (no Disabled + Error). Every variant is Input field-base `Type=Default` (§9.58): 343 × 74, the 48 box. The trailing slot holds a 24 eye: `visibility_off` while the password is hidden, `visibility` while it's shown (`fg-secondary`; `State=Disabled` when disabled). Hidden: dots; shown: the text. Placeholder "Password". No hover or pressed look for the eye. Inconsistencies in §10 #58 (1), (3), (4).
+
+**Decided 21 Oct 2026:** (1) the icon follows Figma: it shows the **current state** (`visibility_off` hidden, `visibility` shown). (2) The eye is a native `<button>` whose **name always says the action**: "Show password" while hidden, "Hide password" while shown (no `aria-pressed`, so the name and state never contradict); `showLabel` / `hideLabel` change the words (for a PIN). (3) **No hover style**: the pointer cursor only, and the standard focus ring (2px `border-focused`, 2 out) when it's reached with the keyboard. (4) **Clicking the eye doesn't take focus** (the field keeps its look, and if you were typing, the caret stays in the input); **reached with Tab, focus stays on it** after pressing, so a keyboard user can press it again, and only the button shows a focus ring, not the field (changed after review, 21 Oct 2026: clicking it had opened the label while the placeholder stayed). (5) `Show password` is `showPassword` (controlled) / `defaultShowPassword` (default hidden), with `onShowPasswordChange`. (6) `autoComplete` defaults to `current-password`; use `new-password` when setting one, so password managers offer to save it. (7) Small (code only): a 20 eye.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `State` | runtime (the base's CSS); `disabled` (also disables the eye) |
+| `Show password` | `showPassword` / `defaultShowPassword`, `onShowPasswordChange` |
+| `Error` | `error` |
+| Label, placeholder, helper text (base) | `label` (required), `placeholder`, `helperText` |
+| — (code only) | `size: 'large' \| 'small'`; `showLabel` / `hideLabel`; the input's own attributes (`value`, `onChange`, `name`, `autoComplete`…), `ref` |
+
+**Tokens used:** `--fin-radius-xs` and `--fin-border-focused` (the eye's focus ring); the rest from FinInputBase (§9.58).
+
+**API:**
+
+```tsx
+<FinPasswordField label="Password" placeholder="Password" />
+<FinPasswordField label="New password" autoComplete="new-password" helperText="At least 8 characters" />
+<FinPasswordField label="Password" showPassword={shown} onShowPasswordChange={setShown} />
+```
+
+**Accessibility:** a native `type="password"` input (`type="text"` while shown) with its label and helper text, as FinInputBase. The eye is a `<button type="button">` after the input in tab order, named by its action; Enter and Space press it; disabled with the field.
+
+**Built (21 Oct 2026).** Storybook (Components/Input field/Password field): Playground, States (Figma), Sizes, Typing, Eye button focused, Form. Checked against Figma in a browser: 343 × 74, box 48, the eye 24 at 16 from the right and 12 down, input 279 wide; hidden and shown, Enabled, Complete, Disabled and Error in Light and Dark. a11y: no violations apart from disabled helper text (exempt, as §9.20).
+
+### 9.61 FinSearchField (Search) — public
+
+**Figma:** page **Search**, component set `Search` `440:5164` (re-read 21 Oct 2026, after design removed `Sticky` and its shadow): `State` = Enabled / Focus / Typing / Complete (4 variants). Each is Input field-base `Type=Default` (§9.58) with Show Label off and no helper text: 343 × 48, the 48 box, `search` 24 (`fg-secondary`) in the leading slot, Body/Large placeholder (`text-placeholder`) and value (`text-primary`). Typing and Complete add `cancel` 24 (filled, `fg-secondary`) in the trailing slot; Complete has `border-strong`; Focus and Typing the focus ring. No Hovered, Disabled or Error variants. The component frame has a raw white fill behind the field (§10 #58 (8)); code has none, as the other fields.
+
+**Decided 21 Oct 2026:** (1) **the base's usual behaviour** (hover `bg-secondary` on an empty field, focus ring, Complete), keeping what Search does: the label is never shown (base `showLabel={false}`; `label` is required and names the box for screen readers). (2) The **clear button** shows once there's text: a native `<button>` named "Clear search" (`clearLabel`), the filled `cancel` icon as Figma (an exception to outlined-by-default, §6), no hover look (pointer cursor only, as the password eye), a click keeps focus in the input; it empties the field the way typing would (so `onChange` runs, controlled or not), calls `onClear`, and returns focus to the input (the button disappears). **Escape** clears too. (3) A native `type="search"` input (`searchbox` role, `enterkeyhint="search"`); the browser's own clear button is hidden. Placeholder default "Search". (4) No error or helper text (not in Figma); `disabled` is the native attribute (no clear button when disabled). (5) Small (code only): 20 icons. (6) **The placeholder stays when focused** (decided by design 22 Oct 2026): the label never shows, so nothing takes over from it. In FinInputBase the placeholder hides on focus only when the label is visible (`data-label-hidden` on the input otherwise); the other fields are unchanged.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `State` Enabled / Focus / Typing / Complete | runtime (the base's CSS); hover from the base |
+| Label (Show Label off) | `label` (required, never shown) |
+| Placeholder | `placeholder` (default "Search") |
+| `search` (leading) | always shown |
+| `cancel` (trailing, Typing / Complete) | the clear button, once there's text; `onClear`, `clearLabel` |
+| — (code only) | `size: 'large' \| 'small'`; the input's own attributes (`value`, `defaultValue`, `onChange`, `name`, `disabled`…), `ref` |
+
+**Tokens used:** `--fin-radius-full` and `--fin-border-focused` (the clear button's focus ring); the rest from FinInputBase (§9.58).
+
+**API:**
+
+```tsx
+<FinSearchField label="Search members" value={query} onChange={(e) => setQuery(e.target.value)} />
+<FinSearchField label="Search transactions" placeholder="Search by ID" onClear={resetResults} />
+```
+
+**Accessibility:** a native search box named by `label` (visually hidden); the clear button after it in tab order, named "Clear search", Enter and Space press it, then focus returns to the box. Results that update as you type should be announced by the page (for example a polite live region with the count).
+
+**Built (21 Oct 2026).** Storybook (Components/Search/Search field): Playground, States (Figma), Focus, Typing, Sizes, Filtering. Checked against Figma in a browser: 343 × 48, `search` at 16 / 12, the input 279 wide at 48 (247 with the clear button), `cancel` 16 from the right; Enabled and Complete in Light and Dark; clearing empties the box and keeps focus in it. a11y: no violations.
+
+### 9.62 FinHeaderNotificationButton (Header notification) — public
+
+**Figma:** page **Header**, component set `Header notification` `3178:24467` (re-read 22 Oct 2026, 10 variants): `State` = Default / Hovered / Pressed / Disabled × `Notification` = Dot / Number / None (Disabled only with Dot, and it shows no badge). A `48px bg` instance (48 circle, `Radius-Full`, padding `Spacing 8px` from another library) with its fill swapped to `bg-action-secondary` (`_hovered` / `_pressed`; Disabled `bg-disabled`), holding the 24 `notifications` icon in `fg-action` / `fg-hovered` / `fg-pressed` (Disabled `fg-disabled-on_bg`). The badge is a `Badge - indicator` (Small, Red): Dot 6 × 6 at 30 / 12; Number "99+" at 24 / −4, growing right.
+
+**Decided 22 Oct 2026:** (1) a **disabled button never shows a badge**, whatever `notification` is. (2) `notification="number"` with a count of 0 (or none) shows no badge, as FinBadgeIndicator. (3) The circle is drawn by the button itself, not FinIconContainer: its tones can't express the action-secondary fill or the hover and pressed states, and its circle isn't interactive. FinIcon and FinBadgeIndicator are reused as they are.
+
+**Changed by design 2 Nov 2026 (code first):** the button is **40** everywhere, the Small icon button's size: a 40 circle, a **20** bell (as the header's back button's icon), padding `Space-M` (8); the dot 8 from the top and right (`Space-M`, on the bell's corner); the number at the centre line (`left: 50%`), 4 above the top, growing right. (Built at 32 first, then 40, the same day.) Figma still shows 48 (to update in Figma).
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `State` Default / Hovered / Pressed / Disabled | runtime (`:hover`, `:active`, `:disabled`); `disabled` |
+| `Notification` None / Dot / Number | `notification: 'none' \| 'dot' \| 'number'` (default `'dot'`, as Figma) |
+| The "99+" number | `count`, `max` (default 99), passed to FinBadgeIndicator |
+| — (code only) | `label` (default "Notifications"); the button's own attributes (`onClick`…), `ref` |
+
+**Tokens used:** circle `--fin-size-40` (was 48), `--fin-radius-full`, padding `--fin-space-m`; fills `--fin-bg-action-secondary` / `-hovered` / `-pressed`, `--fin-bg-disabled`; icon `--fin-fg-action` / `--fin-fg-hovered` / `--fin-fg-pressed`, `--fin-fg-disabled-on-bg`; dot at `--fin-space-m` from the top and right (was `--fin-size-12`); number at 50% from the left (was `--fin-size-24`), `--fin-space-xs` above the top; focus ring 2px `--fin-border-focused`, 2 out (no Focused design, §10 #6).
+
+**API:**
+
+```tsx
+<FinHeaderNotificationButton notification="number" count={unread} onClick={openNotifications} />
+<FinHeaderNotificationButton notification="none" />
+```
+
+**Accessibility:** a native `<button type="button">`; Enter and Space press it; disabled is native (not focusable). Its name says the unread state: "Notifications", "Notifications, unread" (dot) or "Notifications, 3 unread" (`label` changes the first word); the icon and badge are hidden from screen readers. 48 × 48 target.
+
+**Built (22 Oct 2026).** Storybook (Components/Header/Header notification): Playground, Variants (Figma), Counts, Focused. Checked against Figma in a browser: 48 × 48; Default `#efefff` / `#625bff`, Hovered `#ceccff` / `#5953e8`, Pressed `#b7b4ff` / `#4641b5`, Disabled `#e9e9e9` / `#969696`; dot 6 × 6 at 30 / 12, number at 24 / −4; Light and Dark. a11y: no violations apart from the number badge in Dark (Red 3.97:1, the accepted §10 #3 exception, skipped as in §9.8).
+
+### 9.63 FinHeader (Main header) — public
+
+**Figma:** page **Header**, component `Main header` `3178:24570` (re-read 22 Oct 2026, after design's updates): a row, padding `Space-L` / `Space-3XL`, gap `Space-XL`, `bg-primary`, top corners `Radius-L`, a bottom border in `bg-secondary` whose width is bound to `Space-XS` (4); the height hugs the content (87). Left, gap `Space-L`: an all-button (Tertiary, Medium, Only Icon, `arrow_back`; the icon override was removed, so it's `fg-action`) and `text content` (gap `Space-XS`): a Text Box (Headline Large-H4, heading only, "Title") and the **`body content` slot** (default: a Text Box with only its description, Body/Medium `text-secondary`). Right: a Header notification (Number). Booleans: `Show Back Button`, `body content`, `Notification` (all on). Figma's 1368 width is only a drawing frame.
+
+**Decided 22 Oct 2026:** (1) the back arrow is Tertiary as it is (Figma updated). (2) The height comes from the padding and content (Figma updated: padding 12, hug). (3) **A long title stays on one line and ends in "…"**, through FinTextBox's new code-only `truncateHeading` (§9.21); the body content wraps. (4) The title is an `<h1>` by default (`headingLevel`), the root a `<header>`.
+
+**Changed by design 2 Nov 2026 (code first):** the title is **Headline Small-H6** (16 / 24, Semibold 600; was Headline Large-H4, 24 / 33.6 Bold), the body content stays Body/Medium 4 below (H6's description); the back button is **XSmall** Tertiary icon only, **32 × 32** with a 20 icon (was Medium, 48); the bell is 40 (§9.62). Padding, gaps and the border are unchanged, so the header is **77** tall (12 + 24 + 4 + 21 + 12 + the 4 border; was 87) and the text starts at 68 (24 + 32 + 12). Figma still shows H4 and 48 buttons (to update in Figma).
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| Title Text Box (H4) | `heading` (required), `headingLevel` (default 1) |
+| `body content` slot + its boolean | `bodyContent?: ReactNode`, shown when passed; a string or number becomes Figma's default, a Text Box description |
+| `Show Back Button` | `backButton` (default `true`), `onBack`, `backLabel` (default "Back", the accessible name) |
+| `Notification` | `notification` (default `true`); `notificationProps` passed to FinHeaderNotificationButton (§9.62) |
+| — (code only) | `className`, other attributes on the `<header>` |
+
+**Tokens used:** `--fin-bg-primary`; padding `--fin-space-l` / `--fin-space-3xl`; gaps `--fin-space-xl` (row), `--fin-space-l` (back button → text), `--fin-space-xs` (title → body content); top corners `--fin-radius-l`; bottom border `--fin-space-xs` `--fin-bg-secondary`. The rest from FinButton (§9.28), FinTextBox (§9.21) and FinHeaderNotificationButton (§9.62).
+
+**API:**
+
+```tsx
+<FinHeader heading="Members" bodyContent="Everyone enrolled in the programme" onBack={goBack} notificationProps={{ notification: 'number', count: unread, onClick: openNotifications }} />
+<FinHeader heading="Summer rewards" bodyContent={<FinBadge tone="success">Active</FinBadge>} backButton={false} />
+```
+
+**Accessibility:** a `<header>` (a banner landmark only when it isn't inside `main`, `article`, `section`…); the title an `<h1>` with its full text even when it's cut off; the back button named "Back" (`backLabel`); the bell named with its unread state (§9.62). Tab order: back, bell.
+
+**Built (22 Oct 2026).** Storybook (Components/Header/Main header): Playground, Options, Long title, Custom body content. Checked against Figma in a browser: 86.6 tall (Figma 87, the 33.6 line height), padding 12 / 24, back button 48 at 24, text at 84, title Headline Large-H4, description Body/Medium `#656566` 4 below, bell 48 at the right edge minus 24; Light and Dark. a11y: no violations apart from the bell's number badge in Dark (§10 #3, as §9.62).
+
+### 9.64 FinMenu and FinMenuDivider (standard-menu) — public
+
+**Figma:** page **Menu**, component set `standard-menu` `3549:12004`, one variant `Type=Normal` `3549:11762` (added 22 Oct 2026): `bg-primary`, 1px `border-subtle`, `Radius-M`, padding and gap `Space-none`, content clipped, `Shadow/Sticky`; one slot `conten` (sic) holding four List-standard Small rows with descriptions, the last without its line (375 × 303 inside the border). Nothing else: kinds, placement, size limits and the footer are code (§10 #59).
+
+**Code only (2 Nov 2026), for the account menu (§9.57):** (1) in an `action` menu a group of **menu item radios** is **one stop**: ↑/↓ (and Home/End) reach the checked one, and from an unchecked one (moved to with ←/→) they go on from the group; clicking one doesn't close the menu (only `menuitem` does). (2) `headerPadding` `default` (`Space-L`, for a search field) or **`none`** (a list row that brings its own padding, so it lines up with the rows). (3) An action menu with a `header` is **described by it** (`aria-describedby`): "Account, Olivia James, oliviajames@email.com, Admin".
+
+**Decided 22 Oct 2026:** (1) **one menu for every scenario**: the slot takes any rows (standard, radio, checkbox, toggle lists, mixed, any accessories, with or without lines: the rows' new `divider`), `FinMenuDivider` between groups, and buttons. (2) **`kind`** (code only) sets the behaviour: `action` (a trigger reveals actions; one is taken and the menu closes: `role="menu"`, rows `behavior="menuitem"`, arrow keys / Home / End, Enter or click runs it, Tab leaves), `filter` (from a filter chip; controls are adjusted, then applied: a non-modal `dialog`, Tab through the controls, stays open until the app closes it), `navigation` (destinations: a `<nav>` of links, arrow keys too, the current page gets focus). **`select`** (added 22 Oct 2026, with the Rows per page menu): a value is chosen from options (a `listbox` of List-standard `behavior="option"` rows, which now take focus with `tabIndex=-1` and show the ring with the keyboard); the chosen one is Selected and gets focus when opened with the keyboard (any key); arrow keys, Home / End, typing a letter (repeat it to cycle) move; Enter, Space or a click chooses and closes, focus back on the trigger; Tab closes. Used by the Rows per page dropdown (§9.38), and next by the country selector and the select fields. (3) **Placement:** 4 (`Space-XS`) from the trigger, `bottom-start` by default, flips above when there's no room, kept `Space-M` from the window edge; in the top layer (popover), so tables and scrolling containers never clip it; positioned with **Floating UI** (`@floating-ui/react-dom` 2.1.9, MIT, approved; bundled into the build like `libphonenumber-js`, so a dev dependency). (4) **Height:** never past the window (the content scrolls, the footer stays); `maxHeight` for a fixed limit. **Width:** fits the content, at least the trigger's; `trigger` for fields; or any length. (5) **Shadow:** `Shadow/Menu`, a new style with the Sticky values (Panel_sheets was too faint; §4.2). (6) **Footer** (code first): buttons kept at the bottom. (6a) **`header`** (code first, 22 Oct 2026, for the country search): content kept at the top while the rows scroll, padding `Space-L`, a 1px `border-subtle` line below; in a select menu a field there isn't focused on open (focus follows the usual rule), typing moves into it, ArrowDown moves into the options, Enter chooses the first, ArrowUp from the first option returns to it, and its Escape (clearing the text) comes before the menu's. **`anchor`**: the element the menu is placed against and measured from instead of the trigger (a field's box). (6b) **A filter menu holds one list type** (checkbox, radio or toggle rows); menus that need two or more types are added when design specifies them. (7) Escape and a click outside close it; focus returns to the trigger (also when the app closes it while focus is inside). (8) **Focus ring only with the keyboard** (22 Oct 2026): opened with a pointer, or open by default, focus goes to the menu itself (the list, nav or filter dialog, no outline), so no row shows a ring; the arrow keys (first ArrowDown → first row, ArrowUp → last) or Tab then move to a row with its ring. Opened with the keyboard (Enter, Space, ArrowDown / ArrowUp on the trigger), the first (or last, or the current page's) row gets focus and its ring.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Type` = Normal | the only look |
+| `conten` slot | `children` |
+| — (code only) | `kind` (default `action`; `action`, `filter`, `navigation`, `select`), `trigger` (an element, or a function taking the trigger props), `open` / `defaultOpen` / `onOpenChange`, `label` (default: named by the trigger), `width` (`content` / `trigger` / a length), `maxHeight`, `placement`, `footer`, `header`, `anchor`; `FinMenuDivider` |
+
+**Tokens used:** `--fin-bg-primary`, `--fin-text-primary`, 1px `--fin-border-subtle`, `--fin-radius-m`, `--fin-shadow-menu`; gap from the trigger `--fin-space-xs`, from the window edge `--fin-space-m` (read by Floating UI from the CSS); footer padding `--fin-space-xl`, gap `--fin-space-m`, 1px `--fin-border-subtle` above. Rows, dividers and buttons bring their own.
+
+**API:**
+
+```tsx
+<FinMenu trigger={<FinButton variant="secondary" icon="trailing" iconName="keyboard_arrow_down">Member actions</FinButton>}>
+  <FinListStandard as="li" size="small" behavior="menuitem" divider={false} leadingAccessory="icon" icon="edit" title="Edit member" onClick={edit} />
+  <FinMenuDivider />
+  <FinListStandard as="li" size="small" behavior="menuitem" divider={false} leadingAccessory="icon" icon="cancel" title="Deactivate" onClick={deactivate} />
+</FinMenu>
+
+<FinMenu kind="filter" open={open} onOpenChange={setOpen} label="Member filters" trigger={<FinFilterChip selected={applied}>Members</FinFilterChip>}
+  footer={<><FinButton variant="tertiary" size="small" onClick={reset}>Reset</FinButton><FinButton size="small" onClick={apply}>Apply</FinButton></>}>
+  <FinListCheckboxGroup label="Tier" size="small" value={tiers} onValueChange={setTiers}>…</FinListCheckboxGroup>
+</FinMenu>
+
+<FinMenu kind="navigation" trigger={<FinButton variant="tertiary">Programme</FinButton>}>
+  <FinListStandard as="li" size="small" behavior="link" href="/rewards" linkAs={Link} title="Rewards" selected />
+</FinMenu>
+```
+
+`'use client'`.
+
+**Accessibility:** the trigger gets `aria-expanded`, `aria-controls` and `aria-haspopup` (`menu` / `dialog`; none for navigation); ArrowDown / ArrowUp on an action or navigation trigger opens it on the first / last item; Enter or Space on the first; a pointer opens it with focus on the menu itself (no ring, §9.64 (8)). Action: `menu` named by the trigger, `menuitem`s (disabled ones skipped), Escape closes and returns focus, Tab closes and moves on. Navigation: a `nav` named by the trigger, the current page (`aria-current`) focused first, choosing a link closes it. Filter: a `dialog` named by `label`, focus on its first control, Tab moves through controls and footer, leaving it closes it. Separators are `role="separator"` in lists.
+
+**Built (22 Oct 2026).** Storybook (Components/Menu/Menu): Playground (every control: kind, the filter's list type, rows, descriptions, leading icons, lines, a separator, width, max height, placement), Standard menu (Figma, no controls), Action menu, Filter menu (list type in the controls: checkbox, radio or toggle), Navigation menu, Select menu, Long list, Placement; each story shows only the controls it uses. Checked in a browser: the Figma story 375 × 305 (rows 303, 1px border), `#ffffff` / `#ededed` / 12 radius / Shadow/Menu (Dark `#19191a` / `#363636`); 4 below every trigger; a long list stops at the window edge (8 from it) and scrolls; in a short window the menu shrinks and scrolls; the keyboard flows above; Apply returns focus to the chip. a11y: no violations in Light or Dark. Tests run in jsdom, which can't open popovers, so they show them with a test-only style.
+
+### 9.65 FinTableColumnFilter (the header's filter) — internal, code first
+
+**Figma:** none yet: Figma's Table header cell has a display-only down arrow (`Show trailing icon`); design kept it as the filter button (22 Oct 2026) and will add the states and the menu (§10 #50).
+
+**Decided 22 Oct 2026 (design):** (1) **the down arrow is the filter button**: 24 × 24, no padding (as the table cell's action button), `keyboard_arrow_down`, `fg-secondary`, hover `fg-hovered`, pressed `fg-pressed`, the standard focus ring; **purple (`fg-action`) while its menu is open or a filter is applied**; it points up while open (as every dropdown). Named "Filter Status", or "Filter Status, 2 selected" when applied. (2) It opens a **filter menu** (FinMenu `kind="filter"`, §9.64): one list of the column's values, **checkboxes by default** (`multiple`), **radios** for one value (`multiple={false}`), "for now; may differ per scenario"; a **search** (FinSearchField Small in the menu's header) when there are more than 8 values; **Reset** (clears the choice) and **Apply** in the footer **for checkboxes**. (3) Checkboxes apply **only with Apply**; Escape or a click outside closes without applying; each opening starts from the applied values and an empty search. (4) **Radios apply on selection** (design, 22 Oct 2026): **no Reset or Apply**; a click (or Space) applies and closes the menu; the arrow keys apply as they move and the menu stays open (so a keyboard user can reach a choice; Escape or Tab closes); an **"All"** radio comes first (`allLabel`) and clears the filter, chosen when none is applied (hidden while searching).
+
+**Props:** `label` (the column title), `options` (`{ value, label }[]`), `value` (applied), `onApply`, `multiple` (default `true`), `resetLabel`, `applyLabel` (checkboxes), `allLabel` (radios, default "All").
+
+**Tokens used:** `--fin-fg-secondary`, `--fin-fg-hovered`, `--fin-fg-pressed`, `--fin-fg-action`, `--fin-radius-xs`, focus `--fin-border-focused`; the menu, lists and buttons bring their own.
+
+**Accessibility:** a native button with `aria-haspopup="dialog"`, `aria-expanded`, named with the column and how many values are applied; the menu is a dialog named "Filter {column}", the list a group named by the column.
+
+**Built (22 Oct 2026).** Storybook: Components/Table/Sort and filter (Status: checkboxes, Tier: radios; Customer, Tier and Points sortable), Internal/Table/Table header cell (Playground: sortable, filterable). Checked in a browser: the menu 4 below the arrow; Pending applied leaves 9 rows ("Showing 1–9 of 9"), back to page 1; the arrow purple while applied; Points sorted descending, only its icon purple.
+
+### 9.66 FinTableRowActions (row actions) — internal, code first
+
+**Figma:** none yet (§10 #60).
+
+**Decided 22 Oct 2026 (design's brief):** (1) a **⋮ column**, last by default, or first after the select column (`rowActionsPosition`); **fixed while the table scrolls sideways**; **empty header**; **always visible**. (2) The ⋮ **works as the icon button** (all-button XSmall Tertiary Only Icon; changed by design 22 Oct 2026): a **32 square**, padding `Space-S`, a 20 `more_vert`, `Radius-S`; **hover** `bg-action-secondary_hovered` + `fg-hovered`, **pressed** `bg-action-secondary_pressed` + `fg-pressed`; the buttons' ring (2px, 1 in). At rest the icon is **`fg-secondary`** (not the Tertiary purple), and **while its menu is open it's purple (`fg-action`) on `bg-action-secondary`**. Named "More actions for {row}". The column is 64 (32 + 16 either side; was 80, 24 either side, until 29 Oct 2026). (3) It opens an **action menu** (FinMenu `kind="action"`, §9.64): List-standard Small menu items without lines, optional icons, disabled ones shown, a line (`separator`) before a group; 4 below, **right-aligned to the ⋮ at the end** (`bottom-end`), left-aligned at the start; flips above near the bottom. Choosing runs it and closes the menu. **The actions differ per table and per row** (FinTable `rowActions` takes a list or a function of the row).
+
+**Menu look (design, 23 Oct 2026):** the menu is **240 wide** (2 × `Size-120`; no Size-240 token); action **icons are `fg-secondary`**; a **`destructive`** action (Remove, Delete…) takes the destructive button's colours: title `text-error`, icon `fg-error` (FinListStandard `tone`, §9.51); the hover fill stays List-standard's. Disabled wins.
+
+**Props (internal):** `label`, `actions` (`label`, `icon`, `onSelect`, `disabled`, `separator`, `destructive`), `placement`.
+
+**Tokens used:** padding `--fin-space-s`, `--fin-radius-s`, `--fin-fg-secondary`, hover `--fin-bg-action-secondary-hovered` + `--fin-fg-hovered`, pressed `--fin-bg-action-secondary-pressed` + `--fin-fg-pressed`, open `--fin-bg-action-secondary` + `--fin-fg-action`, `--fin-border-focused`; in FinTable the column is `--fin-size-32` + 2 × `--fin-space-3xl`, fixed with `position: sticky` and `--fin-table-row-bg` (FinTableRow's fill, `--fin-bg-primary` otherwise).
+
+**Accessibility:** a native button with `aria-haspopup="menu"`, `aria-expanded`; the action menu's keyboard (§9.64); the column header is a `th` named "Actions" (visually hidden).
+
+**Built (22 Oct 2026).** Storybook: Components/Table/Row actions (position end / start, container width; actions differ per member status: Reactivate for inactive ones, Deactivate unavailable for pending ones). Checked in a browser at 640 wide: scrolled 400 sideways, the ⋮ stays at the right (end) or stays after the checkbox, which stays too (start); the fixed cell takes the row's hover fill; the menu 4 below the ⋮, right edges aligned at the end; the ⋮ purple while open.
+
+### 9.67 FinTableToolbar (Table Header) — internal
+
+**Figma:** page **Table**, component `Table Header` `3313:18577` (added to the library after the inventory of 13 Oct 2026): a row, bottom aligned, the two sides apart; left the Search (`Search/Enabled/False`, 343 × 48); right the **Filter slot** (default a bordered chip "All: Select") and an all-button (Small, Primary, leading `add`, "Text here"), 12 (`Space-L`) apart. Booleans `Show search`, `Show filter`, `Show button`. The screens' copies are older (56 tall, a 56 search, §8.6).
+
+**Decided 22 Oct 2026:** (1) **code name `FinTableToolbar`** (Figma "Table Header" would be confused with FinTableHeaderCell and FinTableHeaderRow). (2) **The search is the Small FinSearchField** (40 tall; design, 22 Oct 2026; Figma shows the Large 48), **343 wide** (`--fin-size-343`, now generated from `Size-343`, §3.7), and shrinks when there isn't room; the right side keeps its size. (2b) **Internal** (design, 22 Oct 2026): it's a part of the table, like the header cell and the footer; **FinTable `toolbar`** draws it 16 above the table (`Space-XL`, the table's gap; changed by design 3 Nov 2026 from Figma's 32, `Space-4XL`), and pages use FinTable with a toolbar. Storybook: Internal/Table/Table toolbar. (3) The parts are the built components: FinSearchField (large), the slot's chips (pages use the **Large Assist chip with a select menu**, 40 tall as Figma; the two-tone label is §10 #64), FinButton Small Primary with a leading icon (default `add`, now in the registry, §6).
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Show search` + Search | `search?: FinSearchFieldProps` (shown when given; always `size="small"`) |
+| `Show filter` + Filter slot | `filters?: ReactNode` (shown when given; 4 apart, as Figma Chips-group) |
+| `Show button` + its label | `actionLabel` (shown when given), `actionIcon` (default `add`), `onAction`; `actionDisabled` (code only, 27 Oct 2026: shown but off, for example while the connection is down) |
+| — (code only) | `className`, other attributes on the root |
+
+**Tokens used:** gap `--fin-space-l`; search width `--fin-size-343`; filter gap `--fin-space-xs`. The parts bring their own.
+
+**Accessibility:** a plain group (not `role="toolbar"`, which would need arrow-key movement between its controls); each part is its own native control: the search box named by its `label`, the chips, the button named by its label.
+
+**Built (22 Oct 2026).** Storybook (Internal/Table/Table toolbar): Playground (Show search, placeholder, Show filter, Show button, label; the button's placeholder text is "Action"), Options, Filter chips, Narrow; and Components/Table/With toolbar. Checked in a browser: 40 tall; the Small search 343 × 40 at the left; the Large chip (40) and the button (40), 12 apart; Light and Dark. At 560 wide the search shrinks to about 120 (pages never get that narrow: the smallest content area is about 870, §8.6).
+
+### 9.68 FinAppShell (page shell) — public, code only
+
+**Figma:** none (§10 #63). Taken from the Programme Configuration screen (`312:15165`, 1920 × 1080): the page `bg-secondary`; the Side Menu full height on the left; a content panel (`312:15168`) 8 (`Space-M`) from the top, right and bottom, `bg-primary`, `Radius-L` on all corners, clipped; in it the Main header, then the content with 36 (`Space-5XL`) above and 24 (`Space-3XL`) at the sides, its blocks 32 (`Space-4XL`) apart.
+
+**Decided 22 Oct 2026:** (1) a **proper library component**, code only and public: the real app uses the same shell. (2) **Landmarks:** the side nav is the `nav`, the header the `header` (banner, outside `main`), the page content the `main`. (3) **"Skip to content"**: the first thing Tab reaches; hidden until focused, then a `bg-primary` pill at the top left (Label/Medium `text-action`, Shadow/Menu, the standard ring); it moves focus to `main` without changing the address. (4) **The side nav's collapse is the shell's:** minimized below 1280, expanded from 1280 (`finBreakpoint.lg`); its collapse button changes it until the window crosses 1280 again (which resets it); `onSideNavTypeChange` reports it. (5) **The header stays at the top of the panel** (for now; design may change it): the shell fills the window (`100dvh`) and **only the content scrolls**, inside the panel, so the window itself doesn't scroll; the side nav stays put. (5b) **`main` is a tab stop** (`tabIndex=0`): the content scrolls on its own, so keyboard users must be able to reach it to scroll it, even when it has no controls (WCAG 2.1.1; the a11y check flags it otherwise). Its ring (2px `border-focused`, inside) shows only with the keyboard. (6) The content's padding is the shell's (24 all round, `Space-3XL`; changed by design 3 Nov 2026 from 36 above; 24 below, so scrolled content doesn't end flush with the panel; Figma shows no bottom); **the space between blocks is the page's** (pages use `Space-4XL`). (7) **The content area is a column** (27 Oct 2026), so page content can fill the height left (a table's `empty` state).
+
+**Props:** `sideNav` (FinSideNav's props, without `type`), `header` (FinHeader's props), `children` (the content), `onSideNavTypeChange`, `skipLabel` (default "Skip to content"); other attributes on the root.
+
+**Tokens used:** `--fin-bg-secondary` (page), panel `--fin-bg-primary`, `--fin-radius-l`, margin `--fin-space-m`; content padding `--fin-space-3xl`; skip link `--fin-bg-primary`, `--fin-text-action`, `--fin-font-label-medium`, `--fin-radius-full`, padding `--fin-space-m` / `--fin-space-xl`, `--fin-shadow-menu`, `--fin-border-focused`.
+
+**Accessibility:** one `nav`, one `banner`, one `main`; the skip link first; focus moves to `main`; `main` is a tab stop (it scrolls); the nav's own keyboard behaviour. Accepted exceptions skipped in its stories (§10 #3): the selected section's label, the bell's number in Dark.
+
+**Built (22 Oct 2026).** Storybook (Components/Layout/App shell): Playground (title, description, number of content blocks), At 1024, Long content, Skip link; the four viewports (§4.4) in the toolbar. Checked in a browser: at 1920 the nav 312 and the panel at (312, 8), 1600 × 1064, exactly as Figma; the header 87 (the approved FinHeader; the screen's older copy is 89); at 1440 / 1280 the panel 1120 / 960 wide; at 1024 the nav minimized (88) and the panel 928; at every width the window doesn't scroll, the content does, and the header stays at the panel's top. Light and Dark.
+
+### 9.69 FinButtonDock (Button dock) — public
+
+**Figma:** page **Button dock**, component set `Button dock` `75:5858` (read 23 Oct 2026): `Sticky` = False / True. `bg-primary`; padding `Space-XL` (16) top, `Space-3XL` (24) sides, `Space-6XL` (40) bottom (decided by design 23 Oct 2026; the Side sheet uses this component); the **Accessory** slot (default a Text Box description, Body/Medium `text-secondary`) `Space-3XL` above the **Button content** row: the buttons `Space-XL` apart, all Large (56) in Figma (**Small, 40, in code since 2 Nov 2026**): a **Tertiary** all-button first, as wide as its label, then **Button-Secondary** and **Button-Primary** sharing the rest equally. Booleans `Show Accessory`, `Show Tertiary Button`, `Show Secondary Button`, `Show Primary Button`. Sticky=True casts `Shadow/Sticky` (upward). Figma's 711 width is a drawing frame.
+
+**Decided 23 Oct 2026:** (1) bottom padding 40 (`Space-6XL`); (2) Tertiary first (fixed in Figma); (3) the Primary and Secondary buttons take FinButton's `tone` (`destructive` for remove and delete); Tertiary has no destructive look (FinButton has none). (4) **`sticky` is the look only**: whatever holds the dock pins it and turns it on while content scrolls under it (the Side sheet will).
+
+**Changed by design 2 Nov 2026 (code first):** the dock's buttons are **Small** (40 tall, 20 icons) wherever the dock is used; Figma still shows Large (to update in Figma). Padding and gaps are unchanged, so the dock is 96 tall with buttons only and 162 with a two-line note (was 112 and 178). In the side sheets the text, select and date fields are Small too (§8.6, §9.70), with Body/Medium text (§9.58 decision 9); text areas keep their size.
+
+**Changed by design 2 Nov 2026 (code first, later the same day):** the buttons **hug their labels**: Tertiary at the start, Secondary and Primary together at the **right** (the first of them takes the free space; `width` default `hug`, was `fill`). Figma still has Secondary and Primary sharing the width. Nothing uses `fill` now: the details sheets' Edit hugs too (§8.6).
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Sticky` False / True | `sticky?: boolean` (default false): Shadow/Sticky |
+| `Show Accessory` + Accessory slot | `accessory?: ReactNode`, shown when passed; a string or number becomes Figma's default, a Text Box description |
+| `Show Tertiary Button` + its label | `tertiaryButton?: { label, onClick, disabled, type, … }` (FinButton Small Tertiary) |
+| `Show Secondary Button` + its label | `secondaryButton?: { label, tone?, … }` (Small Secondary; `tone: 'destructive'` → destructive secondary) |
+| `Show Primary Button` + its label | `primaryButton?: { label, tone?, … }` (Small Primary; `tone: 'destructive'` → destructive) |
+| — (code only, 27 Oct 2026) | on any button `leadingIcon?: FinIconName` (an icon before the label); on Secondary and Primary `width?: 'fill' \| 'hug'` (default `hug` since 2 Nov 2026, was `fill`: as wide as its label, Secondary and Primary at the right; `fill` takes the width left over) |
+| — (code only) | `className`, other attributes on the root |
+
+**Tokens used:** `--fin-bg-primary`; padding `--fin-space-xl` / `--fin-space-3xl` / `--fin-space-6xl`; gaps `--fin-space-3xl` (accessory → buttons), `--fin-space-xl` (buttons); `--fin-shadow-sticky`. The buttons and the Text Box bring their own.
+
+**API:**
+
+```tsx
+<FinButtonDock secondaryButton={{ label: 'Cancel', onClick: close }} primaryButton={{ label: 'Save', type: 'submit' }} />
+<FinButtonDock accessory="Members keep the points they've earned." secondaryButton={{ label: 'Cancel' }} primaryButton={{ label: 'Remove', tone: 'destructive', onClick: remove }} sticky={contentBelow} />
+```
+
+**Accessibility:** a plain `div`; each button is a native button named by its label, in visual order (Tertiary, Secondary, Primary); `type="submit"` for forms. Not a landmark: it belongs to the side sheet, dialog or form around it.
+
+**Built (23 Oct 2026).** Storybook (Components/Button dock): Playground (every Figma option, labels, a destructive Primary), Sticky (Figma), Scenarios (Cancel / Save, Reset / Cancel / Apply, a remove confirmation, one button), Sticky in a panel (the shadow while content is under the dock). Checked in a browser at 600 wide (the Side sheet's dock): padding 16 / 24 / 40, note 42 (two lines) 24 above the buttons, buttons 56 tall, 16 apart, Tertiary 129 (its label), Secondary and Primary 195.4 each; 178 tall, as the Side sheet's dock in Figma; Sticky `0 -2px 16px rgb(0 0 0 / 8%)`. Light and Dark.
+
+### 9.70 FinSideSheet (Side sheet) — public
+
+**Figma:** page **Side sheet**, component set `Side sheet` `3120:30707`, one variant `Property 1=Default` `3120:30702` (read 26 Oct 2026). 600 × 1080, `bg-primary`, a column with gap `Space-3XL` (24). Parts, top to bottom:
+- **Header** (`3120:30478`): padding `Space-4XL` (32) top, `Space-3XL` (24) sides, 0 bottom; a row, centred, gap `Space-XS` (4): **back button** (all-button Tertiary, Medium, Only Icon, `arrow_back`), the **Title slot** (fills; default a Text Box Display Small-H3, heading only, "Title"), **close button** (all-button Tertiary, Medium, Only Icon, `close`). 80 tall.
+- **Divider** (`3120:30759`, our Divider since 23 Oct 2026): off by default.
+- **Body content slot** (`3120:30672`): fills the rest; `Space-3XL` at the sides and between items.
+- **Button dock** (`3120:30673`, FinButtonDock §9.69): Accessory, Secondary and Primary shown, Sticky False. 178 tall in Figma; 162 in code with the Small buttons (2 Nov 2026, §9.69).
+
+Booleans `Show Back Button` (on), `Show Close Button` (on), `View Divider` (off), `Show Button Dock` (on); slots `Title`, `Body content slot`. Not exposed: a hidden all-button (`3120:30572`, 60 × 24) in the header frame, and that frame's raw 24 gap (one visible child, so it never shows). The screen (Programme configuration add, `312:15899`, instance `326:22254`) puts a Text Box with heading and description in the Title slot; it still has the remote `Views / Dividers` and a hidden `Badge-primary` from an older version.
+
+**Decided 26 Oct 2026:**
+1. **Width from the layout grid, no `Size-600` token:** the sheet spans the last N columns of the window's grid (§4.3) plus the right margin, flush with the right edge; N steps down as the window grows, so it stays about 600 and its left edge is on a column line. N = 7 below 1280 (583 at 1024), 6 from 1280 (628), 5 from 1440 (590), 4 from 1920 (632; Figma's 600 starts mid-column). Above 1920 it keeps 4 columns and grows (845 at 2560). Full window height.
+2. **No shadow** (removed in Figma; it sits on the scrim, §4.2).
+3. **Back button off by default** in code (Figma: on): it only works with `onBack`.
+4. **Back and close icons are grey, `fg-secondary`, as in Figma** (design, 26 Oct 2026, changing the first answer); on hover and press they turn to the Tertiary colors. Through FinButton's new code-only `iconTone="secondary"` (§9.28).
+5. **A click on the scrim closes the sheet** by default; `closeOnOverlayClick={false}` for forms.
+6. **A string title wraps to two lines, then ends in "…"** (FinTextBox `truncateHeading={2}`; changed by design 26 Oct 2026, was one line).
+7. **32 (`Space-4XL`) at the top** stays; the Side sheet is off §10 #28.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Property 1` = Default | no prop (one variant) |
+| `Title` slot | `title: ReactNode` (required): a string becomes the Text Box **Headline Large-H4** heading (Figma: Display Small-H3; changed by design 2 Nov 2026, as every title passed by the pages), one line with "…", an `<h2>` (`headingLevel`); any other node is placed as it is |
+| `Show Back Button` | `backButton?: boolean` (default false), `onBack`, `backLabel` (default "Back") |
+| `Show Close Button` | `closeButton?: boolean` (default true), `closeLabel` (default "Close") |
+| `View Divider` | `divider?: boolean` (default false) |
+| `Body content slot` | `children` |
+| `Show Button Dock` + its options | `buttonDock?: FinButtonDockProps` without `sticky` (shown when passed) |
+| back / close icon colour override `fg-secondary` | FinButton `iconTone="secondary"` (fixed in the sheet) |
+| — (code only) | `open: boolean`, `onClose: () => void`, `closeOnOverlayClick?: boolean` (default true), `className` and other `<dialog>` attributes |
+
+**Layout in code:** the header stays at the top and the dock at the bottom; the **body scrolls** between them. The body's 24 above and below are padding inside the scrolling area (Figma: gaps), so content scrolls up to the header and under the dock, which turns `sticky` while content is below it (§9.69 decision 4). With the divider, it sits 24 below the header and the body's 24 follows. Without a dock, the body keeps 24 at the bottom (Figma: 0).
+
+**Tokens used:** `--fin-bg-primary`; header padding `--fin-space-4xl` / `--fin-space-3xl`, row gap `--fin-space-xs`; divider margin, body padding and item gap `--fin-space-3xl`; width from `--fin-grid-columns`, `--fin-grid-gutter`, `--fin-grid-margin` and `@media (--fin-bp-lg / -xl / -xxl)` (the first component CSS to import `breakpoints.css`). The buttons, Text Box, Divider, Button dock and Overlay bring their own.
+
+**API:**
+
+```tsx
+import { FinSideSheet, FinTextBox } from '@finspace-loyalty/ui';
+
+<FinSideSheet
+  open={adding}
+  onClose={() => setAdding(false)}
+  title={<FinTextBox type="h3" heading="Add programme configuration" headingLevel={2} description="Applies to one customer segment" truncateHeading />}
+  closeOnOverlayClick={false}
+  buttonDock={{
+    secondaryButton: { label: 'Cancel', onClick: () => setAdding(false) },
+    primaryButton: { label: 'Save configuration', type: 'submit', form: 'add-configuration' },
+  }}
+>
+  <form id="add-configuration" onSubmit={save}>…</form>
+</FinSideSheet>
+```
+
+`'use client'`. Exports `FinSideSheet` and `FinSideSheetProps`. Controlled: `open` is the only source of truth, and every close request (close button, Esc, scrim) goes through `onClose`.
+
+**Accessibility:** a native `<dialog>` opened with `showModal()`: the top layer, the page behind inert, focus kept inside, Esc closes (through `onClose`), focus goes back to what opened it. Named by its title (`aria-labelledby`, the whole title even when cut off). **On open, focus goes to the sheet itself** (no ring; screen readers read the title), and Tab reaches the back / close buttons, the body, then the dock. **While the body scrolls** it's a focusable region named by the title (`role="region"`, `tabIndex={0}`, focus ring `border-focused`), so text-only content can be scrolled with the keyboard (added 26 Oct 2026 with FinDialog; shared `useBodyScroll`). The page behind doesn't scroll (`overflow: hidden` on `<html>` while open). The scrim is decorative (§9.13); the close button and Esc always close it.
+
+**Built (26 Oct 2026).** Storybook (Components/Side sheet): Playground (Figma's defaults), All options (Figma), Form (the Programme configuration add form), Long content (sticky dock), Long title; each starts open over a sample page, with "Open side sheet" to bring it back. Checked in Chrome: 632 / 590 / 628 / 583 wide at 1920 / 1440 / 1280 / 1024, flush right, full height, no shadow; header 80, title at 24 (76 with the back button: 24 + 48 + 4), buttons 48 at 32 from the top, icons `#626262` Light / `#b7b7b7` Dark at rest and the Tertiary hover / pressed colors, close 24 from the right edge; divider 24 below the header; body content 24 below the header; dock 178 at 600 wide (157 at 632, the note on one line), sticky only with content below; a long title ends in "…"; focus, Tab, Esc, scrim click, focus return and the page scroll lock work. Light and Dark. a11y: no violations in either theme. **Changed 26 Oct 2026 (§10 #69):** the back and close buttons sit at the top of the header; a one-line title is still centred against them (the title area is at least 48 tall), a taller title (heading + description, as Programme configuration add) starts at the top with them.
+
+### 9.71 FinDialog (Dialog box) — public
+
+**Figma:** page **Dialog**, component `Dialog box` `3234:11710` (read 26 Oct 2026). 696 wide (raw), hugs its height, `bg-primary`, radius `Radius-L` (16), no shadow (it sits on the scrim, §4.2). Padding `Space-XL` (16) top, `Space-3XL` (24) sides.
+- **Title row** (`3228:11258`): gap `Space-3XL`, centred: a Text Box Headline Large-H4, heading only, "Dialog title" (fills), and the **close button** (`Show Trailing Icon`; all-button Tertiary, Medium, Only Icon, `close`, icon override `fg-secondary`).
+- **Body slot** (`3234:11711`, `Show Body Content`): `Space-XL` (16) below the title row; gap `Space-L` (12) between items; default a Text Box Display Medium-H2 with only its description (Body/Large, `text-secondary`).
+- **Buttons** (`3227:16163`, a local frame named "Button dock", **not** the Button dock component): `Space-3XL` (24) below the body and at the bottom; a row, gap `Space-XL` (16): the **Leading button** (`Show Leading Button`, off; Button-Secondary Medium, fixed 121 wide, raw) on the left, and the **Trailing buttons** (`Show Trailing Buttons`, on) on the right, gap `Space-L` (12): Button-Secondary and Button-Primary (`Show Button Secondary`, `Show Button Primary`), Medium (48), as wide as their labels.
+
+**Screen in use:** Programme configuration remove (`328:25843`): centred, 696 wide; title "Remove segment"; one line of body; Cancel / Remove (purple on the screen; red in code, decision 3).
+
+**Decided 26 Oct 2026:**
+1. **Width from the layout grid**, centred over an even number of columns so both edges are on column lines: 8 columns below 1280 (643 at 1024), 6 from 1280 (604; 684 at 1440), 4 from 1920 (608; Figma's 696 isn't on the grid). No size token.
+2. **Taller than the window:** at most the window less 24 (`--fin-grid-margin`) above and below; the body scrolls, the title and buttons stay.
+3. **Remove is the destructive Primary** (red, §10 #67), not the screen's purple.
+4. **A long title wraps.**
+5. **The Leading button is as wide as its label** (Figma: a raw 121).
+6. **A click on the scrim closes it** by default (`closeOnOverlayClick={false}` to turn it off), as the Side sheet.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| Title Text Box | `title: ReactNode` (required): a string is the Headline Large-H4 heading, wrapping (`<h2>`, `headingLevel`); any node is placed as it is |
+| `Show Trailing Icon` | `closeButton?: boolean` (default true), `closeLabel` (default "Close"); FinButton `iconTone="secondary"` (§9.28) |
+| `Show Body Content` + `Slot` | `children` (shown when passed); a string becomes Figma's default, the Text Box description (Body/Large) |
+| `Show Leading Button` | `leadingButton?: FinDialogButton` (Secondary, Medium) |
+| `Show Trailing Buttons` + `Show Button Secondary` | `secondaryButton?: FinDialogButton` (Secondary, Medium; `tone: 'destructive'` allowed) |
+| `Show Trailing Buttons` + `Show Button Primary` | `primaryButton?: FinDialogButton` (Primary, Medium; `tone: 'destructive'` for remove and delete) |
+| — (code only) | `open: boolean`, `onClose: () => void`, `closeOnOverlayClick?: boolean` (default true), `className` and other `<dialog>` attributes |
+
+`Show Trailing Buttons` has no prop of its own: the trailing buttons show when passed, as on FinButtonDock. `FinDialogButton` is FinButtonDock's button type (`label`, `onClick`, `type`, `form`, `disabled`, `tone`…).
+
+**Layout in code:** the 24 above the buttons is the buttons row's own padding (Figma: the body frame's bottom padding), so it stays clear while the body scrolls. Without buttons the body ends with 24; with only a title, the title row does.
+
+**Tokens used:** `--fin-bg-primary`, `--fin-radius-l`; padding `--fin-space-xl` (top, above the body) and `--fin-space-3xl` (sides, around the buttons, bottom); gaps `--fin-space-3xl` (title → close), `--fin-space-xl` (leading → trailing), `--fin-space-l` (body items, trailing buttons); width from `--fin-grid-columns`, `--fin-grid-gutter`, `--fin-grid-margin` and `@media (--fin-bp-lg / -xxl)`; max height from `--fin-grid-margin`. The buttons, Text Box and Overlay bring their own.
+
+**API:**
+
+```tsx
+import { FinDialog } from '@finspace-loyalty/ui';
+
+<FinDialog
+  open={removing !== null}
+  onClose={() => setRemoving(null)}
+  title="Remove segment"
+  secondaryButton={{ label: 'Cancel', onClick: () => setRemoving(null) }}
+  primaryButton={{ label: 'Remove', tone: 'destructive', onClick: remove }}
+>
+  Are you sure you want to remove the “Staff” segment?
+</FinDialog>
+```
+
+`'use client'`. Exports `FinDialog`, `FinDialogProps`, `FinDialogButton`. Controlled, as FinSideSheet: every close request (close button, Esc, scrim) goes through `onClose`. The modal behaviour (open / close, focus, Esc, page scroll lock) is shared with FinSideSheet through an internal hook (`useModalDialog`).
+
+**Accessibility:** a native `<dialog>` opened with `showModal()`: the top layer, the page behind inert, focus kept inside, Esc closes (through `onClose`), focus goes back to what opened it. Named by its title (`aria-labelledby`). On open, focus goes to the dialog itself (no ring; screen readers read the title); Tab reaches the close button, the body, then the buttons (Leading, Secondary, Primary). **While the body scrolls** it's a focusable region named by the title (`role="region"`, `tabIndex={0}`, focus ring `border-focused`), so text-only content can be scrolled with the keyboard (axe `scrollable-region-focusable`), as FinSideSheet. The page behind doesn't scroll. The scrim is decorative (§9.13); the close button and Esc always close it.
+
+**Built (26 Oct 2026).** Storybook (Components/Dialog): Playground (Figma's defaults and every option), All options (Figma), Remove confirmation, With fields, Long title and content; each starts open over a sample page, with "Open dialog" to bring it back. Checked in Chrome: 608 / 684 / 604 / 643 wide at 1920 / 1440 / 1280 / 1024, centred; with Figma's text 248 tall, as Figma: title row 48 at 16, body 16 below it, buttons 24 below the body and 24 above the bottom, 48 tall, 12 apart (Text here 120.2, Figma 121, text rendering), close 24 from the right edge, icon `#626262` Light / `#b7b7b7` Dark; radius 16, no shadow; a long title wraps; long content scrolls in the body, 24 clear above the buttons, the dialog 24 from the top and bottom of the window; Remove red. Light and Dark. a11y: no violations in either theme.
+
+### 9.72 FinSelectField (Input field-select) — public
+
+**Figma:** page **Input field**, component set `Input field-select` `537:2736` (read 26 Oct 2026): `state` = Enabled / Hovered / Focused / Typing / Complete (lowercase `state`, §10 #21). Every variant is an Input field-base `Type=Select` (§9.58), 343 × 74: the 48 box with `keyboard_arrow_down` in the trailing slot and the helper text 8 below. Enabled: the placeholder (`text-placeholder`); Hovered: `bg-secondary`, empty; Focused: the label on the border, the ring, no placeholder (and a caret); Typing: the label, ring and a value in `text-primary` (and a caret); Complete: the label, `border-strong`, the value. No Disabled or Error variants; no open menu.
+
+**Decided 26 Oct 2026:** (1) **every state comes from the base** (FinInputBase, §9.58), including Disabled and Error, which Figma's select set doesn't have; Focused is the field **with keyboard focus or its menu open**: when a menu opened with the mouse closes (a choice, Esc, a click outside), the field goes back to **Enabled, or Complete** once something is chosen, not Focused, until the keyboard is used on it again (decided by design 26 Oct 2026; FinInputBase: a button `control` is Focused only on `:focus-visible` or `aria-expanded`, and `data-quiet` turns the keyboard look off). (2) **A button, not typed into:** Figma's caret (Focused, Typing) comes from the base and isn't shown. (3) **The arrow points up while the menu is open** (`keyboard_arrow_up`), as the country selector. (4) **The menu** is FinMenu `kind="select"` (§9.64): as wide as the field's box, 4 below it (flips above without room), the option rows Small List-standard `option` rows, the chosen one Selected; it scrolls when there are many. (5) **Search is optional** (`searchable`, off by default): a Small search field at the top of the menu that filters the options, with "No results found", as the country menu. (6) **No options: the field is disabled.** (7) **No clear button:** once chosen, the value can be changed but not emptied.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `state` | runtime (the base's CSS and the menu's open state); `disabled`, `error` (base) |
+| Label, placeholder, helper text (base) | `label` (required), `placeholder`, `helperText` |
+| The value (Typing, Complete) | `options: { value, label, disabled? }[]` (required); `value` (controlled, `null` for none) / `defaultValue`, `onChange(value)` |
+| Trailing slot `keyboard_arrow_down` | fixed; `keyboard_arrow_up` while open |
+| — (code only) | `size: 'large' \| 'small'` (base), `name` (a hidden input, so the value is sent with a form; checking a choice was made is the form's job), `searchable`, `searchLabel`, `searchPlaceholder`, `noResultsText`, `ref` and other button attributes |
+
+**Code changes to the base:** FinInputBase's `control` can be a function that gets the field's box (to line the menu up with it), and its label has an id (`{id}-label`) so a control can be named by it.
+
+**Tokens used:** the base's (§9.58) and the menu's (§9.64); its own: the value Body/Large `text-primary` (Body/Medium when Small, 2 Nov 2026) (`text-disabled` disabled), the placeholder `text-placeholder` (hidden while focused or open, as the input), `--fin-size-24` line height; the menu's "No results found" Body/Small `text-secondary`, `--fin-space-l` above it.
+
+**API:**
+
+```tsx
+import { FinSelectField } from '@finspace-loyalty/ui';
+
+<FinSelectField
+  label="Segment"
+  placeholder="Segment"
+  name="segment"
+  options={segments.map((s) => ({ value: s.id, label: s.name }))}
+  value={segment}
+  onChange={setSegment}
+  helperText="Segments that already have a configuration are not listed"
+/>
+```
+
+`'use client'`. Exports `FinSelectField`, `FinSelectFieldProps`, `FinSelectFieldOption`.
+
+**Accessibility:** a native `<button>` (`aria-haspopup="listbox"`, `aria-expanded`) named by the label and the chosen option or placeholder ("Segment VIP"), the helper text by `aria-describedby`; a button can't be marked invalid or required, so the error message, or that a choice is needed, goes in the helper text. Enter, Space, ↓ or ↑ open the menu (a `listbox` named by the label) on the chosen option; ↑ ↓ Home End and letters move; Enter or a click chooses, closes and returns focus to the field; Esc and Tab close. Disabled options are `aria-disabled` and skipped. The whole box is the click area.
+
+**Built (26 Oct 2026).** Storybook (Components/Input field/Select field): Playground, States (Figma), Menu open, Many options, With search, No options, Sizes, In a form. Checked against Figma in Chrome: 343 × 74, box 48 (Small 40), placeholder `#969696`, Complete `border-strong` with the label on the border, Hovered `bg-secondary` (empty only), Disabled and Error from the base; open: the ring and label, the arrow up, the menu 343 wide 4 below the field; closed after a mouse choice: Complete (no ring), after Esc or a click outside: Enabled; by keyboard the ring stays until Tab moves on; a click anywhere in the box (the arrow too) opens it; a long option ends in "…" in the field and wraps in the menu. Light and Dark. FinTextField gained `suffix` (§9.59) in the same branch, for the Programme configuration form.
+
+Template:
+
+```
+### 9.73 FinSnackbar (Snackbar) — public
+
+**Figma:** page **Snackbar**, component set `Snackbar` `268:992` (read 27 Oct 2026): `# of lines` = Single / Two lines × `State` = Neutral / Success / Warning / Error (8 variants), booleans `Show Leading Icon`, `Show Trailing content`, `Show Button`, `Show Close`. 343 wide (raw; the value is `Size/343`), radius `Radius-M`, no padding of its own.
+- **Single** (48 tall): **Leading content** `Space-XL` (16) from the left, gap `Space-M` (8): a 24 icon and a Text Box (Headline Small-H6, description only: Body/Medium); **Trailing content** `Space-XS` (4) from the right, no gap: an all-button Tertiary **Small** "Text here" (40) and a Tertiary **Medium** icon-only `close` (48). Leading and trailing `Space-M` apart.
+- **Two lines** (139 with Figma's text): the leading content with `Space-XL` above and at the sides, the trailing content on a row below, right-aligned, `Space-XS` from the right and bottom, `Space-M` between the rows. The Text Box is Display Large-H1 description only (Body/Large in Figma; 14 in code, decided 27 Oct 2026, the same as Single).
+- **Colours:** Neutral `bg-direct` (dark in Light, light in Dark), text `text-inverse`, icons `fg-inverse`; Success / Warning / Error `bg-success_secondary` / `bg-warning_secondary` / `bg-error_secondary`, text `text-primary`, the close icon `fg-primary`, the leading icon `fg-success` / `fg-warning` / `fg-error`. The buttons' label and icon are overridden to those colours.
+- **Icons:** Neutral `perm_identity` (the placeholder), Success `check_circle`, Warning and Error `warning_amber` (`warning` in the registry, §6.4).
+- **Screen in use:** Programme configuration removed (`328:26929`): Success, Single, "Segment removed successfully!", the close button, no action button; top right over the header, 24 from the content panel's right edge.
+
+**Decided 27 Oct 2026:**
+1. **The buttons keep Figma's colours** through FinButton's new code-only `contentTone` (§9.28); hover and press tint the background: `alpha-light` (white 12%) on Neutral, `alpha-sm` on the others and on Neutral in Dark, where `bg-direct` is light (§10 #74; FinButtonBase has the system's one `[data-theme="dark"]` selector for it). The action button keeps the Button component's padding (§10 #72).
+2. **Neutral's icon is `info`** by default (`icon` swaps it); the others are fixed by the tone.
+3. **As wide as its content, up to the region's width:** 3 columns of the layout grid, but **at least `Size/343`** (Figma's width): 450 at 1920, 343 at 1440 and below (§10 #73).
+4. **FinSnackbarRegion** (code only) places them at the **top right of the window**, `Space-3XL` (the grid margin) from the top and right, **above everything** (the top layer, a manual popover); several stack, the newest on top, `Space-M` apart. Not over the header as on the screen, where it covered the notification button.
+5. **Behaviour:** without an action it closes itself after **6 seconds** (`duration`); the time starts again after the pointer and focus leave it. With an action it stays until closed, so keyboard users can reach the button (WCAG 2.2.1). The region is a polite live region, so each new snackbar is read out; **Error** is `role="alert"` (read straight away). Focus doesn't move to it. It slides in (200 ms, as the side nav), with no motion under `prefers-reduced-motion`.
+6. **One text size, Body/Medium (14)**, in both layouts.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `State` | `tone: 'neutral' \| 'success' \| 'warning' \| 'error'` (default `neutral`) |
+| `# of lines` | `lines: 'single' \| 'two'` (default `single`) |
+| Text Box description | `children` (the message; wraps) |
+| `Show Leading Icon` | `showIcon?: boolean` (default true); `icon?: FinIconName` for Neutral (default `info`) |
+| `Show Trailing content` + `Show Button` | `action?: { label, onClick }` (shown when passed) |
+| `Show Trailing content` + `Show Close` | `onClose?: () => void` (the close button shows when passed), `closeLabel` (default "Close") |
+| — (code only) | `duration?: number \| null` (default 6000 without an action, `null` with one), `className` and other `<div>` attributes |
+| — (code only) | `FinSnackbarRegion`: `children` (the snackbars, newest last), `label` (default "Notifications") |
+
+**Layout in code:** Figma's single line is 48 tall from the close button; code keeps **48 at least** (`--fin-size-48`) and gives the message `Space-L` above and below, so a wrapped message stays clear of the edges. Without buttons the message keeps `Space-XL` on the right too.
+
+**Tokens used:** `--fin-bg-direct`, `--fin-bg-success-secondary`, `--fin-bg-warning-secondary`, `--fin-bg-error-secondary`, `--fin-text-inverse`, `--fin-text-primary`, `--fin-radius-m`, `--fin-size-48`, `--fin-font-body-medium`; spacing `--fin-space-xs` / `-m` / `-l` / `-xl`; the region's width and offsets from `--fin-grid-columns`, `--fin-grid-gutter`, `--fin-grid-margin`. Icons bring `fg-*`; the buttons bring their own (`contentTone`).
+
+**API:**
+
+```tsx
+import { FinSnackbar, FinSnackbarRegion } from '@finspace-loyalty/ui';
+
+<FinSnackbarRegion>
+  {removed && (
+    <FinSnackbar tone="success" onClose={() => setRemoved(null)}>
+      Segment removed
+    </FinSnackbar>
+  )}
+</FinSnackbarRegion>
+```
+
+`'use client'`. Exports `FinSnackbar`, `FinSnackbarProps`, `FinSnackbarTone`, `FinSnackbarAction`, `FinSnackbarRegion`, `FinSnackbarRegionProps`. Controlled: the app keeps the list and removes a snackbar in `onClose`.
+
+**Accessibility:** the region is a polite live region named "Notifications" that stays mounted, so snackbars added to it are read out; Error is `role="alert"`. Focus stays where it is; the buttons are reachable with Tab. Auto-close pauses while the pointer is over the snackbar or focus is inside it, and never happens while there's an action.
+
+**Built (27 Oct 2026).** Storybook (Components/Snackbar): Playground, All variants (Figma, at Size/343), Message and close, Message only, In a page (the region, stacking, auto-close). Checked in Chrome against Figma: single 343 × 48, two lines 343 × 139, icon at 16, 12, message at 48; Light colours as Figma; Dark from the tokens; the region 24 from the top and right, 450 wide at 1920 and 343 at 1440 / 1280 / 1024, a snackbar without an action closing after 6 s and one with Undo staying. Light and Dark.
+
+### 9.74 FinEmptyState (Empty state) — public
+
+**Figma:** page **Empty state**, component set `Empty state` `71:4588` (updated by design and read 27 Oct 2026): `Size` = Small (`71:4594`) / Medium (`524:2954`, the default); `Icon Slot` (a slot); `Show Button Group` (default on). A centred column, no padding, drawn 711 wide: the **icon slot** and the **Text Box** `Space-XL` (16) apart, the **button** `Space-3XL` (24) below them.
+- **Small:** `48px bg` (Primary: `bg-icons`, round) with a 24 icon; Text Box **Headline Small-H6**, centred, heading and description (70 tall with Figma's text); 198 tall.
+- **Medium:** `64px bg` with a 36 icon; Text Box **Headline Medium-H5** (74); 218 tall.
+- **Button:** one all-button Primary **Small** "Text here" (40). The icon is the `perm_identity` placeholder.
+
+**Decided 27 Oct 2026:** (1) **`icon` is required** (the placeholder is always swapped); `iconSlot` places anything else. (2) **Fills its container and centres itself in it, across and down** (down when the container has a height); its column is **4 columns of the window's layout grid** wide (608 at 1920, 448 at 1440, 395 at 1280, 309 at 1024), never wider than the container (changed by design 27 Oct 2026; Figma's 711 is a drawing width). (3) **One `action`** for "Button Group" (Figma has one button); a second only when a design needs it.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Size` | `size?: 'small' \| 'medium'` (default `medium`) |
+| `Icon Slot` (an icon container, Primary) | `icon: FinIconName` in FinIconContainer 48 / 64 by size; or `iconSlot: ReactNode` instead |
+| Text Box heading / description | `heading: ReactNode` (required), `description?: ReactNode`; `headingLevel` (default 2) sets the element only |
+| `Show Button Group` | `action?: { label, onClick, leadingIcon, … }` (Primary Small; shown when passed; `leadingIcon` code only, added 28 Oct 2026: an icon before the label, `add` on an Add button) |
+| — (code only) | `className`, other `<div>` attributes |
+
+**Tokens used:** `--fin-space-xl`, `--fin-space-3xl`; the column width from `--fin-grid-columns`, `--fin-grid-gutter`, `--fin-grid-margin`. FinIconContainer, FinTextBox and FinButton bring their own.
+
+**API:**
+
+```tsx
+import { FinEmptyState } from '@finspace-loyalty/ui';
+
+<FinEmptyState
+  icon="loyalty"
+  heading="No programme configurations yet"
+  description="Add a configuration to set the loyalty and cash conversion rules for a customer segment."
+  action={{ label: 'Add programme configuration', onClick: add }}
+/>
+```
+
+Not `'use client'` (no state); exports `FinEmptyState`, `FinEmptyStateProps`, `FinEmptyStateSize`, `FinEmptyStateAction`.
+
+**Accessibility:** the heading is a real heading (`<h2>` by default; `headingLevel` fits it into the page's outline); the icon is decorative; the button is a native `<button>`. Nothing is announced on its own: where it replaces content after a search, the page's live region (or the table's count) says so.
+
+**Built (27 Oct 2026).** Storybook (Components/Empty state): Playground (Figma's defaults), Sizes (Figma), Scenarios (no configurations yet, Medium; no search results, Small), Heading only. Checked in Chrome against Figma: Medium 218 tall (icon 64, Text Box 74 at 80, button 40 at 178), Small 198 (icon 48, Text Box 70 at 64, button 40 at 158); the button 95 wide (Figma 96, text rendering); in a 480-tall area the column is centred with equal space left and right, above and below, at 1920 / 1440 / 1280 / 1024. Light and Dark.
+
+### 9.x <Component> (<Figma page>)
+
+**Figma:** page, component set name and node.
+**Figma → code:** every Figma property (including exposed nested ones) → its prop, with the same option values (§7.3 parity rules); code-only props listed separately.
+**Tokens used:** colors, spacing, radius, text style, shadow per part and state.
+**API:** TSX usage example.
+**Accessibility:** element, keyboard behaviour, ARIA.
+**Built (date).** Checked against Figma; any decisions or differences.
+```
+
+---
+
+### 9.75 FinNotificationBanner (Notification) — public
+
+**Figma:** page **Notification banners**, component set `Notification` `77:10612` (read 27 Oct 2026; the close icon updated by design the same day from a filled circle to `close`): `Type` = Info / Success / Error / Warning / Neutral, booleans `Show Leading Icon`, `Show Title`, `Show Description`, `Show Button`, `Show Close`, texts `Title text`, `Description`. 343 wide, `Space-XL` padding, `Radius-M`; the icon (20), the text and the close (24) in a row, `Space-M` apart, at the top; title, description and button in a column, `Space-XS` apart. 130 tall with everything shown.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Type` | `tone: 'info' \| 'success' \| 'error' \| 'warning' \| 'neutral'` (default `info`) |
+| `Show Title` + `Title text` (Headline/Small-H6) | `title?: ReactNode`, shown when passed; a `<p>`, not a heading |
+| `Show Description` + `Description` (Body/Medium) | `children`, shown when passed: the message, usually the only text (design, 27 Oct 2026) |
+| `Show Leading Icon` | `showIcon` (default on); icons Info `info`, Success `check_circle`, Error / Warning `warning` (Figma `warning_amber`, the same outline), Neutral `info` (or `icon`) |
+| `Show Button` (Tertiary Small, Button M) | `action?: { label, onClick }` |
+| `Show Close` (`close`, 24) | `onClose` (the button shows when passed), `closeLabel` (default "Close") |
+| 343 wide | fills its container |
+
+**Colours:** background `bg-<tone>-secondary` (Neutral `bg-neutral`); title and description `text-<tone>` (Neutral: title `text-primary`, description `text-secondary`); icon `fg-<tone>` (Neutral `fg-secondary`); button `text-<tone>` (Neutral `text-primary`); close `fg-<tone>` (Neutral `fg-secondary`), through FinButton `contentTone` (§9.28).
+
+**Decided 27 Oct 2026:** (1) **The buttons are the real FinButton** (Tertiary Small for the action, Tertiary Medium icon-only for the close), with their padding (hover tint, a 40 / 48 target), **pulled back by it** with negative margins (`Space-M` × `Space-XL`; `Space-L`), so they take Figma's space (Figma sets their padding to 0): the label lines up with the text and the close icon sits 16 from the corner. (2) Their colours come from FinButton's `contentTone`, extended with `secondary` and the four status tones. (3) **Not announced by default** (part of the page); pass `role="status"`, or `"alert"` for an urgent error, when it appears after an action. (4) The page removes it (`onClose`); it never closes itself. (5) Button M (Hanken Grotesk, another library, §10 #16) → `--fin-font-button-medium` (Inter): the label is 63 wide, not 60.
+
+**Tokens used:** `--fin-bg-{info,success,error,warning}-secondary`, `--fin-bg-neutral`, `--fin-text-{info,success,error,warning,primary,secondary}`, `--fin-radius-m`, `--fin-font-headline-small-h6`, `--fin-font-body-medium`; spacing `--fin-space-xs` / `-m` / `-l` / `-xl`. The icon and buttons bring the `fg-*` tokens.
+
+**Accessibility:** no live role unless given; the title is text, so the page's headings stay in order; the close button is named "Close" (`closeLabel`), the action by its label; both reachable by Tab, with the standard focus ring.
+
+**Built and approved (27 Oct 2026).** Storybook: Components/Notification banner (Playground, All variants (Figma), Description only, With title, Without icon, Without close, Long text, Full width). Checked against Figma at 343: 130 tall; icon at 16,16; title and description at 44; the button's label at 44,90; the close icon at 303,16. Light and Dark.
+
+### 9.76 FinSkeleton — public
+
+**Figma:** none (code first, decided 27 Oct 2026, for the negative and loading states the screens don't show).
+
+**API:** `shape?: 'text' | 'rect' | 'circle'` (default `text`); `width?`, `height?` (a number is px, or any CSS length). Defaults: text 12 tall (`Size-12`), `Radius-XS`, as wide as its container; rect 24 tall (`Size-24`), `Radius-S`; circle 24 (`Size-24`), round, its height following its width. Other attributes go to the `span`.
+
+**Look:** `bg-neutral`, pulsing from full to 60% opacity and back every 1.6 s (decided 27 Oct 2026: a pulse, not a shimmer; 40% looked washed out on white); still under `prefers-reduced-motion`.
+
+**Accessibility:** `aria-hidden`: the area that's loading says so (FinTable `loading`: `aria-busy` and a "Loading …" status).
+
+**Tokens used:** `--fin-bg-neutral`, `--fin-size-12`, `--fin-size-24`, `--fin-radius-xs`, `--fin-radius-s`, `--fin-radius-full`.
+
+**Built and approved (27 Oct 2026).** Storybook: Components/Skeleton (Playground, Shapes, List item) and Components/Table/Loading. Light and Dark; still with reduced motion.
+
+### 9.77 FinStepper — public
+
+**Figma:** none: the Add reward screens draw it each time (`367:19964` step 1, `402:33879` step 3; read 27 Oct 2026). Code first, measured from them.
+
+**API:** `steps: string[]` (the labels), `current: number` (from 0; earlier steps are done, later ones upcoming; `steps.length` means all done), `onStepClick?: (index) => void` (done steps become buttons that go back to them), `label` (the list's name, default "Steps"), `stateLabels` (what follows a done / upcoming label for screen readers, default "completed" / "not started"), `width` (code only, added 28 Oct 2026: `hug` (default), the screens' 80 columns 80 apart; `fill` spreads the steps across the stepper's width), `doneSteps` (code only, added 28 Oct 2026 for Edit reward: `before` (default), the steps before `current` are done; `all`, every step but `current` is done, and a button with `onStepClick`). Other attributes go to the `ol`.
+
+**Layout:** each step a column `Space-10XL` (80) wide, as the screens' step frames, `Space-10XL` apart, so box centres are 160 apart as on the screens. The box `Size-36`, `Radius-S`, a 2px border, the number in Title/Medium; the label Label/Medium **centred** under it, `Space-M` below, wrapping inside its column (decided by design 27 Oct 2026; the screens align labels left). Centring puts the first box 22 in from the edge (the screens: at the edge). A 2px line joins each box to the next, coloured by the step it leaves.
+
+**`width="fill"`** (code only, decided 28 Oct 2026 for the Add reward side sheet, whose body is 535–584 wide while `hug` needs 560): the stepper takes its container's width; every step but the last shares what's left after the last 80 column, so the first box is 22 from the start and the last 22 from the end. Columns, boxes and labels are as `hug`; only the lines grow or shrink (116 at 1024 to 132 at 1920 in the side sheet).
+
+| State | Box | Number / icon | Label | Line after it |
+|---|---|---|---|---|
+| Done | `bg-success-secondary`, `border-success` | `check` (20) in `fg-success` | `text-primary` | `border-success` |
+| Current | `bg-active`, `border-active` | `text-action` | `text-action` | `border-active` |
+| Upcoming | `bg-secondary`, `border-default` | `text-secondary` | `text-secondary` | `border-default` |
+
+**Decided 27 Oct 2026:** done steps are **green with a checkmark** (the screens draw them with a black border and their number); the current and upcoming colours are the screens'.
+
+**Accessibility:** an `ol` named "Steps"; the current step has `aria-current="step"`; done and upcoming steps add ", completed" / ", not started" for screen readers (the box is hidden from them); with `onStepClick`, done steps are native buttons (Tab, Enter, Space) with the focus ring round the box.
+
+**Tokens used:** `--fin-space-10xl`, `--fin-space-m`, `--fin-size-36`, `--fin-radius-s`, `--fin-font-title-medium`, `--fin-font-label-medium`, `--fin-bg-{secondary,active,success-secondary}`, `--fin-border-{default,active,success,focused}`, `--fin-text-{secondary,action,primary}`; the icon brings `--fin-fg-success`.
+
+**Built and approved (27 Oct 2026).** Storybook: Components/Stepper (Playground, Eligibility, All done, Long labels). Checked: boxes 160 apart, labels 44 from the top, as the screens; Light and Dark.
+
+**`doneSteps="all"` built, approved and merged (28 Oct 2026):** story Editing (every step done); test: states and clicks. **`width="fill"` built, approved and merged (28 Oct 2026).** Playground has a `width` control; **Fill, in a side sheet** shows it in a FinSideSheet titled "Add reward". Checked in Chrome at 1920 / 1440 / 1280 / 1024: the list 584 / 542 / 580 / 535 wide, the first and last boxes 22 from its edges, each line from one box's edge to the next (132 / 118 / 131 / 116), no overflow; `hug` unchanged (centres 160 apart, lines 124). Light and Dark.
+
+### 9.78 FinTextArea (Input field-textArea-base and its field set) — public
+
+**Figma:** page **Input field**, component set `Input field-textArea-base` `3094:26567` (read 27 Oct 2026): `Type` = Default / Distructive, booleans `Label`, `Helper text` (+ slot), `Place holder` (+ slot), `Show Caret`, `Focus ring`; hidden Prefix and Suffix layers with no property. Its states are in the field set `3097:27497` (`State` = Default / Hovered / Focused / Typing / Complete / Disabled, each twice: the second is the error look; §10 #17). 343 × 154: the box 128 (`Radius-M`, 1px `border-default`, `Space-XL` padding all round, 4 lines of Body/Large), the label (Label/Small) on the top border 16 in with 4 each side, the helper text (Body/Small `text-tertiary`) 8 below, 16 in.
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Type` Default / Distructive | `error` (red border, ring and halo; the helper text red **with its warning icon**, as Figma); `aria-invalid` |
+| `Label` | `label` (always the text area's name; shown on the border when focused or filled) and `showLabel` (off: never shown, no notch) |
+| `Place holder` + slot | `placeholder` |
+| `Helper text` + slot | `helperText` (linked with `aria-describedby`) |
+| `Show Caret`, `Focus ring` | runtime (focus); the caret `fg-brand` |
+| Field set `State` | runtime, the browser's, as FinInputBase (§9.58): Hovered `bg-secondary` (empty, not focused), Focused / Typing the label and ring, Complete the label and `border-strong`, Disabled |
+| Prefix / Suffix layers | not exposed (no property) |
+| 343 × 128 | fills its container; `rows` (default 4 = 128) |
+
+**Decided 27 Oct 2026:** (1) **its own component**, as Figma's base (design: the base first), with FinInputBase's look and states copied (the same notch, ring and halo fieldsets), not a mode of FinInputBase; then **made the public field directly** (design, on approval): the field set adds nothing to the base, so there's no separate FinTextAreaBase. (2) **Longer text:** it grows with the text from `rows` to `maxRows` (default 8) lines, then scrolls; no resize handle. (3) **No character count** for now (added when a screen needs it). (4) The error helper text keeps Figma's warning icon; FinInputBase's fields show none (a difference between Figma's two bases, to align later).
+
+**Tokens used:** as FinInputBase: `--fin-border-{default,strong,disabled,error,focused}`, `--fin-bg-{secondary,active,error-secondary}`, `--fin-text-{primary,placeholder,disabled,tertiary}`, `--fin-fg-brand`, `--fin-radius-m`, `--fin-space-{xs,m,xl}`, `--fin-font-body-large`, `--fin-font-label-small`. Line height in `lh` (one line of its own font).
+
+**Accessibility:** a native `textarea` named by its `label`; the helper text describes it; `aria-invalid` with `error`; disabled is native.
+
+**Built and approved (27 Oct 2026).** Storybook (Components/Input field/Text area): Playground, States (Figma), Focused, Typing, Focused + error, Long text. Checked against Figma: 343 × 154, box 128, text at 16,16 (311 × 96), helper at 136; Light and Dark.
+
+### 9.79 FinDateField — public
+
+**Figma:** none: the Add reward screen (`367:19964`) draws Start date and End date as Input field-standard (Complete) with "01.08.2026" and a trailing `calendar_today` (`fg-secondary`); the library has no date picker or calendar (checked 27 Oct 2026). Code first.
+
+**Decided 27 Oct 2026:** (1) **the browser's own date picker** for now, opened by the calendar button; **to replace with our own calendar once it's designed in Figma**. (2) **DD/MM/YYYY with slashes** (the screen uses dots). (3) **Typing allowed** as well as the picker: the digits are masked as they're typed ("01082026" → "01/08/2026"). (4) **The format stays while typing** (design review): focused and empty it shows DD/MM/YYYY (the other fields hide the placeholder on focus), and while typing the rest of the pattern stays in the placeholder's colour after the digits ("01/0" then "M/YYYY"), through FinInputBase's code-only `mask` (§9.58).
+
+**API:** FinInputBase's field props (label, helper text, error, disabled, size…) plus `value` (YYYY-MM-DD, or `null` / "" for none; controlled), `defaultValue` (YYYY-MM-DD), `onChange(date: string | null)` (the ISO date once it's whole and real, `null` while it isn't), `min`, `max` (YYYY-MM-DD; the picker greys out other dates), `pickerLabel` (default "Choose date"), `messages` ({ invalid, beforeMin, afterMax }). Placeholder "DD/MM/YYYY".
+
+**Behaviour:** left (blurred) with a date that isn't whole or real (31/02/2026), it shows its own error, "Enter a date as DD/MM/YYYY"; before `min` "Choose a date from 01/08/2026", after `max` "Choose a date until …"; typing clears it. A page's own `error` wins (the page's helper text shows). The calendar button is the icon itself (24, 20 when small), as the password field's eye: no hover look, pointer cursor, the standard focus ring; a click doesn't take focus from the text. It calls `showPicker()` on a native date input hidden under it (out of the tab order, `aria-hidden`), whose choice fills the field.
+
+**Tokens used:** the field's (FinInputBase, §9.58); the button `--fin-radius-xs`, `--fin-border-focused`.
+
+**Accessibility:** a text input named by its label, `inputmode="numeric"`; the format is in the placeholder and the error message; the calendar is a named button; the native picker is the browser's own (keyboard and screen reader support included).
+
+**Built and approved (27 Oct 2026).** Storybook: Components/Input field/Date field (Playground with the `onChange` value, States, Range (End date's `min` is the start), Typing, Invalid date, Before min). Checked in Chrome: the picker opens; picking 15 Aug 2026 shows 15/08/2026 and reports 2026-08-15. Light and Dark.
+
+### 9.80 FinFileUpload (File uploads) — public
+
+**Figma:** page **Input field**, component set `File uploads` `775:4280` (updated by design and read 28 Oct 2026): `Size` = Large / Small × `State` = Enabled / Uploading / Complete / Error (8 variants). A box: `bg-primary`, a 1px **dashed** stroke inside it, `Radius-L`, `Space-XL` padding and gaps. **Large** (206 tall; 226 uploading): a centred column: the `48px bg` icon, the Small **Progress bar** (uploading), a centred Text Box (Headline Small-H6 title, Body M `text-secondary` description, 343 wide), an `all-button` Tertiary. **Small** (102; 122 uploading): a row: the `40px bg` icon and a left-aligned Text Box, the button on the right; the progress bar under the row. Used by Badges (Add badge, `428:51250`, Large).
+
+| State | Stroke | Icon (`40px bg` / `48px bg`) | Title | Button |
+|---|---|---|---|---|
+| Enabled | `border-default` | Info, `image` | the page's ("Upload badge icon") | `cloud_upload` Upload (`text-action`) |
+| Uploading | `border-active` | Info, `image` | "Uploading…" | `cancel` Cancel (`text-action`) |
+| Complete | `border-strong` | Success, `check` | the file's name ("logo.png") | the bin `delete` Delete (`text-error`) |
+| Error | `border-error` | Error, `warning` | what went wrong (Figma "failed"; default "Upload failed") | `cloud_upload` Upload |
+
+**Figma → code:**
+
+| Figma | Code |
+|---|---|
+| `Size` = Large / Small | `size: 'large' \| 'small'` (default `large`) |
+| `State` = Enabled / Uploading / Complete / Error | `state: 'enabled' \| 'uploading' \| 'complete' \| 'error'` (default `enabled`): set by the page, which does the uploading |
+| Text Box title / description | `heading` (Enabled) / `description` (every state); `fileName` is the Complete title, `errorMessage` the Error title; `headingLevel` (default 3) |
+| Progress bar (Small) | FinProgressBar `size="small"` with `progress` (0–100) |
+| `40px bg` / `48px bg` | FinIconContainer 40 / 48, filled, as the table above |
+| `all-button` | FinButton Tertiary **XSmall** with a leading icon; Delete with `contentTone="error"` |
+| — | `accept`, `maxSize` (bytes), `onFileSelect(file)`, `onFileReject(message, file)`, `onCancel`, `onDelete`, `disabled`, `labels` (code only) |
+
+**Decided 28 Oct 2026:** (1) **one file**; (2) **the button is XSmall (36)**: Figma's has no padding (24 tall, not a FinButton size), so Large is 218 (238 uploading), 12 taller than Figma; Small stays 102 / 122; (3) **drag over** (code first): a dashed `border-active` with a `bg-active` fill (the icon's `bg-info-secondary` circle is the same colour, so it blends in while dragging); (4) Complete's Delete uses **the bin used for Remove elsewhere** (`delete`, red); (5) the component **checks** the picked or dropped file against `accept` (extensions, MIME types, `image/*`) and `maxSize` and hands it over (`onFileSelect`) or says why not (`onFileReject`: "This file type isn’t accepted", "This file is larger than 5 MB"), which the page shows as the Error state; (6) **disabled** (code only): `border-disabled`, a Disabled icon, disabled text, no button; (7) the icons are **filled**, as Figma draws them; (8) Figma's stroke is inside the box, so the 1px border comes out of the padding (`calc(Space-XL - 1px)`): the box is Figma's height (an inset shadow, as List and Badge use, can't be dashed); (9) the title is sentence case: "Uploading…", "Upload failed" (Figma "Uploading...", "failed").
+
+**Tokens used:** `--fin-bg-primary`, `--fin-bg-active`, `--fin-border-{default,active,strong,error,disabled}`, `--fin-radius-l`, `--fin-space-xl`, `--fin-size-343`. FinIconContainer, FinTextBox, FinProgressBar and FinButton bring their own.
+
+**API:** `<FinFileUpload heading="Upload badge icon" description={…} accept=".png,.jpg,.jpeg" maxSize={5 * 1024 * 1024} state={state} progress={p} fileName={name} errorMessage={error} onFileSelect={start} onFileReject={showError} onCancel={cancel} onDelete={remove} />`. `formatFileSize(bytes)` ("5 MB") is exported too.
+
+**Accessibility:** a `group` named by the title; the button is the control (named by its label, described by the title and description); the file input is hidden from the keyboard and screen readers, as the button opens it; dropping is extra, never the only way. The title area is `aria-live="polite"`, so "Uploading…", the file name or the error is announced. The progress bar is a `progressbar` with its value. Nothing can be picked or dropped while uploading, complete or disabled.
+
+**Built, approved and merged (28 Oct 2026).** Storybook: Components/Input field/File upload (Playground, Variants (Figma), Disabled, Try it (a fake upload; refused files show why), Long file name). Checked in Chrome against Figma: strokes, radius 16, padding 16, icons 48 / 40 with Figma's tones, the buttons' colours; heights 218 / 238 Large, 102 / 122 Small; drag over `#625bff` / `#efefff`; a dropped PNG goes through uploading to complete, a PDF and a 6 MB file are refused. Light and Dark.
+
+### 9.81 FinStatCard — public
+
+**Figma:** none: the Reports screens draw it each time (`435:90575` four cards, `440:94624` three; read 28 Oct 2026), as plain frames (no component; the Cards page is under "Do not use"). Code first, measured from them (decided by design 28 Oct 2026: a component, since the Dashboard will need it too).
+
+**Layout:** a column, `bg-active`, `Radius-L` (16), `Space-2XL` (20) padding (the screens' raw 16 and 20 are these tokens); the label (Label/Medium, **`text-secondary`**, one line, "…"; the screens' `text-tertiary` is 4.48:1 on Dark `bg-active`, under 4.5, so design chose `text-secondary` on 28 Oct 2026: 5.3:1 Light, about 7:1 Dark; the card's own text, as FinLabel has no colour option) and under it the value (Headline Large-H4, `text-primary`), no gap: 95 tall with one line of each (Figma 95). It fills its container; the page lays the cards on its grid (the screens: 364 wide, 32 apart at 1920). A long value wraps.
+
+**API:** `label: string`, `value: ReactNode` (the page formats it: "806,400"; the screens' "806, 400" is a typo). Other attributes go to the `div`.
+
+**Tokens used:** `--fin-bg-active`, `--fin-radius-l`, `--fin-space-2xl`, `--fin-font-label-medium`, `--fin-text-secondary`, `--fin-font-headline-large-h4`, `--fin-text-primary`.
+
+**Accessibility:** plain text in reading order: the label, then the value. Not a heading or a landmark. Contrast: the label `text-secondary` and the value `text-primary` on `bg-active` meet 4.5:1 in Light and Dark (a11y check).
+
+**Built, approved and merged (28 Oct 2026).** Storybook: Components/Stat card (Playground, Reports, Customer history, Narrow). Checked in Chrome against Figma: 364 × 94.6 at the screens' width, padding 20, radius 16, `#efefff`, label 14 semibold (`text-secondary`, lighter than the screens' `#474748`), value 24 bold `#19191a` (Light); Dark uses the Dark tokens. A long label ends in "…", a long value wraps.
+
+### 9.82 FinTooltip (Plain Tooltip) — public
+
+**Figma:** page **Tooltips**, component set `Plain Tooltip` `476:752`: `Type` = Single line (`476:753`) / Rich tooltip (`476:755`) × `Look` = Black (the only look; "Basic" in the 13 Oct scan is gone). Read 3 Nov 2026.
+
+**Layout:** `bg-direct`, `text-inverse`, `Radius-S` (8), no arrow, no shadow, at least 24 tall (Figma's raw 24, here `Size-24`). **Single line:** padding `Space-M` (8) above and below, `Space-XL` (16) at the sides; Caption L (Figma binds it to another library, §10 #16: `--fin-font-caption-large`); one line up to 343 of text (`Size-343`), then it **wraps** (decided 3 Nov 2026; Figma keeps it on one line). **Rich tooltip:** padding `Space-L` (12) above and below, 16 at the sides; a **FinTextBox** `type="h6"` (Headline Small-H6, Body M, 4 apart), 343 wide, in the new `tone="inverse"` (§9.21), so the tooltip is 375. Never wider than the window (Space-M from each edge).
+
+**Figma → code:**
+
+| Figma | Prop |
+|---|---|
+| `Type` | `type: 'single-line' \| 'rich'` (default `'single-line'`) |
+| `Look` (Black only) | — (no prop: one option, decided 3 Nov 2026) |
+| Single line's text ("Supporting text") | `content: ReactNode` |
+| Rich: Text Box's `Show Heading` / `Show Description` + text | `heading`, `description` (shown when passed) |
+| — (code only) | `placement: 'top' \| 'bottom' \| 'left' \| 'right'` (default `'top'`); it flips when there isn't room and shifts to stay in the window |
+| — (code only) | `open` / `defaultOpen`, `onOpenChange`: controlled or uncontrolled |
+| — (code only) | `describesTrigger` (default `true`): `false` when the tooltip only repeats the trigger's own name (an icon only control named by its label): no `aria-describedby`, and the tooltip is `aria-hidden` (added 3 Nov 2026 for the Theme row) |
+| — | `children`: the trigger, one element (a button, a link, an icon only button) |
+
+**Behaviour (code first; Figma shows the look only; decided by design 3 Nov 2026):** placed with Floating UI (as FinMenu) in the top layer (`popover="manual"`), **4 (`Space-XS`) from the trigger**. **Opens 250 ms** after the pointer rests on the trigger, or **at once on keyboard focus** (`:focus-visible`; not on a click's focus). **Closes** when the pointer leaves (after 100 ms, so the pointer can **move onto the tooltip** and it stays), on blur, on **Escape** (focus stays on the trigger) and when the trigger is pressed. **Never on touch.** **One open at a time** (opening one closes the last, 3 Nov 2026). **Escape is caught first**, so inside a menu or dialog the first Escape closes only the tooltip (3 Nov 2026). No animation (§5).
+
+**Accessibility:** `role="tooltip"`, always in the page (hidden when closed), and the trigger's `aria-describedby` points to it (added to any description the trigger already has), so screen readers read it as the trigger's description. Text only: no links or buttons in it. WCAG 1.4.13 (content on hover or focus): dismissable (Escape), hoverable, persistent. Contrast: Light white on `#19191a`, Dark `text-inverse` on `#fdfdfd`, both above 4.5:1. A disabled button gets no pointer or focus events; give it a tooltip on an enabled wrapper or don't.
+
+**Tokens used:** `--fin-bg-direct`, `--fin-text-inverse`, `--fin-radius-s`, `--fin-size-24`, `--fin-size-343`, `--fin-space-m`, `--fin-space-l`, `--fin-space-xl`, `--fin-space-xs` (gap), `--fin-font-caption-large`; the Text Box's H6 tokens.
+
+**API:**
+
+```tsx
+<FinTooltip content="Edit this tier">
+  <FinButton icon="only-icon" iconName="edit" variant="secondary">Edit</FinButton>
+</FinTooltip>
+
+<FinTooltip type="rich" heading="Points expiry" description="Points expire 36 months after they're earned.">
+  <FinButton icon="only-icon" iconName="info" variant="secondary">About points expiry</FinButton>
+</FinTooltip>
+```
+
+**Built, approved and merged (3 Nov 2026).** Storybook: Components/Tooltips/Plain tooltip (Playground, Types (Figma), Placements, Long text, Flips at the edge, On icon buttons). Checked in Chrome against Figma: single line 8/16 padding, 34 tall ("Supporting text" 121 wide, Figma 122: font rendering); rich 12/16 padding, 375 wide; Radius 8; the gap 4; Light `#19191a` / white, Dark `#fdfdfd` / `text-inverse`; opens at 250 ms on hover and at once on Tab, Escape and leaving close it, it flips at the window's top edge, and long text wraps at 375.
+
+
+### 9.83 FinLogo (Logo sizes) — public
+
+**Figma:** **Foundation – Loyalty**, page **Logo** (`4148:2935`), one `Logo sizes` set per brand: `Size` = Large / Medium / Small × `Style` = Colored / White × `Type` = With text / Without text. **Sampath** (`18276:4231`, read 4 Nov 2026): With text Small 116 × 41, Medium 148 × 53, Large 231 × 82; Without text 39 × 41, 50 × 53, 77 × 82. The artwork is **PNG only** (no vectors in Figma): 770 × 275 With text, 300 × 318 the mark, about 6.6× the Small size, so sharp on retina screens. The other set (`18074:5317`) is the generic placeholder ("Company Name"). The **Side Menu** (component library) has a **Logo slot**, 170 × 40, in the Expanded header (`3727:24801`); Minimized has no logo.
+
+**Decided by design 4 Nov 2026:** (1) the side nav shows **Sampath's logo when the brand is Sampath**, **Small**, **White in Dark** (the Colored version's black text would disappear on the dark side nav). (2) **The White logo is all white** (text and mark); Figma's White files have a blue mark, so code makes them white (§10 #110). (3) **Finspace and Burgundy keep the placeholder**: the `image` icon in the brand colour (so burgundy in Burgundy) and "Fintech loyalty" (Figma still says "Company Name", §10 #111). (4) The Sampath files from Figma are used (the White ones made white) and may ship; design will say when they're updated.
+
+**Figma → code:**
+
+| Figma | Prop |
+|---|---|
+| one set per brand | `brand: FinLogoBrand` (`FIN_LOGO_BRANDS`: `'sampath'`) |
+| `Size` | `size: 'small' \| 'medium' \| 'large'` (default `'small'`): heights **40 / 56 / 80** (`--fin-size-*`; Figma 41 / 53 / 82, no tokens; width from the artwork's ratio, so Small is 112 × 40 and fits the Side Menu's 40 slot) |
+| `Style` = Colored / White | `colour: 'auto' \| 'coloured' \| 'white'` (default **`'auto'`**, code only: Colored in Light, White in Dark) |
+| `Type` = With text / Without text | `showText` (default `true`) |
+| — | `label` (default the brand name, "Sampath Bank"), `decorative` |
+
+**How `auto` works:** both versions are in the page, and CSS shows the one for the nearest `data-theme` (`[data-theme="dark"] .logo`, a theme selector as FinButtonBase's, §9.25), so it switches with the theme without re-rendering, also in Storybook's Side by side.
+
+**Loading:** one lazy loader per file (`import.meta.glob`, as FinPaymentIcon and FinFlag; `'use client'`): a logo file is fetched only where it's shown, so apps of other brands don't carry it. A library build would otherwise inline every PNG in the main bundle (324 KB, checked 4 Nov 2026). The box is sized from the artwork's ratio before the file loads (With text 770 × 275, the mark 300 × 318), so nothing moves.
+
+**Accessibility:** one image (`role="img"`) named by the brand; the `<img>`s inside have `alt=""`. `decorative` hides it next to a visible brand name. Artwork: not checked for contrast.
+
+**Tokens used:** `--fin-size-40`, `--fin-size-56`, `--fin-size-80`.
+
+**API:**
+
+```tsx
+<FinSideNav … logo={<FinLogo brand="sampath" />} />   // Small, Colored in Light, White in Dark
+<FinLogo brand="sampath" size="large" colour="white" showText={false} />
+```
+
+FinSideNav doesn't change: it keeps its `logo` slot (§9.57) and the app passes the logo for its brand. In Storybook the side nav, app shell and page stories follow the **Brand** toolbar: `FinLogo` under Sampath, the "Fintech loyalty" placeholder otherwise.
+
+**Built (4 Nov 2026).** Storybook: Components/Logo (Playground; Sizes (Figma): every size, With and Without text, Colored on a Light panel, White on a Dark one). Checked in Chrome on the Programme configuration page: Sampath Light the Colored logo 112 × 40, Sampath Dark the White one 112 × 40 (the files load); Finspace and Burgundy the placeholder, its icon in the brand colour.
+
+## 10. Known issues and open decisions
+
+| # | Item | Where | Status |
+|---|---|---|---|
+| 1 | **Desktop spacing rules** (page padding, section gap, card padding, gap between buttons…) aren't defined. Until then, spacing is copied from Figma with spacing tokens and off-scale values are reported (§2). | Foundation | ❓ Decide (after the first UIs) |
+| 2 | `bg-action-secondary_hovered` and `_pressed` had the same value. Fixed 13 Oct 2026: pressed is now Primary-200 / Primary-700 (hovered stays Primary-100 / Primary-800), and the Secondary button in the component file uses both tokens. | Foundation › Color collection | ✅ Fixed |
+| 3 | **Contrast failures** (checked 14 Oct 2026 after the Dark status-color update). **Light:** white text on `bg-success` 3.6:1 and on `bg-warning` 2.7:1 (dark text on `bg-warning` is 6.5:1); `text-placeholder` about 2.96:1 on white (`border-strong` was too, fixed 19 Oct 2026); `text-warning` on `bg-tertiary` 4.28:1; `fg-warning` on `bg-secondary` 2.98:1, `bg-tertiary` 2.77:1 and `bg-warning-secondary` 2.96:1 (icons need 3:1). **Dark, button hover/pressed:** `text-white_both` on `bg-action-primary-hovered` 3.35:1, `-pressed` 2.70:1, `bg-action-destructive-hovered` 3.53:1, `-pressed` 2.34:1 (`fg-white_both` fails on both pressed states). **Decided 19 Oct 2026 for buttons: hover/pressed failures are accepted; the enabled state is what matters.** Also found then: Secondary/Tertiary hovered `text-hovered` on `bg-action-secondary_hovered` 3.58:1 Light / 3.91:1 Dark, pressed 4.09:1 Light / 4.09:1 Dark (after the §10 #39 fix; accepted with the rest), and **enabled** `text-action` on `bg-secondary` 4.32:1 Light / 4.34:1 Dark (only when a Secondary/Tertiary button sits on a grey page; still open). **Both:** `text-white_subtle` fails on `bg-brand`/`bg-action-primary` (3.18:1) and `bg-action-destructive` (4.03:1 Light, 3.04:1 Dark). **Badge indicator** (text is `text-inverse` on `fg-*`, rebound in Figma 14 Oct 2026): Light fails on `fg-warning` 3.24:1 and `fg-success` 3.64:1; Dark fails on `fg-error` 3.97:1 (the other four pass). **Icon container** (`FinIconContainer` `tone="warning"`, Light): `fg-warning` on `bg-warning-secondary` 2.96:1 (icons need 3:1). **`FinBadgeIndicator` built with these failures as documented exceptions (15 Oct 2026, §9.8):** Light Yellow 3.24 and Green 3.64, Dark Red 3.97; the a11y check skips only those badges in that theme. **Page indicator dots** (`fg-placeholder`, Light): 2.96:1 on `bg-primary`, 2.71:1 on `bg-secondary` (non-text needs 3:1; §9.12). **Toggle off track** (`fg-placeholder`, Light; decided 15 Oct 2026: build as Figma): 2.96:1 on `bg-primary`, 2.71:1 on `bg-secondary`, handle on it 2.96:1 (non-text needs 3:1; §9.14). **Chip Selected text** (`text-action` on `bg-active`): 4.13:1 Light / 3.95:1 Dark; accepted by design 19 Oct 2026 (§9.31), the a11y check skips Selected chips. The same pair on the **Selected pagination item** is accepted too (§9.37). **Table header cell, Grey, Dark** (found 19 Oct 2026): the title `text-tertiary` on `bg-tertiary` 4.08:1 (Light 7.93:1 passes); built as Figma, the a11y check skips only that title in Dark (§9.41, §9.42); **accepted by design 20 Oct 2026** (ignore). **List-standard Selected + hover, Light** (found 20 Oct 2026): the description `text-secondary` on `bg-active-hover` 3.80:1; hover only, **accepted by design 20 Oct 2026** (§9.51). **List-standard caption on a Selected row, Dark** (found 20 Oct 2026): `text-tertiary` on `bg-active` 4.48:1 (3.56:1 Selected+hovered; Light 8.16:1 passes); **accepted by design 20 Oct 2026**, kept as Figma; the a11y check skips only that caption in Dark (§9.51). **Table row Selected + hover, Light** (found 20 Oct 2026): cell text `text-secondary` on `bg-active-hover` 3.80:1 (Dark 5.26:1 passes); hover only, **accepted by design 20 Oct 2026** (§9.44). **Link cell on a Selected row** (found 20 Oct 2026): `text-action` on `bg-active` 4.13:1 Light / 3.95:1 Dark (the Chip Selected pair); **accepted by design 20 Oct 2026**, links keep `text-action` in every row; the a11y check skips only links on Selected rows (§9.44). **Side nav Selected section label** (found 20 Oct 2026): `text-action` on the nav's `bg-secondary` 4.32:1 Light / 4.34:1 Dark (4.02 hovered, 3.88 pressed; the same pair as the Secondary/Tertiary button above); **accepted by design 20 Oct 2026**, kept as Figma; the a11y check skips only that label (§9.48). **Radio unselected ring** (`border-strong`): was 2.96:1 / 2.71:1 Light, 2.88:1 / 2.39:1 Dark; **fixed 19 Oct 2026** (`border-strong` is now Tertiary-400 Light / Tertiary-200 Dark: 3.90 / 3.57 Light, 8.76 / 7.25 Dark; also the checkbox border, §9.29). `text-placeholder` still about 2.96:1 on white. | Foundation › Color collection | ❓ Decide (not blocking) |
+| 4 | Dark mode default: follow the OS setting (`prefers-color-scheme`) or only the app setting? | Theming | ❓ Decide |
+| 5 | Shadows are effect styles, not variables, so they're the same in Light and Dark. Now three neutral styles (Resting cards, Panel sheets, Sticky); the mobile-era Floating and Back styles were removed (13 Oct 2026). Does dark mode need different shadows? | Foundation › effect styles | ❓ Decide after the first components are built and checked in Dark (not a blocker) |
+| 6 | Focus ring: color is `border-focused`, but width and offset aren't tokens. Read them from the `Focused` variants in Figma when building; ask if components differ. **Profile image badge** (no Focused variant in Figma): 2px ring, 2px offset (decided 15 Oct 2026); use this unless a component's Figma says otherwise. **Toggle** (Figma `Focused`): 2px, 1px offset (§9.14). | Foundation / Components | ⏳ Check per component |
+| 7 | Outdated Figma descriptions: Title XL/L "To show balance"; `bg-action-secondary` "swipe button"; `Alpha-nav` "bottom navigation"; `Alpha-border` "back icon circle"; `text-secondary` says "description texts" (it's used for body text). Typos: "boarders", "outine", "Desctructive", "cheveron". | Foundation | ⏳ Design to update later |
+| 8 | `LineHeight-64px 2` has a stray suffix. The token build handles it. | Foundation › Primitives | 🔧 Fix in Figma |
+| 9 | `Alias Typography` mode was named `Mobile`; now `Finspace`. | Foundation | ✅ Fixed (13 Oct 2026) |
+| 10 | Primitive naming: `Gray` is near-black; Green/Yellow/Red steps are named `Success-*`/`Warning-*`/`Error-*`; `Blue` isn't used. Code names follow Figma. | Foundation › Primitives | ⏳ Later |
+| 11 | Primitive colors and `Alias Colors` are published with all scopes, so they appear in every color picker and components can bind them directly. Recommend no scopes / hidden from publishing. | Foundation | 🔧 Fix in Figma |
+| 12 | Brands are modes in `Alias Colors` (§3.0). The mode is now named `Finspace` in `Alias Colors` and `Alias Typography` (13 Oct 2026). The variable paths still contain `Fintech` (`Colors/Fintech/Primary/…`, `Primitives/Colors/Fintech/…`). Before a second brand is added, remove `Fintech` from the paths (`Colors/Primary/…`) so every brand mode shares the same alias names. Code uses the mode name for `data-brand` and ignores the `Fintech` path segment in CSS variable names. | Foundation › Alias Colors | ⏳ Later: design will do this when a new brand is added |
+| 13 | **Spacing and radius bound to other libraries** (values are the same as Loyalty's): the Sampath Foundation, and unknown libraries with collections `Alias Spacing & Radius`, `Spacing, Radius & Widths` (`radius-xs`), `Spacing and Radius` (`Spacing 0px`, `Spacing 8px`) and `Tokens` (`Border/Radius 4px`). Affects the ⚠️ components in §8. **In code:** always use this system's tokens, never the other library's names or raw values. Before building, list each such value with the proposed token (for example `radius-xs` / `Radius 4px` → `Radius-XS`, `Spacing 8px` → `Space-M`, `Spacing 0px` → `Space-none`) and **ask the designer first**. If no token has the same value, say so and wait. | Components | ✅ Not a blocker: build with Loyalty tokens after telling the designer. Fixing Figma is optional cleanup. |
+| 14 | The Material Symbols Rounded variable font is **5.4 MB** (full font, shipped in S4). **Decided 14 Oct 2026:** the build generates a subset font automatically from the `finIcons` registry (no hand-made font files); adding an icon is a one-line registry change. The subset keeps only the registry's icons, the letters and ligature rules that spell them, and each icon's **filled alternate** (the font swaps 19 of the first 28 icons to a separate `.fill` glyph when `FILL` reaches 1, through `FeatureVariations`; leaving them out breaks filled icons). `FILL` stays variable (0–1); `wght` 300, `opsz` 24 and `GRAD` 0 are fixed (§6.2). Prototype with the 28 §6.4 icons: **6.4 KB** woff2, identical to the full font outlined and filled. `FinIcon` isn't done until the full font is replaced. | Icons | ✅ Decided: part of `FinIcon` |
+| 15 | Motion: plan is to adopt Material 3 easing and duration pairs (see §5). | §5 | ⏳ Deferred |
+| 16 | **Typography bound to another library** (the scan shows `Body L` in `Input field-textArea-base`, `Button M` in `Notification`, `Caption L` in `Plain Tooltip` coming from a non-Loyalty collection). **Decision (13 Oct 2026):** not a blocker. When building, use the Loyalty text style token with the same name (`--fin-font-body-large`, etc.) and list the mapping for the designer's approval first (§8 legend). | Components | ✅ Decided |
+| 17 | **Broken component sets** ("Component set has existing errors"): ~~`Header notification` (`3178:24467`) has two variants named `State=Hovered, Notification=Dot`~~ **fixed 22 Oct 2026** (now `Hovered, Number`, plus Pressed and Notification=None; a disabled button never shows a badge, so there's no `Disabled, Number`; §9.62). The text area set `Input field-base` (`3097:27497`) has the same name as the real base `49:5734`; rename it (for example `Input field-textArea`). It also has each `State` twice (the second the error look) with no property to tell them apart: add `Type` = Default / Destructive (27 Oct 2026). Code builds FinTextArea anyway (§9.78). **Text area fixed in Figma 27 Oct 2026:** renamed `Input field-textArea`, with `Error` = True / False (FinTextArea `error`). | Header, Input field | 🔧 Fix in Figma |
+| 18 | Input bases decided (13 Oct 2026): `Input field-base` (`49:5734`) for single-line fields, `Input field-textArea-base` (`3094:26567`) for text areas, `Input-OTP-base` (`49:5843`) for OTP. | Input field | ✅ Decided |
+| 19 | `Accordion-bare-base`, `List-base` and `List-fill-base` use a `20px` component whose main component isn't on any page (deleted or moved). **List-base fixed 20 Oct 2026** (the extra icon is now the Icon sizes `20px`; the top label's icon was removed); **List_fill-base fixed 20 Oct 2026** (new component `3494:14233`). Accordion-bare-base to re-check when built. | Accordion, List | 🔧 Fix in Figma (List bases ✅) |
+| 20 | **Clashing name:** `24px` on the Side nav page clashed with the icon size `24px`; **renamed `Icon` 20 Oct 2026**. (Renamed 13 Oct 2026: `Frame 5` → `sub selection`, Dialog `Frame 3` → `Dialog box`, Header `Frame 1707478998` → `Main header`, `Frame 1707478999` → `Header notification`, Table parts.) | Side nav | ✅ Fixed (20 Oct 2026) |
+| 21 | **Typos and inconsistent names:** `Pregress` (Spinner); `SIze`/`Mediu` (Flag sizes); `Contry selecter`; `Distructive` (Input field-textArea-base); `Xsmall` vs `XSmall` (Avatar, Chips-base); `state` lowercase (Input field-select, Multi select, sub selection); Snackbar has a property with no name; Empty state has both `Icon slot` and `Icon Slot`; Accordion-bare-base has `Trailing accessory` twice; several `Property 1` properties. Code uses the corrected spelling. The `64px` icon state names (`Variant3`, `Errorr`) were fixed in Figma on 14 Oct 2026. | Components | 🔧 Fix in Figma |
+| 22 | ~~`Side Menu`: 8 text layers have no text style.~~ **Fixed in Figma** (checked 21 Oct 2026). Only "Company Name" inside the `Logo sizes` logo has none (Inter Medium 16/26); the stories' placeholder uses Title/Medium (decided 21 Oct 2026). | Side nav | ✅ Fixed |
+| 23 | Icon names checked against Material Symbols Rounded (14 Oct 2026): all 29 §6.4 names render, but four are old Material Icons names. **Decided:** code uses the current names: `camera_alt` → `photo_camera`, `payment` → `credit_card`, `perm_identity` → `person`, `warning_amber` → `warning` (same glyph as `warning`, so one registry entry). List in §6.4. Figma icons will be updated by design later; for icons, code is the source of truth (§6.1). | Icons | ✅ Decided (14 Oct 2026) |
+| 24 | Overlay `Mobile` variant is out of scope; only `Desktop` is built. | Overlays | ✅ Decided (13 Oct 2026) |
+| 25 | **Components from other libraries** used inside components: ~~`Frame 3`~~ (gone) and `Logo sizes` with its `image` (Side Menu; 12 variants: Size × Colour × With / Without text; doesn't block: logos are artwork, so FinSideNav takes a `logo` slot, decided 21 Oct 2026, §9.57; since 4 Nov 2026 the Side Menu's logo is a Figma slot, "Logo slot" 170 × 40, and the brand logos are in Foundation – Loyalty › Logo, §9.83), ~~`Views / Dividers` (Side sheet)~~ (replaced by our Divider, 23 Oct 2026), `gb-L` (Flag sizes). Flags no longer block on this: flag artwork comes from `flag-icons` in code and `Flag sizes` is reference only (19 Oct 2026, §8.5). | Side nav, Side sheet, Icon types | 🔧 Fix in Figma |
+| 26 | **Table** page is complete and renamed (13 Oct 2026). Figma has the parts only; designers assemble tables on screens. **Decision:** code also gets a `FinTable` organism (§8 #74) built from those parts. Its API (columns/rows as data, selection, pagination) is written in §9 when built and agreed with design. `Property 1` on Table parts still needs naming (§10 #21). | Table | ✅ Decided |
+| 27 | **Dark-mode contrast: `text-error` on `bg-error-secondary`** was 4.19:1. Design updated the Dark status colors (14 Oct 2026): now 8.52:1, and every status text and icon color passes on `bg-primary`, `bg-secondary`, `bg-tertiary` and its own `bg-*_secondary` in Dark. | Foundation › Color collection (Dark) | ✅ Decided (14 Oct 2026) |
+| 28 | **Spacing shift (14 Oct 2026) in the component file.** These components use `Space-5XL`…`Space-12XL`, and still show the **old** values because the component file hasn't accepted the Foundation library update yet. After it does, they get smaller: `sub selection` (`3140:11076`) `Space-5XL` 40 → 36; `Pagination group` (`3151:14607`) `Space-6XL` 48 → 40 (only on the Figma frame around the samples; FinPagination doesn't use it, 19 Oct 2026); `Main Selection` (`3140:10997`) `Space-5XL` 40 → 36; `Header notification` (`3178:24467`) `Space-5XL` 40 → 36; ~~`Button dock` (`75:5858`) `Space-5XL` 40 → 36~~ (23 Oct 2026: Button dock's bottom padding is `Space-6XL`, 40, design; the Side sheet uses the Button dock component, so it's 40 there too); ~~`Side sheet` (`3120:30707`) `Space-5XL` 40 → 36~~ (26 Oct 2026: the Side sheet uses `Space-4XL`, 32, at the top, design; §9.70); `Side Menu` (`3142:11871`) `Space-5XL` 40 → 36. No other component uses those steps. Accept the library update, then confirm each new value or rebind. | Component file | ❓ Decide |
+| 29 | **Dark: Icon container Primary and Disabled looked alike** (both `#363636`). Fixed 15 Oct 2026: Dark `bg-icons` is now Tertiary-700 `#464646` (`bg-disabled` stays Tertiary-800 `#363636`). White icon on `#464646` is 9.44:1. | Foundation › Color collection (Dark) | ✅ Fixed |
+| 30 | **Avatar XXXLarge was 100 in Figma**, but there's no `Size-100`. Decided 15 Oct 2026: 96 (`Size-96`). Figma updated to 96 × 96 (checked 15 Oct 2026). | Avatar | ✅ Fixed |
+| 31 | **Profile image badge has no hover or pressed state** in Figma, and `fg-action` has no hovered/pressed tokens. For now the badge only changes the cursor (decided 15 Oct 2026). Design to add the states. | Profile image | ❓ Design to define |
+| 32 | **Online Indicator frames have an unbound white fill** (square, no radius) behind the round dot, so white corners would show on a dark or colored background. Code draws only the round dot. Remove the frame fill. | Online Indicator | 🔧 Fix in Figma |
+| 33 | **Online indicator on an avatar isn't in Figma.** Code places it (decided 15 Oct 2026, §9.4 Online): flush with the bottom-right corner, 2px in at 64 and 96, indicator size per avatar size. Design to add it to the Avatar (or an example) in Figma so the two match. | Avatar | ⏳ Design to add in Figma |
+| 34 | **Off-canvas Badge leftovers:** `Badge-primary/brand` (`70:10326`, with 3 instances in an off-canvas `Placeholder-text` frame) and `Badge-primary/Gold` (`421:1316`) still reference Badge-base but aren't on any page. Nothing live depends on them. Is `Gold` planned (for example a loyalty tier)? | Badge | ❓ Design to confirm |
+| 35 | **Indicator `Type=Selected` is 22 wide in Figma**, but there's no `Size-22`. Decided 15 Oct 2026: 24 (`Size-24`) in code. Update the Figma Indicator (and the Indicator set widths become 44 / 54 / 64). | Indicator | 🔧 Fix in Figma |
+| 36 | **Helper text content `State=Success`:** its icon isn't linked to `Show Leading Icon`, so it can't be hidden in Figma (the other four states are linked). Code hides it in every tone. | Text box | 🔧 Fix in Figma |
+| 37 | **Built components whose names or options differ from Figma beyond the §7.3 patterns** (found when the parity rule was added, 15 Oct 2026): FinIcon `State` → `color`; FinBadgeIndicator `Style` Red/Yellow/Green → `tone` error/warning/success and `Digits` → `count`; FinAvatarGroup `Count` → from `people`; FinProfileImage `Type` → from `src`; FinIndicatorDot `Type` → `selected`; FinPageIndicator `Number` / `Active` → `count` / `active`; FinToggle / FinRadio `Type` → `checked`; FinProgressBar / FinSlider `Filled` → `value`; FinSpinner `Pregress` → `status` + `value`; FinHelperText `Show Leading Icon` → `showIcon`; FinTextBox `Alignment` → `align` and `Type` values → `h1`…`h6`; FinBarWithText `Progress` → `value`; FinSpinnerWithText `Progress` → `status` + `value`. Visual options not in Figma: FinDivider `orientation`, FinAvatar `online`, FinSpinnerWithText loader. | Components | ⏸ Deferred to the end of the build (decided 15 Oct 2026): keep building with the current names; review all of them together then |
+| 38 | **XSmall Tertiary Pressed** (`37:1057`, `3060:16592`) uses `bg-active-hover` (the hover color, `#ceccff`); every other size uses `bg-action-secondary_pressed`. Code uses the pressed token for all sizes (§9.25). | Buttons | 🔧 Fix in Figma |
+| 39 | **Dark hovered/pressed text vs icon colors were swapped:** `text-hovered` was Primary-200 and `text-pressed` Primary-300, but `fg-hovered`/`border-hovered` are Primary-300 and `fg-pressed`/`border-pressed` Primary-200, so a button's label and icon differed on hover and press in Dark. **Fixed 19 Oct 2026** (new export): Dark `text-hovered` → Primary-300 `#9691ff`, `text-pressed` → Primary-200 `#b7b4ff`; text, icon and border now match in both themes. Token build still 432 variables. | Foundation › Color collection (Dark) | ✅ Fixed |
+| 40 | **White button border:** Large and Medium have the 1px `border-subtle` in every state, but Small and XSmall have it only when Enabled (none on Hovered `349:5073`/`349:5078`, Pressed `3067:16961`/`3067:16973`, Disabled `349:5093`/`349:5098`). Code keeps the border in every state at every size (§9.26). | Buttons | 🔧 Fix in Figma |
+| 41 | **all-button: six Small Pressed variants** (Secondary and Tertiary with Leading, Trailing, Only Icon: `3185:13035`, `3185:13044`, `3185:13008`, `3185:13053`, `3185:13062`, `3185:13071`) use `bg-active-hover` (the hover color) instead of `bg-action-secondary_pressed`. Code is unaffected: colors come from the base. | Buttons | 🔧 Fix in Figma |
+| 42 | **all-button: raw palette `Colors/Fintech/Primary/Primary-400`** is bound somewhere in the set (seen 19 Oct 2026). Same value as `border-focused`; code uses the base's tokens. | Buttons | 🔧 Fix in Figma |
+| 43 | **all-button doesn't expose the label text or the icon swap** as component properties (designers override nested layers). Code has `children` and `iconName`. Expose them in Figma for the same controls. Also to add: `Tone` (Normal / White / Destructive) and the White and Destructive variants (§9.28). | Buttons | ⏳ Design to add in Figma |
+| 44 | **Checkbox (`42:220`) in Figma vs code:** code has the checkbox **only on the left** (decided 19 Oct 2026), so `Show Leading Icon` / `Show Trailing Icon` have no code equivalent; remove them (or keep only the leading one, always on) so designers can't draw a row with two checkboxes. Figma's `Focused` row ring isn't used (code shows the checkbox's ring). This set also has no Selected + Disabled, Indeterminate, Hovered or Pressed variants (code has them from the base). | Checkbox | 🔧 Fix in Figma |
+| 45 | **Chips-base (`95:1811`):** Label/Large's font family is bound to `Title XL/Font family` (same Inter); bind it to `Label L/Font family`. The raw palette `Colors/Fintech/Primary/Primary-400` is bound somewhere in the set (seen 19 Oct 2026). Code uses this system's tokens either way. | Chips | 🔧 Fix in Figma |
+| 46 | **Chips in Figma vs code** (decided 19 Oct 2026): code has three chip types (§9.32). To match in Figma: rename Chips `Type` (Unselected / Selected) to **`Selected` (True / False)**, so "type" isn't used for two things; make **three sets from Chips-base**, `Assist chip`, `Filter chip`, `Input chip` (the current `Chips` becomes `Filter chip`); add the Assist chip's down arrow and open (Selected) state, and the Input chip's ✕ button; add sizes (code has XSmall, Small, Large). Raw `Primary-400` in Chips was removed by design (19 Oct 2026). | Chips | ⏳ Design to add in Figma |
+| 47 | **Avatar in a chip's leading slot** (may come later, 19 Oct 2026): code already takes any content (`leadingAccessory`), and the Storybook controls offer an avatar. The smallest FinAvatar is 24px, so XSmall and Small chips grow (26 → 32, 33 → 36); Large (40) fits. Design to decide the avatar size per chip size (or a smaller avatar) before it's used. | Chips, Avatar | ❓ Design to define |
+| 48 | **Segmented button base, to look at:** (1) **Selected Pressed** fills with `bg-tertiary`, the track's own color, so a pressed selected segment disappears into the track while held. (2) **Dark: Unselected Hovered** uses `text-tertiary` (`#969696`), dimmer than Enabled `text-secondary` (`#b7b7b7`); in Light hover darkens the text. (3) The Selected fill against the track is 1.17:1 Light / 1.45:1 Dark: Selected is shown mostly by the fill change and the darker text. Code follows Figma. | Segmented button | ❓ Design to confirm |
+| 49 | **Country menu (and menus in general) need design** (19 Oct 2026): the country selector opens a small menu of countries built from the List component. Needed first: §10 #19 fixed (List-base's missing `20px`); **row states on the menu row** (hover, selected, keyboard focus; not on List-base, which as a base has no states, §7.2); a **menu container** (surface, radius, shadow, max height and scrolling); a **country row** (flag, name, maybe dial code); optionally a search field at the top (Search, §8 #57). Then: List base → menu → the country selector's menu and the row count menu (§9.38, options such as 10 / 25 / 50 / 100). **Update 22 Oct 2026:** the menu container is built (`FinMenu`, §9.64) and List-base is fixed; **the row count menu is built** (FinMenu `select`, §9.38), and **the country menu** (§9.36: flag, name, dial code caption; a search by name, ISO or dial code). Still to add in Figma: the country row and the search header (§10 #59). | List, Input field, Table | ✅ Built (22 Oct 2026) |
+| 50 | **Table header sort and filter** (19 Oct 2026; **built code first 22 Oct 2026**, §9.41, §9.65: the title sorts with `unfold_more` / `arrow_upward` / `arrow_downward`, the kept down arrow filters; icons `fg-secondary`, purple once clicked; title colour unchanged. To add in Figma: the sort icon and its states, the arrow's open / applied look, the filter menu): the header cell's trailing arrow will be a sort control or open a filter menu (a category list for the column). Needed: which icon sorts and which filters (and both on one column); sort states (unsorted / ascending / descending); an "active filter" look; hover, pressed and focus for the clickable part (no hover on the cell itself, decided 19 Oct 2026); the filter menu (List, §10 #49). Until then the arrow is display-only (§9.41). Also: the trailing arrow is a raw `#626262` in Figma; code uses `fg-secondary` (bind it). | Table | ⏳ Built code first; design to add in Figma |
+| 51 | **Side nav `Icon`:** (1) the icon isn't exposed as an instance swap, so designers override the nested layer; expose it (as all-button, #43). (2) `Type=Selected` should show the **filled** icon (decided 20 Oct 2026; code fills it). (3) Bind the raw colors: Unselected `#626262` → `fg-secondary`, Selected `#5953E8` → `fg-active`. | Side nav | ⏳ Design to update in Figma |
+| 52 | **Main Selection:** (1) the chevron colors are raw: `#626262` → `fg-secondary`, `#5953E8` → `fg-active` (bind them); (2) Selected variants show the **up** chevron even when closed; code points it by open / closed (decided 20 Oct 2026); (3) `Show dropdown` is a separate property, but code shows the chevron whenever the item has sub items (decided 20 Oct 2026). | Side nav | ⏳ Design to update in Figma |
+| 53 | **List_fill-base, Size=Small:** the avatar is always shown; `Show leading accessory` only works on Large. Code applies it to both sizes. | List | 🔧 Fix in Figma |
+| 54 | **List-standard:** (1) ~~on Disabled rows the chevron stayed `fg-secondary`~~ **fixed in Figma 20 Oct 2026** (now `fg-disabled`, as code). (2) **Size** (Large / Small) comes from the nested List-base and isn't exposed on List-standard yet; code has `size`. (3) ~~Payment waits for the artwork~~ **done 20 Oct 2026** (FinPaymentIcon, §9.52). | List | 🔧 Fix in Figma / ⏳ Payment artwork |
+| 55 | **List checkbox isn't in Figma yet** (built code first 20 Oct 2026, decided by design: "do the same as radio"). Add a `List-checkbox` component set mirroring List-radio_button (`Type`, `State`, `Item side`, `Description`) with Base-Checkbox, plus an Indeterminate state for "select all"; then re-check code against it. | List | ⏳ Design to add in Figma |
+| 56 | **Filled (card) lists aren't in Figma yet** (built code first 20 Oct 2026 at design's request): add List_fill-base versions of List-standard (chevron always, caption optional, no static), the radio, checkbox and toggle lists, with Selected as a 1px `border-active` edge and no fill (toggle on: no edge), Disabled a `border-disabled` edge, hover `bg-secondary`. Then re-check code against them. | List | ⏳ Design to add in Figma |
+| 57 | ~~**Side Menu user row has no hover or pressed look**~~ **Fixed 22 Oct 2026** (§9.57: the nav items' padding, radius, hover `bg-tertiary`, pressed `bg-neutral`) (21 Oct 2026): the row is a link (the chevron), but Figma shows no states, and List-standard's hover (`bg-secondary`) is the nav's own background. Code shows only the cursor and the focus ring. Design to add Hovered / Pressed (for example the Main Selection fills, `bg-tertiary` / `bg-neutral`). Also: the `Logo sizes` component is from another library (§10 #25); bring it into the component file when there's a real logo. | Side nav | ✅ Hover / pressed fixed in code (22 Oct 2026); logo item still open |
+| 58 | **Input field inconsistencies** (found 21 Oct 2026; design to fix as each field is built): (1) Disabled icons: the trailing icon is `State=Disabled` on Payment but `Secondary` on Mobile number and Password (code: `fg-disabled` everywhere). (2) Helper text color: `text-tertiary` on Default and Password, `text-secondary` on Payment and Mobile number (code: FinHelperText Default). (3) Password Enabled and Typing with an error keep the helper `text-tertiary` (code: `text-error`, as the other variants). (4) The password label reads "Password" in some variants and "Label" in others. (5) Input field-standard, Mobile number, Enabled and Hovered with Trailing icon on: 76 tall, with an `info` icon in the helper text; no other variant has it (code: no icon, 74). (6) Input field-standard, six Payment variants without an error (Enabled, Hovered, Disabled, with and without the trailing icon) use Input field-base `Type=Default` instead of `Payment` (they look the same; code uses Payment). (7) Payment's card number groups are 8 apart in Figma; a real input separates them with a space (about 4), so code's groups are slightly closer. (8) Search: each variant's component frame has a raw white fill (`#FFFFFF`) behind the field (code: none, as the other fields, so the field shows its surface). | Input field | 🔧 Fix in Figma (per field) |
+| 59 | **Menu, to add in Figma** (22 Oct 2026, built code first): (1) a new effect style **`Shadow/Menu`** with the Sticky values (0, −2, 16, 0, 8%), applied to `standard-menu` instead of `Shadow/Sticky` (code: `--fin-shadow-menu`, §4.2); (2) rename the slot `conten` → `content`; (3) a **header slot** (the country search: padding `Space-L`, a line below) and a **footer slot** for buttons kept at the bottom while the content scrolls (code: `footer`, padding `Space-XL`, gap `Space-M`, right aligned, a 1px `border-subtle` line above; design to confirm the look); (4) the line between groups (`FinMenuDivider`) is full width, not inset like a row's; (5) still open: the **maximum height** (code: up to the window edge, or `maxHeight`) and the **widths** per scenario (code: fits the content, at least the trigger; `trigger` for fields; or any length), to settle once screens are built. | Menu | ⏳ Design to add in Figma |
+| 60 | **Table row actions, to add in Figma** (22 Oct 2026, built code first, §9.66): the ⋮ column (64 since 29 Oct 2026, was 80; empty Grey header, at the end or after the select column), the ⋮ button (the XSmall Tertiary icon button's look and states, 20 `more_vert`, `fg-secondary` at rest, purple on `bg-action-secondary` while its menu is open), its action menu; and **the fixed column's edge**: decided 22 Oct 2026, **Shadow/Sticky turned sideways** (`--fin-shadow-sticky-end` / `-start`, §4.2), shown only while content passes under the column; add those sideways styles in Figma. | Table | ⏳ Design to add in Figma |
+| 61 | **Table cell Link: side padding** (22 Oct 2026): Figma's Link cell is all-button XSmall Tertiary with 16 either side, so its text starts 16 in from the header's. Code removed the side padding (§9.43); update Figma to match (padding 6 / 0). | Table | 🔧 Fix in Figma |
+| 62 | **Side nav account menu, to add in Figma** (22 Oct 2026, built code first, §9.57): the user row as a menu trigger (a down arrow, up while open, in place of the chevron), the account menu above it (as wide as the user area) or beside the minimized nav, with its items (for example My profile, Notifications, Settings, a line, Log out). Add the row's hover, pressed and open look (the nav items': `bg-tertiary`, `bg-neutral`; §9.57) too. | Side nav | ⏳ Design to add in Figma |
+| 63 | **App shell, to add to Figma** (22 Oct 2026): `FinAppShell` (§8 #79) is code only. Every screen draws the shell itself (grey background, the side nav, a white content panel 8 from the edges, the header on top); add it as a component (or a layout template) so screens use one shell, including the "Skip to content" link's focused look. | Layout | ⏳ Design to add in Figma |
+| 64 | **Possible chip improvement: a two-tone label** (22 Oct 2026; not a blocker): the screens' filter chip shows "Segment:" in `text-secondary` and the value ("All") in `text-primary`, in a bordered chip with Radius-S and Shadow/Resting_cards. Built chips have one text colour; pages use the Assist chip with a select menu as built (§9.32, §9.64). If wanted, add a label + value option to the Chips (and to Figma's Chips, not as a detached chip). | Chips | ❓ Design to decide |
+| 65 | **Title Case in Figma** (22 Oct 2026): the system uses **sentence case** for all text (§2 rule 8), but the screens and some components use Title Case ("Programme Configuration", "Add Programme Configuration", the side nav's "Loyalty Management", "Tier Management"…). Code writes them in sentence case; update the Figma text to match. | Screens, Side nav | 🔧 Fix in Figma |
+| 66 | **Programme configuration: where "Conversion rate" goes** (23 Oct 2026): the screen shows the rate ("80 Pts = 1.00") as an underlined Tertiary button in the cell; the page uses the table's Link cell (§9.43). **Decided 23 Oct 2026:** a placeholder address for now; the real link will come from the backend database when it's ready. | Screens | ✅ Decided |
+| 67 | **Programme configuration: Remove** (23 Oct 2026): the screen's row buttons are view, edit and a red bin. **Decided 23 Oct 2026:** Remove uses the bin, `delete` (added to the icon registry, §6); **destructive menu actions take the destructive button's colours** (title `text-error`, icon `fg-error`), other action icons are `fg-secondary`, and the row actions menu is 240 wide (§9.66, FinListStandard `tone` §9.51). Built code first; **to add in Figma**: List-standard's destructive tone and the row actions menu's look. | Icons, Table, List | ⏳ Design to add in Figma |
+| 68 | **Table row actions: the fixed ⋮ cell's line was 2px** (23 Oct 2026, found on the Programme configuration page): the cell drew its own line half a pixel below its edge, which snapped to two pixels while the table's line took one. **Fixed 23 Oct 2026** (design: 1px): the cell no longer draws a line; its fill stops half a pixel short, so the table's own 1px line shows through (§9.45). Checked at 1× and 2×, and scrolled at 1024. | Table | ✅ Fixed |
+| 69 | **Side sheet: close button with a two-line title** (26 Oct 2026): the component centres the back / close buttons against the title (a 40-tall Text Box); the Programme configuration screen puts a heading + description (69 tall) in the Title slot with the close button at the top. Code follows the component (centred). **Decided 26 Oct 2026:** the buttons sit at the top; a title as tall as a button or shorter is centred against them, a taller one starts at the top with them, as the screen (§9.70). **In Figma:** set the header's alignment to top. | Side sheet | ⏳ Design to update Figma |
+| 70 | **Programme configuration: Max conversion** (26 Oct 2026): the table has "Max conversion (pts)", but the add form (Figma `312:15899`) has no field for it, so a new row shows "N/A" (was "—"). Add a Maximum per conversion field to the form, or remove the column? Parked by design 26 Oct 2026, to check later. | Screens | ❓ Decide |
+| 71 | **Disabled field helper text that explains why** (26 Oct 2026): a disabled field's helper text is `text-disabled` (2:1, exempt under WCAG, §9.20), but in Programme configuration add, when no segments are left, it's the explanation ("Every segment already has a configuration"). Keep it readable (`text-secondary`) when it explains why? Parked by design 26 Oct 2026, to check later. | Input field | ❓ Decide |
+| 72 | **Snackbar: the action button's padding** (27 Oct 2026): in the Snackbar, Figma overrides the Tertiary Small button's side padding to 12 (`Space-L`; 88 wide with "Text here"); the Button component is 16 (96 wide). Code uses the component (95). Keep the component's 16, or add a tighter button? **Decided 27 Oct 2026:** keep the component's 16. | Snackbar, Button | ✅ Decided |
+| 73 | **Snackbar: width at small windows** (27 Oct 2026): 3 grid columns is 450 at 1920 but 226 at 1024, where "Segment removed" with Undo breaks inside words. Use at least `Size/343` (the Figma width, a token), i.e. `max(343, 3 columns)`? **Decided 27 Oct 2026:** yes; 343 at 1440 and below, 450 at 1920. | Snackbar | ✅ Decided |
+| 74 | **Snackbar: Neutral hover in Dark** (27 Oct 2026): the buttons' hover tint on Neutral is `alpha-light` (white 12%), which doesn't show on Dark's light `bg-direct`. Needs an alpha token that's light in Light and dark in Dark (or `alpha-sm` in Dark). **Decided 27 Oct 2026:** `alpha-sm` in Dark, through a `[data-theme="dark"]` selector in FinButtonBase (the only one in a component); **to add in Figma:** an alpha token that flips with the theme, so the selector can go. | Snackbar, Tokens | ⏳ Design to add in Figma |
+| 75 | **Checkbox: the unticked box's border is below 3:1** (29 Oct 2026): design changed Base-Checkbox's Unselected, Enabled stroke from `border-strong` to **`border-default`** (§9.29). Its contrast is below WCAG 2.2 1.4.11's 3:1 for a control's outline everywhere it's used: Light 1.48 on `bg-primary`, 1.36 on `bg-secondary`, 1.27 on `bg-tertiary` (the table header), 1.30 on `bg-active` (a selected row); Dark 1.86 / 1.54 / 1.28 / 1.40 (`border-strong` was 3.33–3.90 Light, 6.03–8.76 Dark). **Accepted by design (29 Oct 2026):** "in our scenarios the checkbox is not the main thing, and `border-strong` highlights it more than we need". Hovered, Pressed, Disabled, Selected and Indeterminate are unchanged. The automated a11y run doesn't check non-text contrast, so it still passes; an audit would flag it. Affects every checkbox (FinCheckbox, the table, list checkbox rows, filters). | Checkbox | ✅ Accepted by design |
+| 76 | **Side nav: the tree style, code only** (2 Nov 2026): FinSideNav `variant="tree"` (§9.57, §9.47) draws connected tree lines from a section's icon to its pages; built in code first, as design's brief, with Default (Figma's) staying the default. To add to Figma: the Side Menu (and Sub selection) with a tree option: a 1px `border-default` line (`border-subtle` was too faint) under the section's icon centre (22 in), ending at the middle of the last page; a connector to each page ending 4 (`Space-XS`) before its text (36 in), curving with `Radius-S`; not shown when minimized. | Side nav | ⏳ Design to add in Figma |
+| 77 | **Table: the bordered style, code only** (3 Nov 2026): FinTable `variant="bordered"` (§9.45) draws a 1px `border-subtle` line with `Radius-S` (8) round the header and rows; the toolbar and footer stay outside it. Built in code first at design's request, with Default (no border) staying the default. To add to Figma: a bordered table frame on the Table parts, for screens that use it. | Table | ⏳ Design to add in Figma |
+| 78 | **Tooltip: behaviour, code first** (3 Nov 2026): Figma Plain Tooltip shows only the look. Decided by design: opens 250 ms after hover or at once on keyboard focus, 4 (`Space-XS`) from the trigger, no arrow, flips at the window edge; long single line text wraps at 343. `Look=Basic` (in the 13 Oct inventory) is no longer in Figma; FinTooltip has no `look` prop. Nothing to change in Figma unless design wants the gap or wrapping shown there. | Tooltips | ✅ Decided |
+| 79 | **Dark tokens still on the plain Primary scale, and the info tokens** (3 Nov 2026, second brand): in Dark, `bg-active`, `bg-active-hover`, `bg-action-secondary` (+ hovered, pressed), `Alpha-brand` and the info tokens `bg-info`, `bg-info_secondary`, `text-info`, `fg-info`, `border-info` point at `Primary-*`, not at the Primary dark aliases (§3.2), so in Burgundy they turn burgundy. **Decided by design 3 Nov 2026:** the non-info ones are fine for now; **the info tokens move to a new blue later** (also fixes `border-info` Dark, already planned). Until then Burgundy Dark has `border-info` and `bg-info` at 2.20:1 on `bg-primary` (§10 #80). | Foundation › Color collection | ⏳ Later (new blue) |
+| 80 | **Burgundy: contrast exceptions** (3 Nov 2026). Rule (§3.10): each exception is one token pair or one story's element, for one brand and theme, accepted by design, with a reason and a planned fix; a whole check or brand is never switched off; any new failure still fails `test:a11y`; **a brand's list must be empty before it goes live**. **`pnpm test:a11y` passes in all four projects** (1888 tests, 3 Nov 2026), so no axe exclusion is needed. (Corrected 4 Nov 2026: that pass relied on Finspace's story exclusions, which applied to every brand. Scoped to Finspace, they showed 4 more Burgundy failures, the same pairs Finspace accepted under §10 #3: §10 #106–#109.) The token contrast table found 4 Burgundy-only failures the stories don't exercise (hover states and non-text contrast aren't checked by axe; two tokens aren't used by any component): (1) `text-secondary` on `bg-active-hover`, **Light**, 2.95:1: a Selected table row or list row while hovered (FinTableRow, FinListStandard); hover only, the same pair Finspace accepted at 3.80:1 (§10 #3). Planned fix: design to choose a lighter `bg-active-hover` step for Burgundy or a darker hover text. (2) `border-info` on `bg-primary`, **Dark**, 2.20:1: the Info badge's outline (FinBadge `info`); the label passes (9.57:1). Planned fix: the new info blue (§10 #79). (3) `bg-info` on `bg-primary`, **Dark**, 2.20:1: no component uses `bg-info` today. Planned fix: the new info blue (§10 #79). (4) `text-white_subtle` on `bg-brand`, **Dark**, 3.67:1: no component uses it today; Finspace fails it too (3.18:1, §10 #3). Planned fix: with §10 #3. **All four accepted by design 3 Nov 2026** as documented exceptions until their fixes land. Burgundy isn't live until this list is empty. | Foundation › Color collection | ⏳ Accepted (4 open exceptions) |
+
+#### Sampath brand (added 4 Nov 2026)
+
+Sampath (§3.10) is **not live**. Its exceptions follow the §3.10 rule: each is one token pair, for one brand and theme, accepted by design, with a cause and a planned fix; **the list must be empty before Sampath goes live**. Accepted 4 Nov 2026 **as they are, with no token changes in this branch**: the fixes come with a later Figma export. Ratios are WCAG contrast ratios, checked with the resolved tokens and by axe in `pnpm test:a11y` (text only; axe doesn't check non-text 3:1 or hover). In code: `apps/storybook/.storybook/brandContrastExceptions.ts` (§3.10).
+
+**Fix later** (in this order):
+1. **HIGH: the warning number badge** (§10 #103, 1.56:1): close to unreadable.
+2. **Warning text and icons in Light** (§10 #87, #88): Sampath's Yellow is a pale scale.
+3. **Info colour:** orange instead of Sampath's Violet (§10 #81). Clears the info banner exception (§10 #97).
+4. **Orange contrast:** `text-action` (§10 #83, #86, #99–#101), the white-on-orange buttons and badges (§10 #89–#93), and the icons on `bg-secondary` (§10 #84, #85, #94–#96).
+5. **Red:** white on Red-400 in Dark (4.28:1, §10 #98) would need a new alias, so Finspace doesn't change.
+6. **Light surface separation** (§10 #82, pending design's review).
+
+| # | Item | Where | Status |
+|---|---|---|---|
+| 81 | **Sampath info uses orange, not Sampath's Violet** (4 Nov 2026). Sampath's info tokens (`bg-info`, `bg-info_secondary`, `text-info`, `fg-info`, `border-info`) follow the Primary scale, so they're orange: info looks like a brand action, and `text-info` on `bg-info_secondary` fails in Light (§10 #97). Sampath's own system uses **Violet** for info; the scale is in the export (`Colors/Sampath/Violet`) but nothing points at it, so it isn't generated (§3.1). Same root cause as §10 #79 (info tokens on the Primary scale). Fix: point Sampath's info tokens at Violet (likely through an info alias, so Finspace doesn't change). | Foundation › Color collection, Sampath | ⏳ Later (new export) |
+| 82 | **Sampath Light: surfaces barely separate** (4 Nov 2026). `bg-secondary` `#f7f3ef` is 1.10:1 on white; `bg-tertiary` `#f9f5f2` is **lighter** than `bg-secondary` (Finspace's is darker), and `border-subtle` is the same colour as `bg-tertiary` (1.08:1 on white). The side nav, grey panels, table headers and subtle borders blend into white pages. Not a WCAG failure (surfaces and decorative borders have no contrast minimum), but the layout loses structure. To review in Storybook (Sampath Light). | Foundation › Color collection, Sampath | ❓ Design to review |
+| 83 | **Sampath: contrast exception: `text-action` on `bg-primary`, Light, 2.76:1.** WCAG 1.4.3 (text, 4.5:1). Cause: Sampath's action colour is its brand orange, Orange-500 `#f47921`, light on white. Elements: Secondary and Tertiary button labels, table link cells, the side nav's current page, the current step, the "Skip to content" link. Fix: a darker action step for Sampath text (Orange-700 `#ad5617` is 5.10:1 on white). | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 84 | **Sampath: contrast exception: `fg-action` on `bg-primary`, Light, 2.76:1.** WCAG 1.4.11 (non-text, 3:1). Cause: Orange-500, as #83. Elements: action icons (Secondary and Tertiary buttons, links). Not checked by axe. Fix: with #83. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 85 | **Sampath: contrast exception: `fg-brand` on `bg-primary`, Light, 2.76:1.** WCAG 1.4.11 (3:1). Cause: Orange-500, as #83. Elements: brand icons on white. Not checked by axe. Fix: with #83. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 86 | **Sampath: contrast exception: `text-hovered` on `bg-primary`, Light, 3.30:1.** WCAG 1.4.3 (4.5:1). Cause: Orange-600 `#de6e1e`. Elements: hovered Secondary and Tertiary buttons and links. Hover only, so axe doesn't check it (Finspace accepts hover states, §10 #3). Fix: with #83. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 87 | **Sampath: contrast exception: `text-warning`, Light: 2.57:1 on `bg-primary`, 2.51:1 on `bg-warning_secondary`.** WCAG 1.4.3 (4.5:1). Cause: Sampath's Yellow is a pale scale; `text-warning` is Yellow-700 `#b2a076`. Elements: warning badges, warning helper text, warning banners and a banner's warning button. Fix: a real warning colour for Sampath, or a much darker step. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 88 | **Sampath: contrast exception: `fg-warning`, Light: 1.56:1 on `bg-primary`, 1.52:1 on `bg-warning_secondary`.** WCAG 1.4.11 (3:1). Cause: pale Yellow, `fg-warning` is Yellow-600 `#e4cd97`. Elements: warning icons (helper text, banners, badges). Not checked by axe. Fix: with #87. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 89 | **Sampath: contrast exception: `text-white_both` on `bg-action-primary`, Light and Dark, 2.76:1.** WCAG 1.4.3 (4.5:1). Cause: white on Orange-500 (Sampath uses the same fill in both themes, §3.2). Elements: every Primary button label. Fix: a darker fill, or dark text on the orange (Sampath's own system has the same pair). | Sampath Light, Dark | ✅ Accepted by design (4 Nov 2026); fix later |
+| 90 | **Sampath: contrast exception: `text-white_both` on `bg-brand`, Light and Dark, 2.76:1.** WCAG 1.4.3 (4.5:1). Cause: as #89. Elements: Primary badges (FinBadge `primary`). Fix: with #89. | Sampath Light, Dark | ✅ Accepted by design (4 Nov 2026); fix later |
+| 91 | **Sampath: contrast exception: `text-white_both` on `bg-action-primary_hovered`, Light and Dark, 3.30:1.** WCAG 1.4.3 (4.5:1). Cause: white on Orange-600. Elements: hovered Primary buttons. Hover only (not checked by axe; Finspace accepts hover states, §10 #3). Fix: with #89. | Sampath Light, Dark | ✅ Accepted by design (4 Nov 2026); fix later |
+| 92 | **Sampath: contrast exception: `fg-white_both` on `bg-action-primary`, Light and Dark, 2.76:1.** WCAG 1.4.11 (3:1). Cause: as #89. Elements: icons in Primary buttons. Not checked by axe. Fix: with #89. | Sampath Light, Dark | ✅ Accepted by design (4 Nov 2026); fix later |
+| 93 | **Sampath: contrast exception: `fg-white_both` on `bg-brand`, Light and Dark, 2.76:1.** WCAG 1.4.11 (3:1). Cause: as #89. Elements: icons on brand fills (Primary badges). Not checked by axe. Fix: with #89. | Sampath Light, Dark | ✅ Accepted by design (4 Nov 2026); fix later |
+| 94 | **Sampath: contrast exception: `fg-active` on `bg-secondary`, Light, 2.99:1.** WCAG 1.4.11 (3:1). Cause: Orange-600 `#de6e1e` on Spring-wood-500. Elements: the side nav chevron of the section that holds the current page. Not checked by axe. Fix: with #83. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 95 | **Sampath: contrast exception: `fg-hovered` on `bg-secondary`, Light, 2.99:1.** WCAG 1.4.11 (3:1). Cause: as #94. Elements: hovered icons on the side nav and grey panels. Not checked by axe. Fix: with #83. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 96 | **Sampath: contrast exception: `fg-info` on `bg-secondary`, Light, 2.99:1.** WCAG 1.4.11 (3:1). Cause: info is orange (#81). Elements: info icons on grey surfaces. Not checked by axe. Fix: Violet (#81). | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 97 | **Sampath: contrast exception: `text-info` on `bg-info_secondary`, Light, 4.27:1.** WCAG 1.4.3 (4.5:1). Cause: info is orange (§10 #81): Orange-700 on Orange-50. Elements: info banners (title, text, the Focus areas rule list, the banner's button) and info badges. **Clears when Sampath's info moves to Violet (§10 #81).** | Sampath Light | ✅ Accepted by design (4 Nov 2026); clears with §10 #81 |
+| 98 | **Sampath: contrast exception: `text-white_both` on `bg-action-destructive`, Dark, 4.28:1.** WCAG 1.4.3 (4.5:1). Cause: Sampath Red-400 `#d14e4c` is slightly lighter than Fintech's Error-400 `#d1454a` (4.51:1); Sampath's own system has the same pair. Elements: destructive buttons (every remove dialog). `bg-error` has the same value, but no element shows white on it today. Fix: **needs a new alias** for the Dark destructive fill, so Finspace doesn't change. | Sampath Dark | ✅ Accepted by design (4 Nov 2026); fix later |
+| 99 | **Sampath: contrast exception: `text-action` on `bg-secondary`, Light, 2.50:1.** WCAG 1.4.3 (4.5:1). Cause: Orange-500, as #83 (Finspace accepts the same element at 4.32:1, §10 #3). Elements: the side nav label of the section that holds the current page. Fix: with #83. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 100 | **Sampath: contrast exception: `text-action` on `bg-active`, Light, 2.31:1.** WCAG 1.4.3 (4.5:1). Cause: Orange-500 on Orange-50, as #83. Elements: selected chips (toolbar and Duration filters), the current page in the pagination, links in a selected table row. Fix: with #83. | Sampath Light | ✅ Accepted by design (4 Nov 2026); fix later |
+| 101 | **Sampath: contrast exception: `text-action` on `bg-active`, Dark, 3.71:1.** WCAG 1.4.3 (4.5:1). Cause: Orange-500 on Orange-900. Elements: as #100. Fix: with #83. | Sampath Dark | ✅ Accepted by design (4 Nov 2026); fix later |
+| 102 | **Sampath: contrast exception (cross-brand): `text-tertiary` on `bg-tertiary`, Dark, 4.00:1.** WCAG 1.4.3 (4.5:1). The same pair Finspace accepts at 4.09:1 (§10 #3) and Burgundy at 4.08:1 (#108). Cause: Spring-wood-700 on Mirage-400. Elements: Grey table header titles (every table). Fix: a lighter `Neutral-dark-tertiary` or darker `Neutral-dark-surface-3` (all brands). | Sampath Dark (cross-brand) | ✅ Accepted by design (4 Nov 2026); fix later |
+| 103 | **⚠️ HIGH PRIORITY. Sampath: contrast exception: `text-inverse` on `fg-warning`, Light, 1.56:1.** WCAG 1.4.3 (4.5:1). **Close to unreadable; fix before Sampath goes live.** Cause: a white number on Sampath's pale yellow (Yellow-600 `#e4cd97`). Elements: the warning number badge (FinBadgeIndicator `warning`). Finspace accepts the same pair at 3.24:1 (§10 #3). Possible fixes: a dark number on the yellow, or a real warning colour for Sampath (#87). | Sampath Light | ⚠️ Accepted for now (4 Nov 2026); **HIGH: fix before Sampath goes live** |
+| 104 | **Sampath: contrast exception (cross-brand): `text-inverse` on `fg-success`, Light, 3.64:1.** WCAG 1.4.3 (4.5:1). Same pair and value as Finspace (§10 #3): Sampath's Green is Fintech's. Elements: the success number badge. Fix: with §10 #3. | Sampath Light (cross-brand) | ✅ Accepted by design (4 Nov 2026); fix later |
+| 105 | **Sampath: contrast exception (cross-brand): `text-inverse` on `fg-error`, Dark, 3.98:1.** WCAG 1.4.3 (4.5:1). Same pair as Finspace (3.97:1, §10 #3). Elements: the error number badge, including the bell's unread count in the header on every page. Fix: with §10 #3. | Sampath Dark (cross-brand) | ✅ Accepted by design (4 Nov 2026); fix later |
+
+#### Burgundy: the §10 #3 pairs (added 4 Nov 2026)
+
+Hidden until 4 Nov 2026: Finspace's story exclusions applied to every brand (§3.10). Scoped to Finspace, these showed in Burgundy. **The same pairs Finspace accepted under §10 #3 (cross-brand).** Accepted for Burgundy by design 4 Nov 2026.
+
+| # | Item | Where | Status |
+|---|---|---|---|
+| 106 | **Burgundy (cross-brand): `text-inverse` on `fg-warning`, Light, 3.24:1.** WCAG 1.4.3 (4.5:1). Same as Finspace (§10 #3). Elements: the warning number badge. Fix: with §10 #3. | Burgundy Light (cross-brand) | ✅ Accepted by design (4 Nov 2026); fix later |
+| 107 | **Burgundy (cross-brand): `text-inverse` on `fg-success`, Light, 3.63:1.** WCAG 1.4.3 (4.5:1). Same as Finspace (§10 #3). Elements: the success number badge. Fix: with §10 #3. | Burgundy Light (cross-brand) | ✅ Accepted by design (4 Nov 2026); fix later |
+| 108 | **Burgundy (cross-brand): `text-tertiary` on `bg-tertiary`, Dark, 4.08:1.** WCAG 1.4.3 (4.5:1). Same as Finspace (4.09:1, §10 #3) and Sampath (#102). Elements: Grey table header titles. Fix: with #102. | Burgundy Dark (cross-brand) | ✅ Accepted by design (4 Nov 2026); fix later |
+| 109 | **Burgundy (cross-brand): `text-inverse` on `fg-error`, Dark, 3.96:1.** WCAG 1.4.3 (4.5:1). Same as Finspace (3.97:1, §10 #3). Elements: the error number badge, including the bell in the header. Fix: with §10 #3. | Burgundy Dark (cross-brand) | ✅ Accepted by design (4 Nov 2026); fix later |
+
+#### Logos (added 4 Nov 2026)
+
+| # | Item | Where | Status |
+|---|---|---|---|
+| 110 | **Sampath's White logo: made all white in code** (4 Nov 2026). In Foundation – Loyalty › Logo, the Sampath `Style=White` source images have white text and a **blue** mark (the octagon and pot). **Decided by design 4 Nov 2026: in Dark the mark is white.** So the committed `sampath-white.png` and `sampath-mark-white.png` are Figma's files with every visible pixel made white and the transparency kept (the shape and edges are unchanged; an exception to "never recolor", §6.1, at design's request). When Figma's White variant is updated, replace them with the new export. | Logo, Sampath | ✅ Decided; ⏳ Figma to update the White variant (optional) |
+| 111 | **Figma's placeholder logo still says "Company Name"** (4 Nov 2026): the Side Menu's Logo slot and the generic `Logo sizes` set (`18074:5317`). Code shows "Fintech loyalty" (decided by design 2 Nov 2026). Also, Figma's Logo sizes heights (41 / 53 / 82 for Sampath, 40 / 54 / 80 for the generic set) have no tokens; code uses `Size-40` / `Size-56` / `Size-80` (§9.83). | Logo, Side nav | ⏳ Figma to update (optional) |
+
+#### Styling refactor: Tailwind (added 5 Nov 2026)
+
+| # | Item | Where | Status |
+|---|---|---|---|
+| 112 | **Not yet confirmed with the developers: whether the apps have global element rules (`button`, `input`, `a`…) that would override `@layer fin` styles.** Everything the library ships is in `@layer fin` (§3.11), and any app CSS outside a layer beats it whatever its specificity, so an app rule like `button { padding: 0 }` would change our buttons. If the apps have such rules, they need to be scoped, or put in a layer below `fin`. | Apps, §3.11 | ❓ Confirm with the developers |
+| 113 | **Storybook upgrade waits for the end of the migration** (5 Nov 2026): Storybook shows a notice for 10.6.5 (we're on 10.6.1). Decided by design: **no Storybook upgrade during the Tailwind migration**, so every batch is compared against the same tooling. Upgrade after the last Tailwind batch is merged. | Storybook, tooling | ⏳ Follow-up after the last Tailwind batch |
+| 114 | **Temporary: FinTable's sticky header rule skips Grey header cells** (8 Nov 2026, stage 3c). **What:** in `FinTable.module.css`, the sticky column's header fill (`th:is(.stickyEnd, .stickyStart, .stickySelect)`, bg-primary) has `:not([data-type="grey"])`, so a Grey FinTableHeaderCell keeps its own bg-tertiary fill. **Why:** FinTableHeaderCell's Grey fill is now a utility in `@layer fin`, and FinTable's CSS Module isn't in a layer yet, so its rule won whatever the specificity (on `main` before 3c, the Grey fill won by specificity): the ⋮ header cell turned bg-primary in tables with a Grey header. **Remove when FinTable is converted in 3e:** then both rules are utilities in the same layer and the `:not()` isn't needed. **Closed 9 Nov 2026 (stage 3e-1):** `FinTable.module.css` is gone; FinTable's fixed header cells get only their position (every header cell FinTable draws is Grey, so none needs FinTable's fill), and the Grey fill is FinTableHeaderCell's own. | `FinTable.module.css` | ✅ Removed in stage 3e-1 |
+
+---
+
+## 11. Changelog
+
+> **Where we are (20 Oct 2026)**
+> - **Done:** setup S1–S6, `FinIcon` (§9.1), `FinIconContainer` (§9.2), `FinDivider` (§9.3), `FinAvatar` (§9.4), `FinAvatarGroup` (§9.5), `FinProfileImage` (§9.6), `FinOnlineIndicator` (§9.7), `FinBadgeIndicator` (§9.8), `FinBadgeBase` (§9.9) and `FinBadge` (§9.10, with the tones added to FinBadgeBase, which is now internal). `FinIndicatorDot` (§9.11, internal), `FinPageIndicator` (§9.12) `FinOverlay` (§9.13) `FinToggle` (§9.14) `FinRadio` (§9.15) `FinProgressBar` (§9.16) `FinSpinner` (§9.17) `FinSlider` (§9.18) `FinLabel` (§9.19) `FinHelperText` (§9.20) `FinTextBox` (§9.21) `FinBarWithText` (§9.22) `FinSpinnerWithText` (§9.23), `FinCaption` (§9.24), `FinButtonBase` (§9.25, internal; approved 19 Oct 2026) and `FinWhiteButton` (§9.26, internal; approved 19 Oct 2026) and `FinDestructiveButton` (§9.27, internal; approved 19 Oct 2026) and `FinButton` (§9.28, public; approved 19 Oct 2026) and `FinCheckboxBase` (§9.29, internal; approved 19 Oct 2026) and `FinCheckbox` (§9.30, public; approved 19 Oct 2026) and `FinChipBase` (§9.31, internal; approved 19 Oct 2026) and the three chips `FinAssistChip`, `FinFilterChip`, `FinInputChip` (§9.32, public; approved 19 Oct 2026) and `FinSegmentBase` (§9.33, internal; approved 19 Oct 2026) and `FinSegmentedButton` (§9.34, public; approved 19 Oct 2026) and `FinFlag` (§9.35, public; approved 19 Oct 2026) and `FinCountrySelector` (§9.36, internal, trigger only; approved 19 Oct 2026) and `FinPaginationItem` (§9.37, internal; approved 19 Oct 2026) and `FinRowCountSelect` (§9.38, internal, trigger only; approved 19 Oct 2026) and `FinPagination` (§9.39, public; approved 19 Oct 2026) and `FinTableFooter` (§9.40, internal; approved 19 Oct 2026) and `FinTableHeaderCell` (§9.41, internal; approved 19 Oct 2026) and `FinTableHeaderRow` (§9.42, internal; approved 20 Oct 2026) and `FinTableCell` (§9.43, internal; approved 20 Oct 2026) and `FinTableRow` (§9.44, internal; approved 20 Oct 2026) and `FinTable` (§9.45, public; approved 20 Oct 2026) and `FinSideNavIcon` (§9.46, internal; approved 20 Oct 2026) and `FinSideNavSubItem` (§9.47, internal; approved 20 Oct 2026) and `FinSideNavItem` (§9.48, internal; approved 20 Oct 2026) and `FinListItem` (§9.49, internal; approved 20 Oct 2026) and `FinListItemFilled` (§9.50, internal; approved 20 Oct 2026) and `FinListStandard` (§9.51, public; approved 20 Oct 2026) and `FinPaymentIcon` (§9.52, public; approved 20 Oct 2026) and `FinListRadio` / `FinListRadioGroup` (§9.53, public; approved 20 Oct 2026) and `FinListCheckbox` / `FinListCheckboxGroup` (§9.54, public, code first; approved 20 Oct 2026) and `FinListToggle` (§9.55, public; approved 20 Oct 2026) and the filled lists `FinListStandardFilled`, `FinListRadioFilled`, `FinListCheckboxFilled`, `FinListToggleFilled` (§9.56, public, code first; approved 20 Oct 2026). Everything is merged into `main`.
+> - **Also done:** `FinSideNav` (§9.57, public; approved 21 Oct 2026), merged into `main`.
+> - **Approved and merged (21 Oct 2026):** `FinInputBase` (§9.58, internal), with the code-only Small size.
+> - **Approved and merged (21 Oct 2026):** `FinTextField` (§9.59).
+> - **Approved and merged (21 Oct 2026):** `FinPasswordField` (§9.60).
+> - **Approved and merged (21 Oct 2026):** `FinSearchField` (§9.61). FinSelectField and FinMultiSelectField are on hold until the menus are built (§10 #49).
+> - **Approved and merged (22 Oct 2026):** `FinHeaderNotificationButton` (§9.62).
+> - **Approved and merged (22 Oct 2026):** `FinHeader` (§9.63).
+> - **Approved and merged (22 Oct 2026):** `FinMenu` (§9.64), with `Shadow/Menu` and the list rows' `divider`.
+> - **Approved and merged (22 Oct 2026):** the Rows per page menu (FinMenu `select`; §9.38, §9.40, §9.45) and the country menu with search (§9.36, §9.58, §9.59; FinMenu `header`, `anchor`). Next after it: the row count and country menus (§10 #49), then the select fields.
+> - **Pages (22 Oct 2026):** the pages plan (§8.6, §4.4, CLAUDE.md "Pages"), `FinTableToolbar` (§9.67) and `FinAppShell` (§9.68) are approved and merged. **Next, when design is back: build the Programme Configuration list page** (Pages → Loyalty management → Programme configuration) in `apps/storybook/src/pages/loyalty-management/`, with FinAppShell, FinTable + `toolbar` (Assist chip select filter), the row actions menu, fake data with edge cases, checked at 1920 / 1440 / 1280 / 1024 in Light and Dark; then show it before the next page. Its add (side sheet), remove (dialog) and removed (snackbar) states wait for those components (§8.6).
+> - **Pages (23 Oct 2026):** the **Programme configuration list page** (Pages/Loyalty management/Programme configuration), the 1px fix for FinTable's fixed cells and the `delete` icon are **approved and merged**. Storybook takes `@finspace-loyalty/ui` from source for pages. **Approved and merged (23 Oct 2026):** the row actions menu's look (240 wide, `fg-secondary` icons, destructive actions red; FinListStandard `tone`, §9.51, §9.66). **Next page** after design's go-ahead: Tier management (§8.6).
+> - **Approved and merged (23 Oct 2026):** `FinButtonDock` (§9.69).
+> - **Approved and merged (26 Oct 2026):** `FinSideSheet` (§9.70), with grey back / close icons (FinButton `iconTone`). Open: §10 #69 (close button with a two-line title); in Figma: remove the shadow. **Next:** the Dialog box (§8 #68).
+> - **Approved and merged (26 Oct 2026):** `FinDialog` (§9.71); FinSideSheet now shares its modal and body-scroll code (`useModalDialog`, `useBodyScroll`), and a scrolling body is keyboard-focusable (§9.70). **Next:** the Programme configuration page's add (side sheet) and remove (dialog) states (§8.6), starting with Add programme configuration.
+> - **Approved and merged (26 Oct 2026):** `FinSelectField` (§9.72), with FinTextField `suffix` (§9.59); after a mouse-opened menu closes, the field is Enabled or Complete, not Focused. FinMultiSelectField stays on hold. **Next:** the Programme configuration add side sheet (§8.6), plan items 3–10 to confirm.
+> - **Approved and merged (26 Oct 2026):** the Programme configuration **add side sheet** (§8.6), with FinSideSheet's header buttons at the top (§10 #69); open: §10 #70, #71. **Next:** the **view** side sheet (Details; code first, no Figma).
+> - **Approved and merged (26 Oct 2026):** the Programme configuration **details side sheet** (§8.6): "<segment> details", a two-column FinTable (Attribute / Added record), Edit and Remove; FinTable `footer` and `hover`, FinTableRow `hover`; FinSideSheet string titles wrap to two lines (FinTextBox `truncateHeading={2}`). **Next:** **Edit** (the add form with the record's values and a details area), plan first.
+> - **Approved and merged (27 Oct 2026):** the Programme configuration **edit side sheet** (§8.6; the add form with the row's values, Cancel / Save, Save disabled until a value changes), the details sheet's dock (Remove with the bin, as wide as its label; Edit takes the rest; FinButtonDock `leadingIcon` and `width`, §9.69) and the Segment column filter in place of the toolbar chip. **Next:** the **remove dialog** (Figma `328:25843`), Remove as a destructive button.
+> - **Approved and merged (27 Oct 2026):** the Programme configuration **remove dialog** (§8.6; FinDialog "Remove segment", Cancel / Remove as the destructive Primary). **Next:** the **Snackbar** component (§8), then the page's removed state.
+> - **Approved and merged (27 Oct 2026):** `FinSnackbar` and `FinSnackbarRegion` (§9.73), with FinButton `contentTone` (§9.28); §10 #72, #73 decided, #74 waits for a Figma token. **Next:** the Programme configuration **removed** state (snackbar, `328:26929`).
+> - **Approved and merged (27 Oct 2026):** the Programme configuration **removed** state (Success snackbar, top right, kept over the header as the screen). **Every Programme configuration state is done** (list, add, details, edit, remove, removed). **Next page**, after design's go-ahead: Tier management (§8.6).
+> - **Approved and merged (27 Oct 2026):** the Programme configuration stories' **Rows** control (0–60 fake configurations). **Next:** the **Empty state** component (§8 #65, Figma updated by design 27 Oct 2026), then the page's empty states.
+> - **Approved and merged (27 Oct 2026):** `FinEmptyState` (§9.74; 4 grid columns wide, centred in its container). **Next:** the Programme configuration **empty states** (the table replaced by the empty state: no configurations yet, no matches).
+> - **Approved and merged (27 Oct 2026):** the Programme configuration **empty states** (FinTable `empty`, FinAppShell's content as a column). Open follow-ups: announce "no matches" to screen readers; maybe hide the toolbar when there are no configurations. **Next page**, after design's go-ahead: Tier management (§8.6).
+> - **Deploy (27 Oct 2026):** Storybook deploys to Vercel from `vercel.json` (install with the repo's pnpm through Corepack, `pnpm build-storybook`, publish `apps/storybook/storybook-static`, no framework preset); the project needs `ENABLE_EXPERIMENTAL_COREPACK=1` and Node 24.x (README).
+> - **Live (27 Oct 2026):** Storybook is at https://loyaltydesignsystem.vercel.app. From now on, each built component's branch is pushed for a Vercel preview link, shared with the summary; `main` only after approval (CLAUDE.md Git).
+> - **Approved and merged (27 Oct 2026):** the **Tier management** page (§8.6): list, add (with the Level menu), details, edit, remove, removed, empty states; built the same way as Programme configuration, whose details sheet is now the shared `RecordDetails`. Mismatches with Figma and with Programme configuration are listed in §8.6. Open follow-ups: the No. column's order; distinct thresholds per level; aligning the two pages (Status select vs toggle, 24 vs 16 field gaps, Active / Inactive vs Enable / Disable, Programme configuration's `#…` link vs `PendingLink`, section titles). **Next page**, after design's go-ahead: Reward catalog (§8.6).
+> - **Approved and merged (27 Oct 2026):** `FinNotificationBanner` (§9.75); FinButton `contentTone` gained `secondary` and the status tones (§9.28). Then: Reward catalog (§8.6).
+> - **Approved and merged (27 Oct 2026):** `FinSkeleton` (§9.76) and FinTable `loading` (§9.45). **Next:** the shared negative states under **Pages/Common states** (`apps/storybook/src/pages/common/`, decided 27 Oct 2026): loading (skeleton, toolbar hidden), couldn't load (FinEmptyState, `warning`, Try again; toolbar hidden), network or server error (an Error FinNotificationBanner), back online (Success snackbar), couldn't save (an Error banner in the sheet), couldn't remove (an Error snackbar with Try again).
+> - **Approved and merged (27 Oct 2026):** the **Common states** (§8.6, Pages/Common states), shown on Programme configuration. **Next:** the Reward catalog list page (§8.6); then its Add reward pages.
+> - **Approved and merged (27 Oct 2026):** the **Reward catalog list** (§8.6), with "N/A" for values that aren't available. **Next:** the Add reward pages (plan first).
+> - **Approved and merged (27 Oct 2026):** `FinStepper` (§9.77), the first part of the Add reward pages. **Next:** FinTextArea (§10 #17), FinDateField, then the Add reward page.
+> - **Approved and merged (27 Oct 2026):** `FinTextArea` (§9.78), public (built as Figma's base, then made the field directly). **Next:** FinDateField, then the Add reward page.
+> - **Approved and merged (27 Oct 2026):** `FinDateField` (§9.79). **Next:** the Add reward page (§8.6), plan first.
+> - **Approved and merged (28 Oct 2026):** FinStepper `width="fill"` (§9.77) and the Reward catalog **Add reward side sheet** (§8.6): four steps, Draft / Publish add the reward at the top with a snackbar, a discard dialog for unsaved changes; every card group in a grey panel (card hover kept), the rule note without a title, the rules table without the No. column. **Next:** Edit reward (the same sheet, filled with the reward's values, every step clickable, Cancel / Save).
+> - **Approved and merged (28 Oct 2026):** **Edit reward** (§8.6) with FinStepper `doneSteps="all"` (§9.77); Provider and Max total uses optional; a "Reward saved successfully" snackbar. **Every Reward catalog state is done** (list, add, details, edit, remove, removed). **Next:** the next page or component design names.
+> - **Approved and merged (28 Oct 2026):** `FinFileUpload` (§9.80), for the Badges page.
+> - **Approved and merged (28 Oct 2026):** the **Reports** page (§8.6): summary cards (FinStatCard) and the customer table (Tier filter); View, a row click or the Active balance opens a customer's points history (Date column, Type filter, Duration chip with ranges). **Next:** the next page design names (left: System users, Role management, System audit; the Duration chip's custom date range when design adds it).
+> - **Approved and merged (28 Oct 2026):** `FinStatCard` (§9.81), the summary cards of the Reports page. **Next:** the Reports page (§8.6; decided 28 Oct 2026: the customer list and a customer's points history, View and the Active balance link open the history; Tier as a column filter, Segment a chip, no Consumption type; Duration waits for a custom date range).
+> - **Approved and merged (28 Oct 2026):** the **Badges** page (§8.6): search and the Status filter, the icon (32) before the name (FinTable column `leading`, §9.45), details, add / edit with the icon upload and an Active toggle, the close button and no Cancel, remove. **Next:** the next page or component design names (left for later: connecting the badges to Add reward's and Add focus area's badge lists).
+> - **Approved and merged (28 Oct 2026):** the page stories fill the Storybook canvas (§4.4; the Loyalty management pages no longer open at 1920), and the Storybook preview reloads itself once when an older deploy's file is gone (Safari's "Importing a module script failed"; README "Storybook on Vercel").
+> - **Approved and merged (28 Oct 2026):** **Focus areas** (§8.6): focus areas → lessons → questions → question details, each level with add / edit / remove; Published toggles; answer options typed and added (a red bin removes one); FinEmptyState `leadingIcon` (§9.74), the empty states' Add buttons with the plus. **Next:** the next page or component design names.
+> - **Approved and merged (29 Oct 2026):** the side nav bases' new spacing (§9.46–9.48): FinSideNavIcon 16, FinSideNavSubItem 8 / 16 / 8 / 40, FinSideNavItem 8 / 12 with a 16 chevron, sub items 4 apart, Minimized 40 × 37. FinSideNav followed (below).
+> - **Approved and merged (29 Oct 2026):** Label L, M and S at weight 500 (design's token export; every component through the tokens), and the side nav icon and chevron at 20 (§9.46, §9.48; Minimized 44 × 37).
+> - **Approved and merged (29 Oct 2026):** FinSideNav's new spacing (§9.57): the header 12 above the first item in both types, sections 4 apart, Minimized 80. **Next:** the next component named by design; Figma follow-ups listed in §9.48 and §9.57.
+> - **Approved and merged (29 Oct 2026):** the table parts' new sizes (§9.38, §9.40–9.44: cells and headers 40, rows 41, the Row count dropdown and footer 32) and the narrow checkbox and ⋮ columns (56 and 64, `narrow`, code only; §9.45, §9.66). 
+> - **Approved and merged (29 Oct 2026):** the side menu at 272 (§9.57; the menu column 240). The user's long email ends in "…". 
+> - **Approved and merged (29 Oct 2026):** the unticked checkbox's `border-default` border (§9.29); below 3:1, accepted by design (§10 #75).
+> - **Approved and merged (29 Oct 2026):** the table's ⋮ column shadow only once the table is scrolled sideways (§9.45). **Next:** the next component named by design.
+> - **Approved and merged (2 Nov 2026):** the Button dock's buttons Small (§9.69, code first; Figma still Large) and the side sheets' text, select and date fields Small (§8.6); Small fields' text is Body/Medium (14 / 21) in the 24 row, still 40 tall, icons 20 (§9.58), including the Small searches (toolbar, column filter, menus); text areas unchanged.
+> - **Approved and merged (2 Nov 2026):** FinHeader with a Headline Small-H6 title and an XSmall (32) back button, 77 tall (§9.63), and FinHeaderNotificationButton at 40 everywhere (§9.62); code first, Figma still H4 and 48.
+> - **Approved and merged (2 Nov 2026):** the side nav's logo placeholder reads "Fintech loyalty" (§9.57; stories and pages).
+> - **Approved and merged (2 Nov 2026):** FinButtonDock's buttons hug their labels, Secondary and Primary at the right (§9.69; the details sheets' Edit too).
+> - **Approved and merged (2 Nov 2026):** fix: the minimized side nav's avatar link (`profile.href`) no longer underlines the initials (§9.57).
+> - **Approved and merged (2 Nov 2026):** side sheet titles in Headline Large-H4 (24 / 33.6 Bold; Figma: Display Small-H3) in FinSideSheet and every page form (§9.70).
+> - **Approved and merged (2 Nov 2026):** the account menu (§9.57): the user's name, email and role badge at the top, My profile, Settings, the Theme row (System / Light / Dark, icon-only menu item radios; FinSegmentedButton `iconOnly`, `size="small"`, `behavior`, §9.34; FinMenu radio stop, `headerPadding`, §9.64), Log out; 320 wide.
+> - **Approved and merged (2 Nov 2026):** FinSegmentedButton `size="xsmall"` (24 tall, segments flush, 16 icons; §9.33, §9.34); the account menu's Theme row uses it (72 × 24, the row 56 tall; items 53).
+> - **Approved and merged (2 Nov 2026):** the account menu on every page (§9.57; `usePageSideNav`, `withPageTheme`).
+> - **Approved and merged (2 Nov 2026):** FinSideNav `variant="tree"`, connected tree lines for a section's pages, in `border-default` (code only; §9.57, §9.47, §10 #76).
+> - **Approved and merged (2 Nov 2026):** every page's side nav in the tree style (§8.6, §9.57).
+> - **Approved and merged (3 Nov 2026):** table spacing: FinTable's toolbar 16 above the table (was 32), FinAppShell content padding 24 all round (was 36 above) (§9.45, §9.67, §9.68).
+> - **Approved and merged (3 Nov 2026):** FinTable's bordered style (`variant="bordered"`, code only, §9.45, §10 #77), used on every list page's table (§8.6).
+> - **Approved and merged (3 Nov 2026):** `FinTooltip` (§9.82, Plain Tooltip: single line and rich), with FinTextBox `tone="inverse"` (§9.21).
+> - **Approved and merged (3 Nov 2026):** the account menu's Theme row tooltips (System, Light, Dark; FinSegmentedButton `tooltips`, FinTooltip `describesTrigger`, one open at a time, Escape caught first) (§9.34, §9.57, §9.82).
+> - **Approved and merged (3 Nov 2026):** the second brand, Burgundy (§3.10): token build for brands, Primary dark aliases, a11y per brand × theme; 4 accepted Burgundy exceptions (§10 #80), so Burgundy isn't live yet.
+> - **Approved and merged (4 Nov 2026):** the third brand, **Sampath** (§3.10): its own scales, Neutral dark and Neutral light aliases (§3.2), Hanken Grotesk (§3.4), story exclusions scoped to Finspace, brand exceptions as `color-contrast` only (`brandContrastExceptions.ts`); §10 #81–#109 (one HIGH: #103). Sampath isn't live.
+> - **Approved and merged (4 Nov 2026):** `FinLogo` (§9.83, Figma Logo sizes; Sampath's logo, Colored in Light, White in Dark), shown in the side nav when the brand is Sampath; Finspace and Burgundy keep the "Fintech loyalty" placeholder. §10 #110, #111.
+> - **Next:** the next component named by design. The row count and country menus wait for the List component (§10 #19, #49). The country selector's menu waits for the List component (§10 #19, #49). Figma to add `Tone` and the White/Destructive variants to `all-button` (§10 #43); then recheck FinButton against Figma.
+> - **Follow-up:** the Label and Helper text stories use a plain stand-in `<input>` (story-only); swap it for the real input field when §8 #52 is built.
+> - **Deferred to the end:** §10 #37 (names outside the Figma ↔ code patterns, including FinTextBox `align` and `h1`…`h6`).
+> - **Open:** §10 #3 (contrast: button hover/pressed accepted 19 Oct 2026, enabled state is what matters; Secondary/Tertiary enabled on `bg-secondary` 4.32:1 still open; badge indicator built with documented exceptions), §10 #5 (Dark-mode shadows), §10 #31 (Profile image badge hover/pressed, design to define), §10 #32 (Online Indicator white frame fill, fix in Figma), §10 #33 (online indicator placement to add in Figma), §10 #34 (off-canvas Badge leftovers), §10 #35 (Indicator selected width 22 → 24 in Figma), §10 #36 (Helper text Success icon toggle) §10 #38 (XSmall Tertiary Pressed still bound to `bg-active-hover` when checked after merge, 19 Oct 2026) §10 #40 (White button border on Small/XSmall), §10 #41 and #42 (all-button Small Pressed token, raw `Primary-400`) §10 #43 (all-button `Tone`, label and icon swap to add) §10 #44 (Checkbox: leading/trailing booleans, missing variants) §10 #45 (Chips-base font binding, raw `Primary-400`) §10 #46 (Chips: three types, `Selected` rename, arrow and ✕ to add) §10 #47 (avatar size in chips) §10 #48 (Segment base: pressed fill, Dark hover text, Selected vs track) and §10 #49 (List row states and menu design, for the country menu) and §10 #50 (table header sort and filter design). Fixed 19 Oct 2026: §10 #39. Fixed 15 Oct 2026: §10 #29, #30.
+
+| Date | Version | Change |
+|---|---|---|
+| 12 Oct 2026 | 0.1 | First draft: sources, core rules (desktop layout, theming, portability), all tokens from the 12 Oct export (431 variables), text styles, shadows, grids, breakpoints, icons (Material Symbols Rounded), architecture, setup tasks, known issues. Component inventory pending the component file review. |
+| 13 Oct 2026 | 0.2 | Component file reviewed: §8 inventory filled (73 components, 3 assets) with levels and scope confirmed by design, Figma check column, provisional names for placeholder components. §7.2 base → mapped table. §6.3 icon sizes corrected (16/20/24/36/48/64) and §6.4 icons used. §1: Cards now under 🔒 Do not use, Overlay `Mobile` out of scope. §10 #13 replaced, #16–26 added. |
+| 13 Oct 2026 | 0.2 | Table page marked complete. Table rows re-checked against Figma: Pagination group and Table footer ⚠️, placeholder-named parts still 🔴. §10 #26 now asks how `FinTable` is assembled. |
+| 13 Oct 2026 | 0.2 | Table parts renamed in Figma (`Table header cell`, `Table - Cell`, `Table row`); code names confirmed. Added #74 `FinTable` (code-only organism). |
+| 13 Oct 2026 | 0.2 | Rule: values bound to another library or raw values always become this system's tokens in code, and the mapping is approved by design before building (§8 legend, §10 #13). |
+| 13 Oct 2026 | 0.2 | §3.0: brands are modes in `Alias Colors`, Light/Dark are modes in `Color collection`; layer table added. §10 #12 updated. |
+| 13 Oct 2026 | 0.2 | Foundation re-checked: `Alias Colors` and `Alias Typography` modes renamed to `Finspace` (no more `Mobile`). Brand attribute is `data-brand="finspace"`; `Alias Typography` is also brand-scoped. §10 #9 fixed, #12 updated. |
+| 13 Oct 2026 | 0.2 | New token export saved to `tokens/design.tokens.json` (431 variables, matches Figma). §4 re-checked: 23 text styles unchanged; shadows now 3 neutral styles (Floating and Back removed, Sticky now black 8%). §3.9: single-mode names and styles aren't in the export. |
+| 13 Oct 2026 | 0.2 | Input field page re-checked: three bases confirmed (Input field-base, Input field-textArea-base, Input-OTP-base). Added #52a `FinTextAreaBase` and #52b `FinTextArea`. §7.2 updated, §10 #18 decided, #16 and #17 updated. |
+| 13 Oct 2026 | 0.2 | §10 #16 decided: typography from another library isn't a blocker; mapped to Loyalty text styles with designer approval. #52a now ⚠️. |
+| 13 Oct 2026 | 0.2 | §7.2: List and Accordion are bases with no states yet; built ready for states to be added to the base later. |
+| 13 Oct 2026 | 0.2 | S1 done: pnpm 12 workspace (`packages/tokens`, `packages/ui`, `apps/storybook` stub), TypeScript 6.0, Vite 8 library build for `ui`, ESLint 9 (typescript-eslint, react-hooks, jsx-a11y), Stylelint 17 base config. TypeScript 7 and ESLint 10 held back until typescript-eslint and jsx-a11y support them. |
+| 14 Oct 2026 | 0.2 | S2 done: token build (`packages/tokens/build.ts`, Style Dictionary 5.5.5). 429 variables (431 exported, minus `Size-343` and `Size-375`) in four scoped blocks, 23 `--fin-font-*` text styles, TS maps, and breakpoints as custom media. Resolved values checked against §3.3–3.6 (all match). Decisions: alpha uses `color-mix` only (§3.9); every primitive is `--fin-palette-*` (§3.8); components use the text style shorthand only, and Stylelint in S6 blocks the parts (§3.8); breakpoints moved from S3 to S2 (§8.0). |
+| 14 Oct 2026 | 0.2 | Design decisions: font fallback stack `Inter, system-ui, sans-serif`, added in S4 (§3.4, §8.0); `data-brand` on `<html>` only (§3.0). |
+| 14 Oct 2026 | 0.2 | S3 done: `packages/tokens/src/styles.css` (exported as `@finspace-loyalty/tokens/styles.css`) with the three §4.2 shadows and the §4.3 grid variables. Background blur removed from the S3 row (there are no blur styles). All three re-checked in Figma on the Foundation Shadow page (`16027:179`); they match. Dialog box and Side sheet have no shadow on purpose (they sit on `FinOverlay`); §4.2 `Shadow/Panel_sheets` Use updated. |
+| 14 Oct 2026 | 0.2 | S4 done: fallback stack added by the token build (§3.4). Inter 400–700 (Latin + Latin Extended, `@fontsource/inter` 5.3.0) and Material Symbols Rounded (`material-symbols` 0.47.5, full variable font) self-hosted in `packages/ui/src/styles/fonts.css`; reset with body defaults `Body/Medium`, `--fin-text-secondary`, `--fin-bg-primary`, plus reduced-motion. App stylesheet `@finspace-loyalty/ui/styles.css` built by a separate Vite pass (`vite.styles.config.ts`) because library mode inlines fonts as base64. Icon font settings recorded in §6.2 (weight 300, optical size 24, grade 0, FILL 0/1). Checked in headless Chrome: all fonts load, body text 14/21 `#656566` on white. |
+| 14 Oct 2026 | 0.2 | §10 #14 decided: the icon font subset is generated automatically from the `finIcons` registry as part of building `FinIcon`, not later. §6.1 and §6.2 updated. |
+| 14 Oct 2026 | 0.2 | S5 done: Storybook 10.6.1 (`@storybook/react-vite`, `addon-docs`), local only; publishing (GitHub Pages or Chromatic) to be decided after the first components. Toolbar: Theme (Light, Dark, Side by side) and Brand, both from new token exports `finBrands`/`finThemes`, set on `<html>` (side by side sets `data-theme` on two panels). Foundations pages are stories (MDX doc pages hide the toolbar): Colors (87 semantic colors), Typography, Spacing, Radius, Shadows, Grid, Breakpoints, and Palette (reference only) with primitives and alias colors per brand from the new `@finspace-loyalty/tokens/reference` entry point, labelled "do not use in components". `postcss-custom-media` 12.0.2 in Storybook and `ui` (the Breakpoints page uses it). Stylelint: camelCase class names. pnpm: esbuild install script denied (`allowBuilds`). Checked in headless Chrome: all 87 semantic colors match §3.3 in Light and Dark. |
+| 14 Oct 2026 | 0.2 | S6 done: Vitest 5.0.2 + Testing Library in `packages/ui` (jsdom; example test in `packages/ui/test/`). Storybook `addon-a11y` and `addon-vitest` 10.6.1: `pnpm test:a11y` runs every story in Chrome with WCAG 2.2 AA checks, once in Light and once in Dark (16 runs, all pass). Stylelint moved to `stylelint.config.js`; component CSS rules apply to every `*.module.css` and block raw colors, `color-mix()`, palette/alias variables and typography parts, with messages naming the token to use. `bad.css`/`good.css` samples and a test prove each rule. No exceptions needed: the Palette page sets palette variables from TSX, and Typography uses only the shorthands. §10 #27 added (Dark `text-error` on `bg-error-secondary` contrast). |
+| 14 Oct 2026 | 0.2 | Dark status colors and inverse tokens (new export, 432 variables). Dark only: `text-success/error/info/warning` → `*-100`, `fg-success/error/info/warning` → `*-200`. `bg-dark` renamed `bg-direct`, Dark now Tertiary1-50 `#fdfdfd` (Snackbar and Plain Tooltip are light in Dark). `text-inverse` Dark now Secondary-400 `#474748` (text on `bg-direct`). New `text-white_both` (white in both themes, text on purple/red). `text-inverse_subtle` renamed `text-white_subtle`. Code: `--fin-bg-direct`/`finColor.bgDirect`, `--fin-text-white-both`/`textWhiteBoth`, `--fin-text-white-subtle`/`textWhiteSubtle`; token build expects 432. Contrast checked in both themes: §10 #27 decided; failures recorded in §10 #3. Palette page notice back to `text-error`. Badge indicator text rebound to `text-inverse` in Figma (binding only); §10 #3 updated. |
+| 14 Oct 2026 | 0.2 | Spacing: new primitive `Size-36`; `Space-5XL`…`Space-11XL` move down one step (5XL = 36, 6XL = 40, 7XL = 48, 8XL = 56, 9XL = 64, 10XL = 80, 11XL = 96); new `Space-12XL` = 120 (`--fin-space-12xl`, `finSpace.x12l`). Token build expects 434. Storybook Foundations pages moved up one step to keep their sizes. No components used the shifted steps. |
+| 14 Oct 2026 | 0.2 | Token build: new `size` layer, `--fin-size-<n>` (and `finSize`) for every `Primitives/Sizes` value, pointing at the primitive, for fixed dimensions that must not follow spacing (§3.8). §10 #27 moved out of the §8 table, where it had been inserted by mistake. §10 #28 added (components affected by the spacing shift). |
+| 14 Oct 2026 | 0.2 | **`FinIcon` done** (§8 #1, §9.1): registry `finIcons` (28 current Material Symbols names; four old names swapped, §6.4), `color` accepts every `fg-*` token, sizes 16–64 mapped to `--fin-size-*` (not spacing), `filled`, `label`. Icon font subset generated at build time (`packages/ui/scripts/subset-icons.ts`, `harfbuzzjs` 1.6.2 + `wawoff2` 2.0.1): 6.2 KB instead of 5.4 MB, keeps the filled `.fill` glyphs. Stylelint lets the icon font have no generic fallback. §6, §10 #14, #21, #23 updated. |
+| 14 Oct 2026 | 0.2 | **`FinIconContainer` done** (§8 #16–18, §9.2): sizes 40/48/64 (`68px bg` changed to `64px bg` in Figma) via `--fin-size-*`, FinIcon inside (24/24/36), `tone` for Figma's color-only `State`, `fg-disabled-on_bg` for Disabled at every size. §7.3: a Figma `State` that only changes colors is `tone` in code. §3.8: widths and heights are unbound in Figma by convention and map to `--fin-size-*`. |
+| 14 Oct 2026 | 0.2 | `FinIconContainer`: `filled` added (passes straight to FinIcon). Storybook: icon stories grouped under Components/Icons (§9). §10 #3 notes the Light warning icon container (2.96:1); §10 #29 added (Dark Primary and Disabled containers share `#363636`). |
+| 14 Oct 2026 | 0.2 | Circle Icon removed from Figma; FinCircleIcon dropped. |
+| 14 Oct 2026 | 0.2 | Status note added at the top of §11: done S1–S6, FinIcon, FinIconContainer; next component to be named by design; open §10 #3, #5, #29. |
+| 15 Oct 2026 | 0.2 | §10 #29 fixed: new export, Dark `bg-icons` Tertiary-800 → Tertiary-700 `#464646` (Light unchanged), so the Dark Primary and Disabled icon containers differ. Token build still 432 variables; Storybook a11y checks pass in Light and Dark. §3.3, §9.2 and the status note updated. |
+| 15 Oct 2026 | 0.2 | **`FinDivider` done** (§8 #2, §9.3): native `<hr>`, `type` `divider` (1px `border-default` border) / `section-divider` (`--fin-size-8` band), full width; `orientation="vertical"` added at design's request (not in Figma); `decorative` hides it from screen readers. Decisions: 1px is a border width (no `Size-1`), Section Divider full width instead of Figma's 375. |
+| 15 Oct 2026 | 0.2 | **`FinAvatar` done** (§8 #29, §9.4): `type` image/icon/text, seven sizes mapped to `--fin-size-*`, `src`, `initials` (passed in), `label`; photo → initials → icon fallback. Decisions: XXXLarge 96 instead of 100 (§10 #30 added), `"case"` font feature dropped, XSmall initials centered. |
+| 15 Oct 2026 | 0.2 | **`FinAvatarGroup` done** (§8 #42, §9.5): mapped from FinAvatar; `people`, `size` xsmall/medium/xlarge, `label`. Up to 6 avatars, then a non-interactive "+N" circle. Overlaps −4/−8/−12 mapped to `Space-XS`/`M`/`L`. Storybook photos from the Figma group (Unsplash). |
+| 15 Oct 2026 | 0.2 | **`FinProfileImage` done** (§8 #43, §9.6): FinAvatar XXXLarge plus a badge button (camera without a photo, edit with one), only the badge clickable, cursor only for hover/pressed (§10 #31), 2px focus ring with 2px offset. `edit` added to `finIcons` (29 icons, 6.4 KB). §10 #30 fixed in Figma. Storybook: stories now wait for the Inter and icon fonts before rendering, so the a11y check no longer reads an unloaded glyph as text (this caused the intermittent §10 #3 warning failure). |
+| 15 Oct 2026 | 0.2 | **`FinOnlineIndicator` done** (§8 #4, §9.7): 5 sizes (Figma updated from 7), `fg-success` dot with a 1px `fg-inverse` ring outside, `label` "Online" by default. **FinAvatar `online`** (§9.4): indicator at the bottom-right corner, 2px in at 64/96 (after checking Atlassian's avatar presence), size mapped per avatar size; status added to the avatar's name. FinAvatar no longer clips; the photo is rounded instead. §10 #32 (white frame fill) and #33 (placement not in Figma) added. |
+| 15 Oct 2026 | 0.2 | DESIGN.md review: §9.4 updated for `online` (variants row, circle no longer clipped, photo rounded, API example, accessibility); §9 Storybook grouping includes Online indicator; §8 #29 mentions `online`; §10 #6 records the 2px/2px focus ring; status note lists open §10 #31–#33. |
+| 15 Oct 2026 | 0.2 | **`FinBadgeIndicator` done** (§8 #3, §9.8): `count` → dot / circle (1–9) / pill (10+, "99+" over `max`), hidden at 0; `tone` error/warning/success; `size` small/large; `label`. Small Single 16 (Figma updated from 14). Figma heights kept. Known contrast failures (Light Yellow, Light Green, Dark Red) built as Figma and excluded from the a11y check only for those badges and themes (§10 #3). |
+| 15 Oct 2026 | 0.2 | `Tag-base` renamed `Badge-base` in Figma (`30:1454`); code name `FinTagBase` → `FinBadgeBase`. §7.2 and §8 #20, #35, #51 updated. |
+| 15 Oct 2026 | 0.2 | **`FinBadgeBase` done** (§8 #20, §9.9): `size` small/large, label as `children` (one line, "…" in narrow containers), `leadingIcon`/`trailingIcon` (none by default, decorative, inherit the label color). Figma base colors only; the Badge-primary tones go into this base's CSS when FinBadge is built. |
+| 15 Oct 2026 | 0.2 | **`FinBadge` done** (§8 #35, §9.10): mapped from FinBadgeBase (always Small, passes `tone`, label and optional leading/trailing icons; no CSS of its own). FinBadgeBase gets `tone` and the 8 tone styles (fill, text, 1px inside border as an inset shadow), §9.9 updated. Figma: `brand` state removed and the Error variant's outer stroke fixed by design; `brand` dropped from §10 #21. `disabled` tone kept as designed, a documented a11y exception. |
+| 15 Oct 2026 | 0.2 | §7.2 rule 4: **bases are internal unless DESIGN.md says otherwise**. FinBadgeBase no longer exported from `@finspace-loyalty/ui`; its stories moved to **Internal/Badge base** (Playground removed); FinBadge is the public badge. Tone list defined once (`FIN_BADGE_TONES`, `FinBadgeTone`), re-exported by FinBadge. New `test/public-api.test.ts`. Figma check: only Badge-primary uses Badge-base; Table cell uses Badge-primary (§8 #51 corrected). |
+| 15 Oct 2026 | 0.2 | **`FinIndicatorDot` (internal) and `FinPageIndicator` done** (§8 #5, #41, §9.11, §9.12): `count` (no maximum), `active`; clickable with `onChange` as a radio group (one tab stop, arrows/Home/End), Figma spacing kept with the WCAG 2.5.8 equivalent-control exception documented. Selected pill 24 (Figma 22, §10 #35); raw radius 8 → `Radius-Full`. Light dot contrast added to §10 #3. Badge tone list moved to its own file (`badgeTones.ts`). §10 #34 added. |
+| 15 Oct 2026 | 0.2 | **`FinOverlay` done** (§8 #7, §9.13): Desktop only, responsive (`position: fixed; inset: 0`, fills the window at any size), `--fin-alpha-md` as in Figma, decorative, optional `onClick`; no z-index. §3.3: `Alpha-md` is the scrim (was wrongly `Alpha-both`). Rule for Dialog box and Side sheet (§8 #67, #68): stacking added when built; the page behind doesn't scroll while they're open. |
+| 15 Oct 2026 | 0.2 | `Switch` renamed `Toggle` in Figma (`34:2545`); code name `FinSwitch` → `FinToggle` (§8 #8). |
+| 15 Oct 2026 | 0.2 | **`FinToggle` done** (§8 #8, §9.14): native checkbox with `role="switch"`, `checked`/`defaultChecked`/`onChange`/`disabled`, `size` small/large, required visually hidden `label`. Figma updated by design (Large 56, handle `fg-white_both`, off track `fg-placeholder`, disabled on-track `bg-disabled`). Off-track Light contrast logged in §10 #3; Toggle focus ring 2px/1px noted in §10 #6. |
+| 15 Oct 2026 | 0.2 | **`FinRadio` done** (§8 #9, §9.15): native radio, public despite the Figma "Base" name (§7.2 exception), visually hidden `label`, Hovered/Pressed via `:hover`/`:active` (Figma updated: Hovered `bg-active`, Pressed `bg-active-hover`), default focus ring 2px/2px. Unselected-ring contrast logged in §10 #3. Figma's stray "Frame 2" mock removed by design. |
+| 15 Oct 2026 | 0.2 | Progress page re-checked: `Progress bar-portfolio` removed from Figma (§8 #11 marked removed; `Fillted` dropped from §10 #21); `Progress-progress bar` renamed `Progress-full` (§8 #44, code name `FinProgress` → `FinProgressFull`, §7.2 updated); Progress bar's exact Filled values recorded (§8 #10). dragger, Spinner and Progress-Spinner unchanged. |
+| 15 Oct 2026 | 0.2 | **`FinProgressBar` done** (§8 #10, §9.16): public base (§7.2 exception), `value` (any, clamped) with `max` (default 100), `size` large/small, required `label`; fills its container; `role="progressbar"`. Fill radius from the `Tokens` library mapped to `Radius-XS`. |
+| 15 Oct 2026 | 0.2 | **`FinSpinner` done** (§8 #13, §9.17): public base; `value` → still ring (clockwise from 12 o'clock, exact), no value → spinning loader (1s linear, still with reduced motion; first animation, §5 exception), `status` success/error with FinIcon; Figma sizes kept. Progress-Spinner (§8 #45) waits for Text Box. |
+| 15 Oct 2026 | 0.2 | `dragger` renamed `slider` in Figma; code name `FinDragger` → `FinSlider` (§8 #12). **`FinSlider` done** (§9.18): native range input restyled, `min`/`max`/`step` (0–100 by default, set by the screen), standard slider geometry, fills its container, visually hidden `label`, disabled with the disabled tokens. |
+| 15 Oct 2026 | 0.2 | **`FinLabel` done** (§8 #21, §9.19): `size` medium/small, one line with "…", `badge` (FinBadgeIndicator dot before the text) with a required `badgeLabel` (meaning varies by screen, so no default; read after the text), `htmlFor` → real `<label>`. |
+| 15 Oct 2026 | 0.2 | **`FinHelperText` done** (§8 #22, §9.20): `tone` (Figma `State`), Figma icons per tone (`info`, `check_circle`, `warning`, `warning`, `info`), `showIcon`, wrapping text, `announce` (`role="alert"`, off by default; `aria-describedby` is the default link). `disabled` tone a documented a11y exception. §10 #36 added (Success icon not linked to Show Leading Icon). |
+| 15 Oct 2026 | 0.2 | **`FinTextBox` done** (§8 #36, §9.21): `type` h1–h6 (look), `align`, `label` (FinLabel Medium) / `heading` / `description` shown when passed, `headingLevel` (structure only, defaults to `type`), label badge exposed as in Figma (`labelBadge` + required `labelBadgeLabel`). No gap under the label, as Figma. Progress-Spinner (§8 #45) and Progress-full (§8 #44) are now unblocked. |
+| 15 Oct 2026 | 0.2 | `FinTextBox`: `labelSize` (medium/small, default medium) added, following Figma's exposed Label (§9.21). |
+| 15 Oct 2026 | 0.2 | §7.3 **Figma ↔ code parity rules** added (every Figma control, including exposed nested ones, has a matching prop; names differ only by the listed patterns; option values keep Figma's names in lower case; code-only props only for behaviour/accessibility; anything else flagged first). One-line "Figma → code names" notes added to §9.1–9.21; §9 template now asks for a full Figma → code table. Differences outside the patterns listed in §10 #37 for a decision. |
+| 15 Oct 2026 | 0.2 | §10 #37 deferred to the end of the build at design's request. |
+| 15 Oct 2026 | 0.2 | Figma renames: `Progress-full` → `bar-with-text` (§8 #44, code name `FinBarWithText`), `Progress-Spinner` → `spinner-with-text` (§8 #45, `FinSpinnerWithText`); §7.2, §9.16, §9.17, §9.21 updated. |
+| 15 Oct 2026 | 0.2 | **`FinBarWithText` done** (§8 #44, §9.22): FinProgressBar (large) + FinTextBox (H3, centre); `value` (any, §10 #37), `heading`, `description`, `headingLevel`; spans the middle 6 of 12 grid columns of its container (608 in a 1240 content area). First spec with a full Figma → code table. |
+| 15 Oct 2026 | 0.2 | **`FinSpinnerWithText` done** (§8 #45, §9.23): FinSpinner + FinTextBox (H3, centre); `status` / `value` (§10 #37), loader added at design's request, `heading`, `description`, `headingLevel`; spans the middle 6 grid columns. |
+| 15 Oct 2026 | 0.2 | Bar with text / Spinner with text stories: the demo content area is now the full window minus the grid margins (it was a fixed 1240 box on the left), so the components show centred and responsive in Storybook. |
+| 15 Oct 2026 | 0.2 | **`FinCaption` done** (§8 #6, §9.24): `size` small/medium/large, `thickness` heavy (Label styles) / light (Body styles), `text-tertiary`, wraps. Storybook under Components/List. Figma → code: same names and options, nothing flagged. |
+| 15 Oct 2026 | 0.2 | End-of-day check: all 24 components (22 public, 2 internal bases) are on `main` and GitHub, each with §8 ✅ and a §9 spec. CLAUDE.md updated with today's ways of working: plan first with a Figma → code table, the §7.3 parity rules, internal bases, Storybook grouped by Figma page, merge only after approval and when every check passes. |
+| 19 Oct 2026 | 0.2 | **`FinButtonBase` built** (§8 #23, §9.25), internal: Figma `Type` → `variant` (avoids the native `type`), four sizes, leading/trailing icons, `showLabel` (hidden label still names it), 2px focus ring at -1px. §10 #3: button hover/pressed contrast accepted, Secondary/Tertiary on `bg-secondary` added. Added §10 #38 (XSmall Tertiary Pressed uses the hover token) and #39 (Dark text/icon hovered and pressed swapped). Figma's raw `Primary-400` binding fixed by design. |
+| 19 Oct 2026 | 0.2 | §10 #39 fixed: new export, Dark `text-hovered` Primary-200 → Primary-300 and `text-pressed` Primary-300 → Primary-200, matching `fg-*` and `border-*` (Light unchanged). §3.3 updated. Token build still 432 variables. Buttons re-checked in Dark: label and icon now match on hover and press; Secondary/Tertiary hover contrast 3.91:1, pressed 4.09:1 (hover/pressed accepted, §10 #3). |
+| 19 Oct 2026 | 0.2 | `FinButtonBase` approved by design and merged into `main`. Hover/pressed contrast stays accepted (enabled is what matters). §10 #38 re-checked: Figma's XSmall Tertiary Pressed still uses `bg-active-hover`; code is unaffected (uses the pressed token). |
+| 19 Oct 2026 | 0.2 | **`FinWhiteButton` built** (§8 #24, §9.26): public, a thin wrapper of FinButtonBase with the new internal `variant="white"` (§7.2 note: white-button and Destructive-button are built on the base in code). Base gains `--button-border-width` (White 1px, Secondary 2px). Figma rebound by design: `bg-action-inverse`, `text/fg-dark_both`, Secondary hover/pressed colors, `Show Label` on Disabled. Focus ring matches the other buttons. §10 #40 added (Small/XSmall border). |
+| 19 Oct 2026 | 0.2 | `FinWhiteButton` made **internal**: white-button and Destructive-button are bases inside `all-button`, like Base-button (§7.2); FinButton will be the only public button. Stories moved to Internal/White button. Button Playground controls now mirror Figma: Show Leading / Trailing Icon toggles with an icon picker, Show Label (stories only). |
+| 19 Oct 2026 | 0.2 | `FinWhiteButton` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinDestructiveButton` built** (§8 #25, §9.27), internal: FinButtonBase gains `destructive` and `destructive-secondary`; the wrapper's `variant` is Figma `Type` (Primary/Secondary). Figma fixed by design before the build (Medium Primary `bg-error`, XSmall Secondary Hovered `bg-error_secondary`, Show Label on Disabled). Focus ring matches the other buttons. |
+| 19 Oct 2026 | 0.2 | `FinDestructiveButton` approved by design and merged into `main`. Agreed: `all-button` `Type` gains White and Destructive. |
+| 19 Oct 2026 | 0.2 | **`FinButton` built** (§8 #34, §9.28), the only public button: `tone` (new Figma `Tone`: Normal / White / Destructive) × `variant` (Figma `Type`), `size`, `icon` (Figma `Icon`) + `iconName`; invalid combinations are type errors. FinButtonBase gains `iconOnly` (square padding). §7.2 updated. §10 #41–43 added. |
+| 19 Oct 2026 | 0.2 | Buttons with one icon looked uneven (the icon's whitespace made its side look wider). Design overrode `all-button` Leading/Trailing padding: icon side 16 (Large, Medium) and 12 (Small, XSmall). FinButtonBase gains internal `iconSide`, set only by FinButton, so Base, White and Destructive stay as their Figma sets. |
+| 19 Oct 2026 | 0.2 | `FinButton` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | New export: `border-strong` Light Tertiary-300 → Tertiary-400 `#818181`, Dark Tertiary-500 → Tertiary-200 `#b7b7b7` (§3.3). Fixes the checkbox and Radio ring contrast (§10 #3, §9.15); the Secondary badge border changes with it. Token build still 432 variables. |
+| 19 Oct 2026 | 0.2 | **`FinCheckboxBase` built** (§8 #26, §9.29), internal: native checkbox, `indeterminate`, hidden `label`; Figma added Pressed and new hover colors. Box 18 derived as `Size-24 − Space-S` (no 18 token, decided 19 Oct 2026). |
+| 19 Oct 2026 | 0.2 | `FinCheckboxBase` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinCheckbox` built** (§8 #37, §9.30), public: FinCheckboxBase on the left + FinTextBox description, named with `aria-labelledby`, text click toggles. Decided: checkbox only on the left, text from Text Box, the base's ring only. FinTextBox gains `disabled` (§9.21); FinCheckboxBase `label` is optional when the input is named another way (§9.29). §10 #44 added. |
+| 19 Oct 2026 | 0.2 | FinCheckboxBase icon `fg-inverse` → `fg-white_both` (white in both themes), following Figma. Dark hover/pressed icon contrast drops to 2.70 / 1.91 (accepted with hover/pressed, §10 #3). |
+| 19 Oct 2026 | 0.2 | `FinCheckbox` (and the white checkbox icon) approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinChipBase` built** (§8 #27, §9.31), internal: `variant`, `size`, `leadingIcon` / `leadingAccessory` (slot), `trailingIcon`; visual only (interaction comes with FinChip). Selected text contrast accepted (§10 #3). §10 #45 added. |
+| 19 Oct 2026 | 0.2 | `FinChipBase` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **Three chips built** (§8 #38, §9.32), public: FinAssistChip (action, optional dropdown arrow, Selected while open), FinFilterChip (toggle, `aria-pressed`), FinInputChip (value with a ✕ button, Delete / Backspace). FinChipBase gains the Chips states (Hovered, Pressed, Disabled), `as="button"` and a trailing slot (§9.31). §10 #46 added. |
+| 19 Oct 2026 | 0.2 | Chip Playgrounds get Figma-style leading-accessory controls (none / icon / avatar, icon picker, avatar initials) from one shared helper; Chip base gets an "Avatar in the slot" story. §10 #47 added (avatar size in chips). |
+| 19 Oct 2026 | 0.2 | The three chips (FinAssistChip, FinFilterChip, FinInputChip) approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinSegmentBase` built** (§8 #28, §9.33), internal: a native button, `selected`, `leadingIcon` (icons only), Figma's new Hovered and Pressed. Raw `Primary-400` removed by design. §10 #48 added. |
+| 19 Oct 2026 | 0.2 | `FinSegmentBase` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinSegmentedButton` built** (§8 #40, §9.34), public: a radio group of FinSegmentBase segments on a track; `options` (at least 2, per-option `disabled`), `value` / `defaultValue` / `onValueChange`, `disabled`, `name`. |
+| 19 Oct 2026 | 0.2 | `FinSegmentedButton` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **Flags decided:** artwork from the open-source `flag-icons` (lipis, MIT), self-hosted and loaded per flag; code is the source of truth (like icons); Figma's `Flag icons` / `Flag sizes` are visual reference only, nothing exported or changed in Figma (§6.1, §8.5). §10 #25 stays open but doesn't block flags. Payment icons planned separately. |
+| 19 Oct 2026 | 0.2 | **`FinFlag` built** (§9.35), public: `flag-icons` 7.5.0 (MIT, pinned, dev dependency), 249 ISO countries + XX fallback, both shapes, five sizes from tokens (Small 21.33 × 16, 4:3 kept), Disabled as opacity 0.4, `decorative`, alt text the country name. Each flag is its own lazily loaded file. `pnpm icons` now also copies the flags (`scripts/copy-flags.ts`). |
+| 19 Oct 2026 | 0.2 | `FinFlag` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinCountrySelector` trigger built** (§8 #30 🟨, §9.36), internal under Internal/Input field: Small FinFlag and down arrow, named "Country, {name}", temporary focus ring. The country menu waits for the List component (§10 #19, new #49). Decided: flags stay 4px / 1px at every size; "Show icon" removed in Figma. |
+| 19 Oct 2026 | 0.2 | `FinCountrySelector` trigger approved by design and merged into `main` (menu still to come, §8 #30 🟨). |
+| 19 Oct 2026 | 0.2 | **`FinPaginationItem` built** (§8 #15, §9.37), internal: a page button (`selected` → `aria-current`), or `variant="dots"` ("…", hidden); press keeps the hover look; default focus ring; no disabled; Selected contrast accepted. |
+| 19 Oct 2026 | 0.2 | `FinPaginationItem` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinRowCountSelect` trigger built** (§8 #31 🟨, §9.38), internal under Internal/Pagination: "Rows per page: 10" pill, press keeps the hover look, default focus ring; the menu waits for the List component (§10 #49). Pagination item's stories moved to Internal/Pagination. |
+| 19 Oct 2026 | 0.2 | `FinRowCountSelect` trigger approved by design and merged into `main` (menu still to come, §8 #31 🟨). |
+| 19 Oct 2026 | 0.2 | **`FinPagination` built** (§8 #47, §9.39), public under Components/Pagination: previous / next arrows drawn in its own CSS (no change to the approved buttons or Figma), at most 7 items with dots, controlled or uncontrolled, focus moves to the current page when an arrow disables. `chevron_left` added to `finIcons` (§6.4). §10 #28: Pagination group's `Space-6XL` isn't used in code. |
+| 19 Oct 2026 | 0.2 | `FinPagination` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinTableFooter` built** (§8 #73, §9.40), internal under Internal/Table: summary and Row count dropdown on the left, FinPagination on the right; pages and summary from `totalRows` / `rowsPerPage`; "Showing 0 of 0 entries" when empty; wraps when narrow; the summary is a polite live region. No change to the approved parts. |
+| 19 Oct 2026 | 0.2 | `FinTableFooter` approved by design and merged into `main`. |
+| 19 Oct 2026 | 0.2 | **`FinTableHeaderCell` built** (§8 #50, §9.41), internal under Internal/Table: a `<th>` with Figma's `Type` (White / Grey), `checkbox`, `showTitle`, Slot (`children`) and `trailingIcon`; arrow display-only, no hover. Figma's raw arrow `#626262` → `fg-secondary`. §10 #3: Grey title in Dark 4.08:1 (to decide). §10 #50 added (sort and filter design). |
+| 19 Oct 2026 | 0.2 | `FinTableHeaderCell` approved by design and merged into `main` (Grey title in Dark, §10 #3, still to decide). |
+| 20 Oct 2026 | 0.2 | `Title row` renamed `Header row` in Figma (§8 #72, node `3151:15203`); code name `FinTableHeaderRow` unchanged. |
+| 20 Oct 2026 | 0.2 | **`FinTableHeaderRow` built** (§8 #72, §9.42), internal under Internal/Table: a `<tr>` with Figma's `Select Cell` (Grey select cell, "select all" checkbox) and `Cell Slot` (`children`); Figma typos `Select Sell` / `Sell Slot` fixed in Figma. Decided: header cells are Grey; the row fills the table and FinTable owns column widths (fixed, flexible, minimum; horizontal scroll; "…"), recorded in §8 #74. §10 #3: Grey title in Dark accepted. |
+| 20 Oct 2026 | 0.2 | `FinTableHeaderRow` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **`FinTableCell` built** (§8 #51, §9.43), internal under Internal/Table: a `<td>` with Figma's `Type` (Default / Badge / Link), leading accessories (row checkbox), content and action button. Decided: `badgeTone` for the nested badge; Link is a real link (`linkAs` for routers), underlined; the action is a 24 icon-only button; the Content slot takes any component. Figma raw values → tokens: text size 14 → Body/Medium, icon `#5953E8` → `fg-action`. §10 #21: Table row `Sells Slot` and `Property 1`. |
+| 20 Oct 2026 | 0.2 | `FinTableCell` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **`FinTableRow` built** (§8 #71, §9.44), internal under Internal/Table: a `<tr>` with Figma's `State` (Hovered in CSS, Selected `selected`), `Select Cell` and `Cell Slot`; Figma renamed `Property 1` → `State` and `Sells Slot` → `Cell Slot` (removed from §10 #21). Decided: a Selected row's checkbox is ticked; `onRowClick` opens details, and interactive content in the row does its own job; hover fills the whole row; §10 #3: Selected + hover in Light, and a link on a Selected row, accepted. |
+| 20 Oct 2026 | 0.2 | `FinTableRow` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **`FinTable` built** (§8 #74, §9.45), **public** under Components/Table: header row, rows and footer with pagination from columns and rows as data. Decided: fixed / flexible / minimum column widths with sideways scroll; "select all" on the current page, selection kept across pages; row click opens details, and while any row is selected a row click selects it; rows per page 10; no empty state yet; 16 above the footer; no outer border. **Rule:** the last row never has a line under it (FinTableRow, §9.44). |
+| 20 Oct 2026 | 0.2 | `FinTable` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | Side nav `24px` renamed `Icon` in Figma (§8 #32, node `3138:10976`); §10 #20 fixed. Code name `FinSideNavIcon` unchanged; internal. |
+| 20 Oct 2026 | 0.2 | **`FinSideNavIcon` built** (§8 #32, §9.46), internal under Internal/Side nav: FinIcon 24, `selected` (filled, `fg-active`) or not (outlined, `fg-secondary`), icon by `name`. Figma raw colors → tokens. §10 #51 added (icon swap, filled Selected, raw colors). |
+| 20 Oct 2026 | 0.2 | `FinSideNavIcon` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **`FinSideNavSubItem` built** (§8 #33, §9.47), internal under Internal/Side nav: a link with Figma's `state` (Hovered / Pressed in CSS, Selected `selected` + `aria-current`); Figma renamed `Property 1` → `state`. Decided: transparent Default, Selected unchanged on hover, one line with "…". |
+| 20 Oct 2026 | 0.2 | `FinSideNavSubItem` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **`FinSideNavItem` built** (§8 #48, §9.48), internal under Internal/Side nav: Figma's `State` (Selected - BG / Selected → `selected`), `Expanded`, `Type` and Expanded Slot; a button with sub items, a link without; chevron by open / closed. Side Menu read to confirm Selected vs Selected - BG and one open section. §10 #52 added (raw chevron colors, chevron direction, `Show dropdown`). §10 #3: a Selected section's label (`text-action` on `bg-secondary`, 4.32:1) accepted. |
+| 20 Oct 2026 | 0.2 | `FinSideNavItem` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **Rule (§7.2): bases have no interaction states**; they belong to the components built on them. §10 #49 updated. |
+| 20 Oct 2026 | 0.2 | **`FinListItem` built** (§8 #59, §9.49), internal under Internal/List: Figma's `Size`, leading / trailing accessory slots, top label, title with a swappable extra icon, body slot and divider; no states. §10 #19 fixed for List-base (Figma updated: extra icon is the Icon sizes `20px`, top label icon removed). Small title → Label/Medium. |
+| 20 Oct 2026 | 0.2 | `FinListItem`: without a body, the title and trailing accessory are centred on the leading accessory; **rule: the last of several items shown together has no divider**; `as="li"` for lists (§9.49). |
+| 20 Oct 2026 | 0.2 | **List rule extended:** the last of several list items has no divider **and gets 16 (`Space-XL`) of bottom padding** (FinListItem, so every list on List-base; §9.49). |
+| 20 Oct 2026 | 0.2 | `FinListRadio` / `FinListRadioGroup` and the last-item padding rule approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **`FinListCheckbox` and `FinListCheckboxGroup` built code first** (§8 #60c, §9.54), **public** under Components/List: the radio list's twin with checkboxes; `indeterminate` for "select all". FinCheckboxBase: `focusRing`. §10 #55 added (add it to Figma). |
+| 20 Oct 2026 | 0.2 | `FinListCheckbox` / `FinListCheckboxGroup` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **`FinListToggle` built** (§8 #60d, §9.55), **public** under Components/List: List-toggle as a control row on List-standard, the toggle on the right; on has no fill (as Figma); no group. FinToggle: `focusRing`. |
+| 20 Oct 2026 | 0.2 | `FinListToggle` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **Filled lists built code first** (§8 #60e, §9.56): `FinListStandardFilled`, `FinListRadioFilled`, `FinListCheckboxFilled`, `FinListToggleFilled` on List_fill-base, sharing the plain rows; Selected = 1px `border-active`, no fill; standard filled always clickable with the chevron. Storybook: Components/List/Plain and Components/List/Filled. §10 #56 added. |
+| 20 Oct 2026 | 0.2 | Filled lists approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | List fill base is a new component in Figma: `List_fill-base` `3494:14233` (was `List-fill-base` `3169:6327`); §8 #60 updated, §10 #19 fixed for it, §10 #53 added (Small ignores `Show leading accessory`). |
+| 20 Oct 2026 | 0.2 | **`FinListItemFilled` built** (§8 #60, §9.50), internal under Internal/List: FinListItem in a frame (`bg-primary`, inset `border-subtle`, `Radius-L`, padding `Space-XL`), no divider, avatar by default. Decided: filled items together sit 12 (`Space-L`) apart. |
+| 20 Oct 2026 | 0.2 | List-standard added to the inventory (§8 #60a, `3491:5292`). |
+| 20 Oct 2026 | 0.2 | **`FinListStandard` built** (§8 #60a, §9.51), **public** under Components/List, on FinListItem: Figma's `State` (Hovered in CSS, `selected`, `disabled`), `Description`, `Chevron`, `Leading accessory` (none / icon / flag / avatar; Payment later), `Trailing accessory` (caption) and Size; `behavior` static / link / button / option per scenario; standard focus ring, no pressed look. FinDivider: `--divider-color` hook (no visual change). §10 #54 added; §10 #3: Selected+hovered and the Dark Selected caption accepted. |
+| 20 Oct 2026 | 0.2 | List-standard Disabled chevron fixed in Figma (`fg-disabled`); code updated (§10 #54). `FinListStandard` approved by design and merged into `main`. |
+| 20 Oct 2026 | 0.2 | **Payment icons decided** (§6.1, §8.5): logos from Shopify's `activemerchant/payment_icons` (MIT, `v1.7.69` pinned, copied by `pnpm payment-icons` and committed), own logos in `src/payment/custom/` (template in §8.5), our Default card in code; Bitpay, Verifone, IPS dropped. |
+| 20 Oct 2026 | 0.2 | **`FinPaymentIcon` built** (§9.52), **public** under Components/Payment icon: `method`, `size` (16 / 24 / 32 / 48 tall on a 38 × 24 card), `disabled` (opacity 0.4), `label` / `decorative`; registry `finPaymentMethods`. List-standard's Payment accessory added (`paymentMethod`); §10 #54 (3) done. |
+| 20 Oct 2026 | 0.2 | `FinPaymentIcon` approved by design and merged into `main` (Default card follows the tokens in Dark, as built). |
+| 20 Oct 2026 | 0.2 | **`FinListRadio` and `FinListRadioGroup` built** (§8 #60b, §9.53), **public** under Components/List: List-radio_button on List-standard as a control row; native radios in a named `radiogroup`; the whole row chooses; the focus ring around the row. List-standard: `trailing`, `labelFor`, `titleId`, `descriptionId` (control rows). FinRadio: `focusRing` (off in list rows). |
+| 20 Oct 2026 | 0.2 | `FinListItem` and `FinListItemFilled` approved by design and merged into `main`. |
+| 21 Oct 2026 | 0.2 | **`FinSideNav` built** (§8 #70, §9.57), **public** under Components/Side nav/Side menu: `sections` + `currentHref` (Figma `Menu`), `type` / `defaultType` / `onTypeChange` (collapsed below 1280 by default), `logo` slot (no logo yet; a placeholder in the stories), `profile`, `linkAs`. Only the active section open; Minimized expands on a section click. Width transition approved (§5 exception). No right border. `image` icon added (§6.4). §10 #22 fixed in Figma, #25 updated, #57 added. |
+| 21 Oct 2026 | 0.2 | `FinSideNav` approved by design and merged into `main`. |
+| 21 Oct 2026 | 0.2 | Spacing rule added (§2 rule 4): stacked input fields are 24 apart (`Space-3XL`). |
+| 21 Oct 2026 | 0.2 | **`FinInputBase` built** (§8 #52, §9.58), internal under Internal/Input field/Input field base: every Figma property (`variant`, `error`, `label`, `placeholder`, `prefix`, `suffix`, `leading`, `trailing`, `helperText`, `country`, `control`); the states (from Input field-standard and -password) in the base's CSS; the label notch shows the surface behind it. §10 #58 added. |
+| 21 Oct 2026 | 0.2 | Input field-base resized in Figma: box 48 (was 56), padding 12 / 16; Mobile number content 8 after the divider. `FinInputBase` updated (§9.58). |
+| 21 Oct 2026 | 0.2 | `FinInputBase` Small size (code only, Figma doesn't have it yet): `size="small"`, a 40 box, padding 8 / 16, 20 icons, same text; Large (48) stays the default. FinCountrySelector gets `size` for it (§9.36, §9.58). |
+| 21 Oct 2026 | 0.2 | `FinInputBase` approved by design and merged into `main`. |
+| 21 Oct 2026 | 0.2 | **`FinTextField` built** (§8 #53, §9.59), public under Components/Input field/Text field, on FinInputBase: `variant` (Default / Mobile number / Payment), `trailingIcon`, `error`, `size`; Mobile number's dial code from `libphonenumber-js` (`finDialCodes`, new dev dependency, `pnpm dial-codes`, §6.1); Payment's logo from FinPaymentIcon, its brand from the number, the digits grouped as typed. FinInputBase: the Mobile number divider starts under a visible label. Label and Helper text stories use FinTextField. §10 #58 (5)–(7) added. |
+| 21 Oct 2026 | 0.2 | `FinTextField` approved by design and merged into `main`. |
+| 21 Oct 2026 | 0.2 | **`FinPasswordField` built** (§8 #54, §9.60), public under Components/Input field/Password field, on FinInputBase: `showPassword` / `defaultShowPassword` (the eye button, named by its action, no hover, a click keeps focus in the input, Tab focus stays on it), `error`, `size`, `autoComplete` default `current-password`. |
+| 21 Oct 2026 | 0.2 | `FinPasswordField` approved by design and merged into `main`. |
+| 21 Oct 2026 | 0.2 | **`FinSearchField` built** (§8 #57, §9.61), public under Components/Search/Search field, on FinInputBase (new `showLabel`, Figma `Show Label`): the label never shown, a `search` icon, a clear button (filled `cancel`, Escape too), the base's hover and focus. Search's `Sticky` and shadow removed in Figma by design. FinSelectField and FinMultiSelectField on hold until the menus. |
+| 21 Oct 2026 | 0.2 | `FinSearchField` approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | **`FinHeaderNotificationButton` built** (§8 #49, §9.62), public under Components/Header/Header notification, after design fixed the set (§10 #17) and added Pressed and Notification=None: `notification` none / dot / number, `count`, `max`, `label`; a disabled button shows no badge. |
+| 22 Oct 2026 | 0.2 | `FinHeaderNotificationButton` approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | **`FinHeader` built** (§8 #69, §9.63), public under Components/Header/Main header: `heading` (one line, "…"), `bodyContent` slot, back button, notification button. FinTextBox gets the code-only `truncateHeading` (§9.21). |
+| 22 Oct 2026 | 0.2 | `FinHeader` approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | **`FinMenu` built** (§8 #75, §9.64), public under Components/Menu: one menu for every scenario (`kind` action / filter / navigation), any rows in its slot, `FinMenuDivider`, `footer`, placement 4 from the trigger with Floating UI (new dependency, approved), window-bound height or `maxHeight`, widths. New **`Shadow/Menu`** (`--fin-shadow-menu`, Sticky values; §4.2), code first. List rows gain `divider` and List-standard `behavior="menuitem"` (§9.51). §10 #59 added. |
+| 22 Oct 2026 | 0.2 | **List rule extended (§9.49):** any list item without a divider gets 16 (`Space-XL`) of bottom padding, not only the last of a group. FinMenu: a filter menu holds one list type (chosen in the stories' controls); the Menu stories' controls rebuilt (each story shows only what it uses). |
+| 22 Oct 2026 | 0.2 | FinMenu: the focus ring shows only with the keyboard. Opened with a pointer (or open by default), focus goes to the menu itself; opened with Enter, Space or the arrow keys, to the first row (§9.64 (8)). |
+| 22 Oct 2026 | 0.2 | `FinMenu` approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | **Rows per page menu built** (§8 #31 ✅, §9.38): FinMenu gains `kind="select"` (list box, type-ahead, chosen option Selected, §9.64); FinRowCountSelect opens 10 / 25 / 50 / 100 (`options`, `onValueChange`; `expanded` removed); FinTableFooter `onRowsPerPageChange`, `rowsPerPageOptions` (replace `onRowsPerPageClick`, `rowsPerPageExpanded`); FinTable `defaultRowsPerPage`, `onRowsPerPageChange`, `rowsPerPageOptions` (a new count keeps the first shown row in view). List-standard option rows take focus (`tabIndex=-1`) with the keyboard ring. |
+| 22 Oct 2026 | 0.2 | **Country menu built** (§8 #30 ✅, §9.36): FinCountrySelector opens a select menu: a small search (by name, ISO code or dial code, names starting with the text first; "No countries found"), every country with a dial code sorted by name, flag + name + dial code caption (`showDialCodes`), the chosen one Selected and in view; as wide as the field, 4 below. FinMenu gains `header` and `anchor` (§9.64). FinInputBase / FinTextField: `onCountryChange`, `showDialCodes` replace `onCountryClick`; FinTextField gains `defaultCountry` (the dial code follows the chosen country). |
+| 22 Oct 2026 | 0.2 | Country menu changes (design): the search isn't focused on open (focus on the list; typing moves into the search), placeholder "Search by country or code"; the dropdown arrow points up while a menu is open (country selector and Rows per page); the Mobile number stories use "Mobile number" as label and placeholder. |
+| 22 Oct 2026 | 0.2 | The Rows per page menu and the country menu approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | FinTextField Payment: **at most 16 digits** for every card (design); brands that allowed 19 (Visa, Discover, Maestro, UnionPay, unknown) stop at 16, grouped 4-4-4-4; American Express (15) and Diners Club (14) unchanged (§9.59). |
+| 22 Oct 2026 | 0.2 | Payment field 16-digit limit approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | FinSearchField keeps its placeholder when focused (design), also in the country menu: FinInputBase hides the placeholder on focus only when its label is visible (§9.61). FinPasswordField and FinSearchField no longer take the country props (`onCountryChange`, `showDialCodes`). |
+| 22 Oct 2026 | 0.2 | The search placeholder fix approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | **Table sort and filter built** (code first, design's brief; §9.41, §9.65, §8 #76): sortable columns (the title as a button, `unfold_more` / `arrow_upward` / `arrow_downward`, `aria-sort`), and the kept down arrow as a filter button opening a filter menu (checkboxes, or radios per column; search above 8 values; Reset / Apply); icons `fg-secondary`, purple once clicked. FinTable: column `sortable`, `sortValue`, `filter`; `sort` / `filters` controlled or not, back to page 1 on change. Icons `arrow_downward`, `arrow_upward`, `unfold_more` added. |
+| 22 Oct 2026 | 0.2 | Table filter radios apply on selection (design): no Reset or Apply; a click applies and closes, the arrow keys apply and keep the menu open; an "All" radio clears the filter (§9.65). |
+| 22 Oct 2026 | 0.2 | Table sort and filter (with radios applying on selection) approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | **Table row actions built** (code first, design's brief; §9.66, §8 #77, §10 #60): FinTable `rowActions` (per table or per row), `rowActionsPosition` (end / start after the select column), an empty-headed ⋮ column fixed while the table scrolls sideways, opening an action menu; the ⋮ purple while open. FinTableRow exposes its fill as `--fin-table-row-bg`; FinTableRow / FinTableHeaderRow take `selectCellClassName`. Icon `more_vert` added. |
+| 22 Oct 2026 | 0.2 | Row actions ⋮ works as the icon button (design): XSmall Tertiary Only Icon (32 square, 20 icon) with its hover and pressed fills; grey at rest, purple on `bg-action-secondary` while open; the column 80 wide (§9.66). |
+| 22 Oct 2026 | 0.2 | Table row actions approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | Table cell Link: no side padding, so its text lines up with the header's (it started 16 in); 36 tall (§9.43, §10 #61). |
+| 22 Oct 2026 | 0.2 | Table cell action (the pencil) is the icon button (FinButton Tertiary XSmall, icon only), with its hover and pressed fills (§9.43). The header's filter arrow stays as it is (design). |
+| 22 Oct 2026 | 0.2 | Table cell fixes (the link lines up with the header; the pencil is the icon button) approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | Table: the fixed ⋮ column casts **Shadow/Sticky sideways** while content is scrolled under it (new `--fin-shadow-sticky-end` / `-start`, §4.2; §10 #60). Fixed: a fixed cell hid its row's line; it now draws it (FinTableRow's `--fin-table-row-line`). |
+| 22 Oct 2026 | 0.2 | Assist chip: its "With a menu" story uses FinMenu (a select menu of date ranges) instead of a stand-in list; the dropdown arrow points up while open (§9.32). |
+| 22 Oct 2026 | 0.2 | **Side nav account menu** (code first; §9.57, §10 #62): `profile.menu` opens an action menu from the user row (above it, as wide as the user area) or from the avatar when minimized (beside the nav; new FinMenu placements `right-start` / `right-end`); the chevron becomes a dropdown arrow. Icons `settings` and `logout` added. |
+| 22 Oct 2026 | 0.2 | Side nav user row: hover `bg-tertiary`, pressed `bg-neutral`, the hover fill while its account menu is open, with the nav items' padding and radius (design; fixes §10 #57); its avatar now lines up with the items' icons (§9.57). |
+| 22 Oct 2026 | 0.2 | Approved by design and merged into `main`: the fixed table column's sideways Sticky shadow (and its row line), the Assist chip menu (arrow up while open), and the side nav account menu (with the user row's hover and pressed look). |
+| 22 Oct 2026 | 0.2 | **Pages planned** (§8.6, §4.4; CLAUDE.md "Pages"): real screens from the Figma screens file as Storybook pages in `apps/storybook/src/pages/`, checked at 1920 / 1440 / 1280 / 1024 and in Light and Dark; Programme Configuration first. Nothing built yet. |
+| 22 Oct 2026 | 0.2 | Pages decisions: folder `apps/storybook/src/pages/<area>/` approved; a page shell `FinAppShell` (§8 #79, code only, public, §10 #63) and the table toolbar `FinTableToolbar` (Figma `Table Header`, §8 #78) to plan and build first; Programme Configuration uses the row actions menu and the Assist chip select menu instead of Figma's versions (§8.6); two-tone chip label logged (§10 #64). |
+| 22 Oct 2026 | 0.2 | **`FinTableToolbar` built** (Figma `Table Header`; §8 #78, §9.67), public under Components/Table: `search`, `filters` slot, `actionLabel` / `actionIcon` / `onAction`. `Size-343` now generated (`--fin-size-343`); icon `add` added. |
+| 22 Oct 2026 | 0.2 | **Sentence case** for all text (§2 rule 8; CLAUDE.md "Text: sentence case"); the side nav stories' labels changed to sentence case; Figma's Title Case logged (§10 #65). FinTableToolbar is **internal** (Internal/Table), uses the **Small** search, and is drawn by **FinTable `toolbar`** 32 above the table (§9.45, §9.67). |
+| 22 Oct 2026 | 0.2 | `FinTableToolbar` (internal, FinTable `toolbar`), the pages plan, and sentence case approved by design and merged into `main`. |
+| 22 Oct 2026 | 0.2 | **`FinAppShell` built** (§8 #79, §9.68), public, code only, Components/Layout/App shell: skip link, `nav` / `header` / `main`, the side nav collapsed below 1280 by the shell, the header fixed at the top of the panel with only the content scrolling. Storybook gains the four page widths as viewport options and a Pages section in the sidebar order (§4.4). The side nav stories' remaining Title Case labels changed to sentence case. |
+| 22 Oct 2026 | 0.2 | FinAppShell: `main` is a tab stop (it scrolls on its own; WCAG 2.1.1), with a keyboard-only ring (§9.68). FinSideNav: the minimized avatar's name starts with its visible initials ("OJ, Olivia James"; WCAG 2.5.3), found by the shell's a11y check (§9.57). |
+| 22 Oct 2026 | 0.2 | `FinAppShell` approved by design and merged into `main`. Paused here; next: the Programme Configuration list page (§8.6). |
+| 23 Oct 2026 | 0.2 | **Programme configuration list page built** (§8.6) in `apps/storybook/src/pages/loyalty-management/`, from FinAppShell, FinTable with its toolbar (Small search, the Large Assist chip with a select menu "Segment: All", Add programme configuration) and the row actions menu (View, Edit, Remove). Columns as Figma, in sentence case; Min / Max conversion fixed at 200 so their titles fit at 1920, the rest flexible (at least 176), so the table scrolls sideways below 1920 with the ⋮ column fixed. Shared page shell data in `src/pages/pageShell.tsx` and `PageLogo.tsx`. Storybook resolves `@finspace-loyalty/ui` to source. §10 #66 (Conversion rate link), #67 (Remove icon), #68 (⋮ cell line) logged. |
+| 23 Oct 2026 | 0.2 | Design's answers on the page: the Conversion rate link stays a placeholder until the backend provides it (§10 #66); Remove gets the bin, `delete` added to the icon registry (the unregistered-icon test now uses `bolt`), and a red look for destructive actions is to be planned (§10 #67); FinTable's fixed ⋮ / select cells no longer draw their own row line, which showed 2px; the table's 1px line shows through (§9.45, §10 #68). |
+| 23 Oct 2026 | 0.2 | The Programme configuration list page, the FinTable fixed-cell line fix and the `delete` icon approved by design and merged into `main`. |
+| 23 Oct 2026 | 0.2 | Row actions menu look (design): 240 wide, action icons `fg-secondary`, `destructive` actions in the destructive button's colours (`text-error`, `fg-error`) through a new code-only FinListStandard `tone` (§9.51, §9.66, §9.45 `rowActions`); Remove on the Programme configuration page and Deactivate in the table's Row actions story are destructive (§10 #67). |
+| 23 Oct 2026 | 0.2 | The row actions menu's look (240 wide, `fg-secondary` icons, red destructive actions; FinListStandard `tone`) approved by design and merged into `main`. |
+| 23 Oct 2026 | 0.2 | **`FinButtonDock` built** (§8 #66, §9.69), public, Components/Button dock: accessory, Tertiary / Secondary / Primary buttons (Large; Secondary and Primary share the width; `tone` on Primary and Secondary), `sticky` (Shadow/Sticky, the look only). Design: bottom padding `Space-6XL` 40 (§10 #28), Tertiary first, and the Side sheet's remote divider replaced by our Divider (§10 #25), so the Side sheet is unblocked. |
+| 23 Oct 2026 | 0.2 | `FinButtonDock` approved by design and merged into `main`. Paused here; next: the Side sheet (§8 #67). |
+| 26 Oct 2026 | 0.2 | **`FinSideSheet` built** (§8 #67, §9.70), public, Components/Side sheet: a native modal `<dialog>` on FinOverlay, flush right, full height; width from the layout grid (last 7 / 6 / 5 / 4 columns + margin from 1024 / 1280 / 1440 / 1920, about 600; no `Size-600`); no shadow; back button off by default; grey back / close icons (FinButton code-only `iconTone`, §9.28); scrim click closes (`closeOnOverlayClick`); one-line title with "…"; the body scrolls and the dock turns sticky. Focus goes to the sheet on open. §10 #28: the Side sheet is off it (32 at the top). New §10 #69. |
+| 26 Oct 2026 | 0.2 | `FinSideSheet` approved by design and merged into `main`. Next: the Dialog box (§8 #68). |
+| 26 Oct 2026 | 0.2 | **`FinDialog` built** (§8 #68, §9.71), public, Components/Dialog: a native modal `<dialog>` on FinOverlay, centred; width from the layout grid (8 / 6 / 4 even columns, centred, from 1024 / 1280 / 1920; no size token); at most the window less 24 above and below, the body scrolls; title wraps; grey close icon (`iconTone`); Leading, Secondary and Primary buttons (Medium, as wide as their labels; destructive tone); scrim click closes (`closeOnOverlayClick`). FinSideSheet and FinDialog share `useModalDialog` and `useBodyScroll`: a scrolling body is a focusable region named by the title, in both; the jsdom `<dialog>` stub moved to the test setup. |
+| 26 Oct 2026 | 0.2 | `FinDialog` approved by design and merged into `main`. Next: the Programme configuration page's add (side sheet) and remove (dialog) states (§8.6). |
+| 26 Oct 2026 | 0.2 | **`FinSelectField` built** (§8 #55, §9.72), public, Components/Input field/Select field: on FinInputBase (Select), every state from the base (Disabled and Error too); a button that opens a FinMenu `select` listbox as wide as the field; the arrow up while open; optional `searchable`; disabled with no options; no clear button; `name` sends the value with a form. FinInputBase: `control` can take the field's box, the label has an id. FinTextField: `suffix` (Figma `Show Suffix`). |
+| 26 Oct 2026 | 0.2 | `FinSelectField` approved by design and merged into `main` (after a mouse-opened menu closes, the field goes back to Enabled or Complete). Next: the Programme configuration add side sheet (§8.6). |
+| 26 Oct 2026 | 0.2 | **Programme configuration add built** (§8.6, Figma `312:15899`): Add opens a FinSideSheet with the form (FinSelectField, FinListToggleFilled Small, FinTextField with `suffix`, fieldset legends in Label/Small 12, 16 above the fields, no close button), errors after Save, a saved configuration joins the table. FinSideSheet: the back and close buttons sit at the top of the header, a one-line title still centred (§10 #69 decided). |
+| 26 Oct 2026 | 0.2 | Programme configuration add approved by design and merged into `main` (section titles Label/Small 12, 16 above the fields; no close button). §10 #70 (Max conversion) and #71 (disabled helper text that explains why) parked. Next: the view side sheet. |
+| 26 Oct 2026 | 0.2 | **Programme configuration details built** (§8.6, code first): View or a row click opens a FinSideSheet "<segment> details" ("Staff details", close button) with a two-column FinTable (Attribute / Added record, no hover) and Edit (Primary) / Remove (Secondary, destructive). FinTable gained `footer` and `hover`, FinTableRow `hover` (default on; §9.45). FinSideSheet string titles wrap to two lines, then "…" (FinTextBox `truncateHeading={2}`, §9.21, §9.70). |
+| 26 Oct 2026 | 0.2 | Programme configuration details approved by design and merged into `main`. Next: Edit (the add form with the values and a details area). |
+| 27 Oct 2026 | 0.2 | Programme configuration edit side sheet, details dock (Remove with the bin, hug width; FinButtonDock `leadingIcon`, `width`), Segment column filter, and the remove dialog approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **`FinSnackbar` and `FinSnackbarRegion` built** (§8 #64, §9.73), public, Components/Snackbar: `tone`, `lines`, `showIcon` / `icon` (Neutral `info`), `action`, `onClose`, `duration` (6 s without an action); the region at the top right, 3 grid columns but at least 343, in the top layer, a polite live region. FinButton gained code-only `contentTone` (§9.28). §10 #72–74 logged. |
+| 27 Oct 2026 | 0.2 | Programme configuration removed state (Success snackbar after Remove) approved by design and merged into `main`; every state of the page is done. |
+| 27 Oct 2026 | 0.2 | Programme configuration stories' Rows control (0–60) approved and merged. |
+| 27 Oct 2026 | 0.2 | **`FinEmptyState` built** (§8 #65, §9.74), public, Components/Empty state, from Figma as updated by design today (Small / Medium; Large removed): `size`, `icon` (required) or `iconSlot`, `heading`, `description`, `action` (Primary Small); fills its container and centres a 4-grid-column column in it, across and down. |
+| 27 Oct 2026 | 0.2 | `FinEmptyState` approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **Programme configuration empty states** (§8.6): FinTable gained `empty` (§9.45), shown instead of the table and footer when no rows are left; FinAppShell's content is a column (§9.68 decision 7). No configurations yet (Medium, Add) and no matches (Small, Clear search and filters). |
+| 27 Oct 2026 | 0.2 | Programme configuration empty states approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **Storybook deploy:** `vercel.json` at the repo root (pnpm via Corepack, `pnpm build-storybook`, output `apps/storybook/storybook-static`, framework "Other"). Built from a clean clone and checked when served: fonts, icons, Light and Dark, the Pages section. |
+| 27 Oct 2026 | 0.2 | `engines.node` pinned to `24.x` (was `>=24`), so Vercel can't pick Node 25 or later, which have no Corepack. |
+| 27 Oct 2026 | 0.2 | **Storybook live on Vercel:** production https://loyaltydesignsystem.vercel.app (`main`); each pushed branch previews at `https://loyaltydesignsystem-git-<branch>-sathila.vercel.app` (behind Vercel login). CLAUDE.md Git: push a built component's branch for a preview link and share it with the summary; merge into `main` only after approval. |
+| 27 Oct 2026 | 0.2 | **Tier management page built** (§8.6): Pages/Loyalty management/Tier management, from Figma `52:9930` and the Programme configuration patterns (⋮ menu, search, Status filter, details, edit, remove, removed, empty states). New shared page parts: `RecordDetails` (Programme configuration's details sheet, made generic) and `PendingLink` (a link with no destination yet). |
+| 27 Oct 2026 | 0.2 | Tier management: Level before Tier name, as Figma, and a filter on the Level column (design review). |
+| 27 Oct 2026 | 0.2 | Tier management: the Level field offers every level, as Figma's menu, and several tiers can share a level (was one per level); Many tiers story (12). |
+| 27 Oct 2026 | 0.2 | Tier management approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **`FinNotificationBanner` built** (§8 #63, §9.75), public, Components/Notification banner: `tone`, `title`, `children` (description), `showIcon` / `icon`, `action`, `onClose`; the buttons are FinButton pulled back by their padding to Figma's layout. FinButton `contentTone` gained `secondary`, `info`, `success`, `error`, `warning` (§9.28). |
+| 27 Oct 2026 | 0.2 | `FinNotificationBanner` approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **`FinSkeleton` built** (§8 #80, §9.76), public, Components/Skeleton: text / rect / circle, a `bg-neutral` pulse, still with reduced motion. FinTable gained `loading` and `loadingLabel` (§9.45): skeleton rows, busy, "Loading …" status. |
+| 27 Oct 2026 | 0.2 | `FinSkeleton` and FinTable `loading` approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **Common states built** (§8.6): Pages/Common states, the shared loading, couldn't load, network or server error, back online, couldn't save and couldn't remove states, on Programme configuration (`api` prop). FinTableToolbar gained `actionDisabled` (§9.67); `RecordDetails` gained `actionsDisabled`. |
+| 27 Oct 2026 | 0.2 | Common states approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **Reward catalog list built** (§8.6): Pages/Loyalty management/Reward catalog, from Figma `349:18532`, `410:36648`, `410:37938`, as the other list pages (⋮ menu, search, Status filter, details, remove, removed, empty states, Common states). |
+| 27 Oct 2026 | 0.2 | Values that aren't available show "N/A", not "—" (design review): Reward catalog's Partner, User limit and Users; Programme configuration's Max conversion (`pages/common/format.ts`). |
+| 27 Oct 2026 | 0.2 | Reward catalog list approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **`FinStepper` built** (§8 #81, §9.77), public, Components/Stepper: code first from the Add reward screens; labels centred, done steps green with a checkmark, done steps clickable with `onStepClick`. |
+| 27 Oct 2026 | 0.2 | `FinStepper` approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | **`FinTextAreaBase` built** (§8 #52a, §9.78), internal at first, Internal/Input field/Text area base: FinInputBase's look and states for a multi-line field; grows from 4 to 8 lines, then scrolls; the error helper text has Figma's icon. §10 #17 updated. |
+| 27 Oct 2026 | 0.2 | Approved by design and **made public as `FinTextArea`** (Components/Input field/Text area; one component for Figma's base and field set, no FinTextAreaBase); merged into `main`. |
+| 27 Oct 2026 | 0.2 | **`FinDateField` built** (§8 #82, §9.79), public, Components/Input field/Date field: DD/MM/YYYY typed (masked) or picked with the browser's date picker (for now), YYYY-MM-DD in code, `min` / `max`, its own errors. Icon `calendar_today` added. The text-area set fixed in Figma (§10 #17). |
+| 27 Oct 2026 | 0.2 | FinDateField keeps the format while typing (design review): FinInputBase gained the code-only `mask` (the rest of a hint shown behind the value, §9.58). |
+| 27 Oct 2026 | 0.2 | `FinDateField` approved by design and merged into `main`. |
+| 27 Oct 2026 | 0.2 | `FinSnackbar` approved by design and merged into `main` (region at least 343 wide; Neutral hover `alpha-sm` in Dark; the action button keeps the component's padding). |
+| 28 Oct 2026 | 0.2 | Add reward (design review): every radio and checkbox card group in a grey panel (Give the reward, eligibility Type, Tiers, Segments); card hover kept; the rule note's "Note" title and the rules table's No. column removed. |
+| 28 Oct 2026 | 0.2 | Add reward: **Type and Value in grey panels** (design review; `bg-secondary`, Radius-L, 16 padding, titles Label/Small 12), page CSS `.panel`. Open: card hover matches the panel. |
+| 28 Oct 2026 | 0.2 | **Add reward side sheet built** (§8.6): the list's Add reward opens it (it only reported before); four steps with checks, Save as draft / Publish add the reward at the top with a snackbar, a discard dialog for unsaved changes. Edit comes next. |
+| 28 Oct 2026 | 0.2 | **Add reward planned as a side sheet** (§8.6; decided by design: discard dialog for unsaved changes, Edit with Save, no section numbers). **FinStepper `width="fill"` built** (§9.77), so the four steps fit the sheet's 535–584 body. |
+| 28 Oct 2026 | 0.2 | FinStepper `width="fill"` and the Reward catalog **Add reward side sheet** approved by design and merged into `main`. Next: Edit reward. |
+| 28 Oct 2026 | 0.2 | **Edit reward built** (§8.6): the Add reward sheet with the reward's details, every step clickable, Cancel / Save; FinStepper `doneSteps="all"` (§9.77); Provider and Max total uses optional (rewards with no partner or limit). |
+| 28 Oct 2026 | 0.2 | Edit reward and FinStepper `doneSteps="all"` approved by design and merged into `main`. |
+| 28 Oct 2026 | 0.2 | **Focus areas built** (§8.6, Pages/Gamification/Focus areas): three levels (focus areas, lessons, questions) reached by View, a row click or the count links; question details; add / edit / remove at each level; Published toggles; answer options with Add option. |
+| 28 Oct 2026 | 0.2 | FinEmptyState `leadingIcon` (code only, §9.74): the Focus areas empty states' Add buttons get the plus; the answer options' bin is red (Tertiary `contentTone="error"`). |
+| 28 Oct 2026 | 0.2 | Focus areas and FinEmptyState `leadingIcon` approved by design and merged into `main`. |
+| 28 Oct 2026 | 0.2 | The Loyalty management page stories no longer open at a fixed 1920 viewport: they fill the canvas, as Focus areas (§4.4). |
+| 28 Oct 2026 | 0.2 | Storybook on Vercel: the preview reloads itself once when a file from an older deploy is gone (Safari: "Importing a module script failed"), README "Storybook on Vercel". |
+| 28 Oct 2026 | 0.2 | The page viewport change and the Storybook reload fix approved by design and merged into `main`. |
+| 28 Oct 2026 | 0.2 | **`FinFileUpload` built** (§8 #58, §9.80), public, Components/Input field/File upload: Large / Small × Enabled / Uploading / Complete / Error, one file, drag and drop, type and size checks, XSmall button, the bin for Delete. |
+| 28 Oct 2026 | 0.2 | `FinFileUpload` approved by design and merged into `main`. |
+| 28 Oct 2026 | 0.2 | **Badges built** (§8.6, Pages/Gamification/Badges): list with search and the Status filter, details, add / edit with the icon upload (FinFileUpload) and an Active toggle, remove. |
+| 28 Oct 2026 | 0.2 | FinTable column `leading` (code only, §9.45). Badges: the icon (32) and the name in one Badge name cell, as the screen; the details sheet shows the icon too. |
+| 28 Oct 2026 | 0.2 | Badges: the badge sheet has the close button at the top right and no Cancel (design review). |
+| 28 Oct 2026 | 0.2 | Badges and FinTable `leading` approved by design and merged into `main`. |
+| 28 Oct 2026 | 0.2 | **`FinStatCard` built** (§8 #83, §9.81), public, Components/Stat card: code first from the Reports screens' summary cards. |
+| 28 Oct 2026 | 0.2 | `FinStatCard` approved by design and merged into `main`. |
+| 28 Oct 2026 | 0.2 | **Reports built** (§8.6, Pages/Report management/Reports): summary cards and the customer table (Segment chip, Tier filter); View, a row click or the Active balance opens a customer's points history. The level link is shared (`pages/LevelLink.tsx`); each level's table is new, so it starts at the left. |
+| 28 Oct 2026 | 0.2 | Reports (design review): no Segment filter; the points history gets a Date column and a Duration chip (ranges; custom range later); the next expiry card reads "Expires 31/10/2026" / "1,200 pts", one line. |
+| 28 Oct 2026 | 0.2 | Reports approved by design and merged into `main`. |
+| 28 Oct 2026 | 0.2 | Pages/Common states no longer opens at a fixed 1920 viewport; the empty states' Add buttons on Programme configuration, Tier management and Reward catalog get the plus (FinEmptyState `leadingIcon`), as every page now. |
+| 28 Oct 2026 | 0.2 | The Common states viewport and the empty states' plus approved by design and merged into `main`. |
+| 29 Oct 2026 | 0.2 | **Side nav bases, new spacing** (design's Figma update): FinSideNavIcon 16 (was 24, same icons); FinSideNavSubItem padding 8 / 16 / 8 / 40 (37 tall); FinSideNavItem padding 8 / 12 (37 tall), a 16 chevron with the 12 gap kept, sub items 4 apart, Minimized 40 × 37 (as tall as Full; Figma 40 × 32). FinSideNav itself next (§9.48). |
+| 29 Oct 2026 | 0.2 | The side nav bases' new spacing approved by design and merged into `main`. |
+| 29 Oct 2026 | 0.2 | **Label weight 500** (design's token export): Label L, M and S are Medium (500), were Semi Bold (600). Every component using a Label style follows through the tokens; no component CSS changed. **Side nav icon 20** (FinSideNavIcon; was 16): Main selection's label at 32, Minimized 44 × 37. |
+| 29 Oct 2026 | 0.2 | The side nav chevron is 20 too (FinSideNavItem; was 16; Figma still 16). |
+| 29 Oct 2026 | 0.2 | Label weight 500 and the 20 side nav icon and chevron approved by design and merged into `main`. |
+| 29 Oct 2026 | 0.2 | **FinSideNav, new spacing** (§9.57; design's Figma update): the header 12 above the first item (both types; Figma's Minimized 24), the sections 4 apart (were 8), Minimized 80 wide (was 88: a 48 column). Expanded stays 312. |
+| 29 Oct 2026 | 0.2 | FinSideNav's new spacing approved by design and merged into `main`. |
+| 29 Oct 2026 | 0.2 | **Table parts, new sizes** (design's Figma update): Table header cell and Header row 40 (were 48), Table cell 40 (was 56), Table row 41 (was 57), Row count dropdown padding 4 / 12 and 32 tall (was 8 / 12, 40), Table footer 32 (was 40). FinTable and the pages follow through the parts. |
+| 29 Oct 2026 | 0.2 | **Narrow checkbox and ⋮ columns** (decided by design): the checkbox and ⋮ cells take 16 padding either side (FinTableCell / FinTableHeaderCell `narrow`, code only), so the select column is 56 (was 72) and the ⋮ column 64 (was 80); the data cells keep 24. |
+| 29 Oct 2026 | 0.2 | The table parts' new sizes and the narrow checkbox and ⋮ columns approved by design and merged into `main`. |
+| 29 Oct 2026 | 0.2 | **Side menu 272** (FinSideNav, decided by design; Figma 312): the menu column 240 (was 280), Minimized stays 80. The Side nav part stories use the 240 column. |
+| 29 Oct 2026 | 0.2 | The side menu at 272 approved by design and merged into `main`. |
+| 29 Oct 2026 | 0.2 | **Checkbox border** (FinCheckboxBase; design's Figma update): the unticked, Enabled box is `border-default` (was `border-strong`). Below 3:1, accepted by design (§10 #75). |
+| 29 Oct 2026 | 0.2 | The checkbox's `border-default` border approved by design and merged into `main`. |
+| 29 Oct 2026 | 0.2 | **Table ⋮ column shadow** (FinTable, decided by design): no shadow at rest; the fixed ⋮ column casts Shadow/Sticky only once the table is scrolled sideways (and while content is still under it). The start position already worked this way. |
+| 29 Oct 2026 | 0.2 | The ⋮ column shadow on scroll approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Button dock Small** (FinButtonDock, decided by design, code first): the dock's buttons are Small (40) instead of Large (56); Figma to follow. Every text, select and date field in the side sheet forms (Programme configuration, Tier, Reward, Badge, Focus area, Lesson, Question) is Small (40); text areas keep their size. |
+| 2 Nov 2026 | 0.2 | **Small field text** (FinInputBase Small, decided by design): the value, placeholder, prefix, suffix and date mask are Body/Medium (14 / 21) instead of Body/Large, in the same 24 row, so the box stays 40; icons stay 20, the label Label/Small. Every Small field follows (text, select, date, password, search: the side sheets, the table toolbar, the column filter and menu searches) (§9.58, §9.72). |
+| 2 Nov 2026 | 0.2 | The Small Button dock, the side sheets' Small fields and the Small fields' Body/Medium text approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Smaller header** (decided by design, code first): FinHeader's title is Headline Small-H6 (was H4) and its back button XSmall, 32 × 32 (was Medium, 48), so the header is 77 tall (was 87); FinHeaderNotificationButton is 40 everywhere (20 bell, padding 8, dot 8 in; was 48) (§9.62, §9.63). |
+| 2 Nov 2026 | 0.2 | The smaller header (H6 title, 32 back button) and the 40 bell approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Logo name** (decided by design): the side nav logo placeholder reads "Fintech loyalty" instead of "Company name", in the FinSideNav and FinAppShell stories and every page (PageLogo). Text and tokens, not the PNG, so it works in Light and Dark (§9.57). |
+| 2 Nov 2026 | 0.2 | The "Fintech loyalty" logo name approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Button dock hug** (decided by design, code first): the dock's buttons are as wide as their labels, Tertiary at the start and Secondary and Primary at the right; `width` defaults to `hug` (was `fill`). The details sheets' Edit hugs too (§9.69, §8.6). |
+| 2 Nov 2026 | 0.2 | The hugged Button dock approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Fix** (FinSideNav): minimized, a profile with `href` wraps the avatar in a link, which took the browser's underline under the initials ("OJ"), on every page below 1280. The avatar's link now has no underline, as the expanded row's link already had (§9.57). |
+| 2 Nov 2026 | 0.2 | The minimized side nav avatar underline fix approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Side sheet title H4** (decided by design, code first): FinSideSheet's string title is Headline Large-H4 (24 / 33.6 Bold) instead of Display Small-H3 (28 / 39.2), and the forms' Text Box titles (Programme configuration, Tier, Lesson, Question) follow; description and gap unchanged; still up to two lines. Figma to follow (§9.70). |
+| 2 Nov 2026 | 0.2 | The H4 side sheet titles approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Account menu** (FinSideNav, code first, design's brief): header with the name, email and `profile.role` (neutral FinBadge), My profile, Settings, a Theme row (System / Light / Dark: `desktop_windows`, `light_mode`, `dark_mode`; icon-only menu item radios that keep the menu open), Log out; 320 wide; no leading icons. New code-only options: FinSegmentBase / FinSegmentedButton `iconOnly`, FinSegmentedButton `behavior="menuitemradio"`, FinMenu `headerPadding` and a radio group as one arrow-key stop, menus described by their header. Icons `light_mode`, `dark_mode` added (§6.4, §9.33, §9.34, §9.57, §9.64). |
+| 2 Nov 2026 | 0.2 | **Segmented button Small** (code only, decided by design): FinSegmentBase and FinSegmentedButton `size` `small` (Button/Small, padding Space-XS / Space-L, gaps Space-XS, Radius-S segments in a Radius-M track; 32 tall segments, icon only 28); the account menu's Theme row uses it (100 × 36, the row 68 tall; was 140 × 44 and 76) (§9.33, §9.34, §9.57). Story: Segmented button › Sizes. |
+| 2 Nov 2026 | 0.2 | The account menu and the Small segmented button approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Segmented button XSmall** (code only, decided by design): `size` `xsmall`: 24 tall segments flush on the track (no padding or gap, Radius-S), Button/Small, 16 icons; icon only 24 × 24 (three: 72 × 24). The account menu's Theme row uses it: 56 tall (was 68), the items 53, the closest the 24 × 24 minimum target allows (§9.33, §9.34, §9.57). |
+| 2 Nov 2026 | 0.2 | The XSmall segmented button (as built, Dark look accepted) approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Account menu on the pages**: every page's side nav opens the account menu (Admin role, My profile, Settings, Theme, Log out) instead of linking to `#account`; the Theme row drives the theme toolbar through the `withPageTheme` decorator (§8.6, §9.57). |
+| 2 Nov 2026 | 0.2 | The account menu on the pages approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Side nav tree style** (code only, design's brief): FinSideNav `variant` `default` / `tree` (through FinAppShell's `sideNav`): a 1px `border-subtle` line under the section's icon centre to the middle of its last page, a `Radius-S` connector to 4 before each page's text; CSS only (FinSideNavSubItem pseudo-elements), decorative; none when minimized or closed. §10 #76 to add it to Figma (§9.47, §9.57). |
+| 2 Nov 2026 | 0.2 | Side nav tree lines: `border-default` instead of `border-subtle`, which was too faint (design; 1.36:1 on the nav in Light, 1.54:1 in Dark) (§9.47, §9.57, §10 #76). |
+| 2 Nov 2026 | 0.2 | The side nav tree style approved by design and merged into `main`. |
+| 2 Nov 2026 | 0.2 | **Pages in the tree style**: every page's side nav uses `variant="tree"` (decided by design; `usePageSideNav`) (§8.6, §9.57). |
+| 2 Nov 2026 | 0.2 | The pages in the tree style approved by design and merged into `main`. |
+| 3 Nov 2026 | 0.2 | **Table spacing** (decided by design): FinTable `toolbar` 16 (`Space-XL`) above the table, was 32; FinAppShell content padding 24 (`Space-3XL`) all round, was 36 above. Approved and merged into `main`. |
+| 3 Nov 2026 | 0.2 | **Table: bordered style** (code only, decided by design): FinTable `variant` (`default` / `bordered`), a 1px `border-subtle` line with Radius-S (8) round the header and rows, the toolbar and footer outside it; `FinTableVariant` exported; stories Default and bordered, Bordered; the Playground's `variant` control (§9.45, §10 #77). |
+| 3 Nov 2026 | 0.2 | **Pages in the bordered table style**: every list page's table uses `variant="bordered"` (decided by design; `PAGE_TABLE_VARIANT` in `pageShell.tsx`); side sheet tables stay default (§8.6, §9.45). |
+| 3 Nov 2026 | 0.2 | The bordered table style and the pages in it approved by design and merged into `main`. |
+| 3 Nov 2026 | 0.2 | **FinTooltip** (§9.82, Figma Plain Tooltip): single line and rich, Floating UI in the top layer, 250 ms hover delay, keyboard focus, Escape; FinTextBox `tone="inverse"` (code only, §9.21); §10 #78. Approved and merged into `main`. |
+| 3 Nov 2026 | 0.2 | **Theme row tooltips** (decided by design): System, Light and Dark show their names in single line tooltips on hover and keyboard focus; FinSegmentedButton `tooltips` (code only, §9.34); FinTooltip `describesTrigger` (code only), one open at a time, Escape caught first (§9.82, §9.57). |
+| 3 Nov 2026 | 0.2 | The Theme row tooltips approved by design and merged into `main`. |
+| 3 Nov 2026 | 0.2 | **Second brand: Burgundy** (§3.10). New export (528 variables): `Alias Colors` has the modes `Finspace` and `Burgundy theme` (only Primary differs), the 7 **Primary dark** aliases (§3.2), and 17 Dark semantic tokens pointing at them (§3.3; Light unchanged). The token build reads brands from the export (`data-brand="finspace"`, the default, and `"burgundy"`), shares the single-mode Alias Typography, generates only the Burgundy scale from the brand's primitive group (§3.1, §3.9). Finspace checked unchanged: every variable resolves to the same value as `main` in Light and Dark. Label L/M/S 500, `bg-icons` Dark, `text-hovered`/`text-pressed` Dark and `border-strong` confirmed as on `main` (no change in this export). `pnpm test:a11y` now runs every brand × theme (4 projects, permanent). Contrast table and proposed Burgundy exceptions: §10 #80; Dark Primary-scale and info tokens: §10 #79. |
+| 3 Nov 2026 | 0.2 | The second brand (Burgundy) approved by design and merged into `main`; the 4 Burgundy contrast exceptions accepted (§10 #80). |
+| 4 Nov 2026 | 0.2 | **Third brand: Sampath** (§3.10). New export (645 variables): `Alias Colors` and `Alias Typography` have the modes `Finspace`, `Burgundy theme` (`Burgundy` in typography), `Sampath`; Sampath points every alias group at its own scales (Orange, Mirage, Woodsmoke, Spring-wood, White, Green, Yellow, Red; §3.1, §3.2); 14 **Neutral dark** and 5 **Neutral light** aliases, which 19 semantic tokens now use, so a brand can pick its own greys (§3.2). Token build: brand code names from `BRAND_SLUGS` (an unknown mode stops the build), `BRAND_SCALES` with a `sampath-` prefix, per-brand font families (only the family may differ; the build stops otherwise), quoted multi-word families (§3.4, §3.9). **Hanken Grotesk** 400–800 self-hosted for Sampath, loaded by Storybook's preview (§3.4). Finspace and Burgundy checked unchanged: all 497 variables on `main` resolve to the same values on the branch in Light and Dark (headless Chrome). `test:a11y` has 6 projects; story exclusions now Finspace-only (they hid 4 Burgundy and 6 Sampath failures); brand exceptions switch off only axe's `color-contrast`, only on the listed elements (`apps/storybook/.storybook/brandContrastExceptions.ts`). §10 #81–#105 (Sampath, one HIGH: #103), #106–#109 (Burgundy, cross-brand). |
+| 4 Nov 2026 | 0.2 | The third brand (Sampath) approved by design and merged into `main`; its exceptions (§10 #81–#105, one HIGH: #103) and Burgundy's cross-brand ones (§10 #106–#109) accepted. Sampath isn't live. |
+| 4 Nov 2026 | 0.2 | **FinLogo** (§9.83, Figma Logo sizes in Foundation – Loyalty): Sampath's logo, `size` Small / Medium / Large (40 / 56 / 80), `colour` auto (Colored in Light, White in Dark, by CSS) / coloured / white, `showText`; the Sampath PNGs from Figma committed in `packages/ui/src/logos/sampath/`. The side nav, app shell and page stories show it when the Brand toolbar is Sampath; Finspace and Burgundy keep the "Fintech loyalty" placeholder. §10 #110 (the White logo made all white, at design's request), #111. |
+| 4 Nov 2026 | 0.2 | FinLogo and the Sampath logo in the side nav approved by design and merged into `main` (White logo all white, §10 #110). |
+| 5 Nov 2026 | 0.2 | **Styling refactor to Tailwind CSS, stage 1, approved by design and merged into `main`** (§3.11; checked main against the branch: no computed-style difference in any story in any brand × theme; the final pixel run was skipped by design's decision; known pixel noise: Chrome's rounded-corner rendering on the GPU, and the Logo "Sizes" story): Tailwind 4.3.4 with a theme generated from the tokens (no Tailwind defaults; `fin:` prefix; `@layer fin`, the reset now in `fin.base`), the library ships `index.css` (all-in-one), `styles.css`, `components.css` and `theme.css` (optional); ESLint class rules (`eslint-plugin-better-tailwindcss` 4.10.0); the token proof (compiled and in the browser, every brand × theme); the visual check script. No component changed. Open: §10 #112. |
+| 5 Nov 2026 | 0.2 | **Styling refactor, stage 2: FinButtonBase pilot, approved by design and merged into `main`** (§3.11). FinButtonBase's classes are in `FinButtonBase.styles.ts`, one list per prop value; `FinButtonBase.module.css` deleted; no API, DOM or behaviour change (the `data-*` attributes stay as hooks; no `data-part` needed). The component rules are now in CLAUDE.md "Tokens and styling" and §3.11. **Verification** (main against the branch, every brand × theme): the 35 button stories identical in pixels and computed styles at rest and in hover, pressed and keyboard focus (210 / 210); the whole catalogue identical at rest except the known Logo "Sizes" noise and one accepted difference; a11y 475 / 475 in every brand × theme with the exceptions unchanged. **Normalisations, each explained:** the button's private `--button-*` variables are gone (nothing else read them); empty `box-shadow` layers ignored (Tailwind writes the same inset ring with extra empty layers, and a button without a stroke now has `none` instead of an invisible ring); visually hidden labels skipped (`sr-only` adds a −1px margin to an invisible 1×1 element). **Accepted difference** (design, 5 Nov 2026): 3 anti-aliased pixels at the corner of the "Add option" button on Focus areas › Add / Edit question in Sampath (Light and Dark). The button sits at a fractional position (x 1248.61); on `main` every Primary button drew an invisible transparent inset shadow, and without it Chrome shades 3 edge pixels slightly differently (restoring that shadow on the one button gives 0 differences). Not visible at 10× zoom. Also: §10 #113 (no Storybook upgrade until the migration ends). |
+| 6 Nov 2026 | 0.2 | **Styling refactor, stage 3a: L0 atoms + FinIcon, FinFlag, FinLogo, FinPaymentIcon, approved by design and merged into `main`** (§3.11). 16 components converted (`Fin<Name>.styles.ts`, one list per prop value), their `.module.css` deleted; no API, DOM or behaviour change, no `data-part` needed (tests and a11y exceptions use `data-*` attributes and the CSS variables set from TSX, which stay). New in `tailwind.css` (rule 9): `inside-peer-checked:` / `inside-peer-disabled:` (FinToggle's handle, FinRadio's dot), `range-track:` / `range-thumb:` / `webkit-range-thumb:` and `slider-fill` (FinSlider), the icon glyph and size utilities, `icon-color` (FinIcon's `--icon-color`), `divider-line-h` / `-v` (FinDivider's `--divider-color`, set by FinInputBase and FinListStandard), `progress-fill`, the spinner's start, arc and turn, and the artwork box widths (`flag-w-*`, `logo-mark-w-*`, `logo-text-w-*`, `payment-w-*`). The theme gained `ring-fg-*` / `ring-bg-*` (FinOnlineIndicator's outer ring). FinLogo's `[[data-theme=dark]_&]:` added to CLAUDE.md rule 5 (approved). **Found and fixed during verification:** `leading-none` was `line-height: 0px` (our space token `none`), shifting every icon; the name audit and lint bans above came from it. **Verification** (main 1d532a0 against the branch, every brand × theme, normalisations as stage 2 plus this batch's removed private variables): the whole catalogue identical except the accepted differences below, the known Logo "Sizes" noise and the Tailwind utilities page (it gained the 34 ring rows); the batch's stories identical in hover, pressed and keyboard focus except the accepted differences; a11y 475 / 475 in every brand × theme, exceptions unchanged; 848 unit tests. **Accepted differences** (design, 6 Nov 2026; none visible): (1) FinSpinner's animation name `_fin-spinner-turn_<hash>` → `fin-spinner-turn` (same keyframes); (2) `background-position: 0px 0px` → `0% 0%` on FinSlider's input and FinIndicatorDot's button (the old `background` shorthand also reset the position; there's no background image); (3) outline width / offset on an outline that's off (`outline-style: none` on both): FinRadio's ring and FinToggle's track inside list rows (the row draws the ring), and FinIndicatorDot's focused button. |
+| 6 Nov 2026 | 0.2 | **Styling refactor, stage 3b: L1 atoms, approved by design and merged into `main`** (§3.11). 11 components converted (FinAvatar, FinBadgeBase, FinCheckboxBase, FinChipBase, FinCountrySelector, FinHelperText, FinIconContainer, FinLabel, FinRowCountSelect, FinSegmentBase, FinSideNavSubItem), their `.module.css` deleted; FinDestructiveButton, FinWhiteButton and FinSideNavIcon had no CSS of their own. No API or behaviour change. **`data-part` hooks:** `data-part="badge"` (FinBadgeBase) and `data-part="helper"` (FinHelperText); the four brand contrast exceptions that matched `[class*="_badge_"]` / `[class*="_helper_"]` now use them and still match the same elements (only FinBadgeBase's and FinHelperText's roots had those classes with a `data-tone`). New in `tailwind.css`: `inside-peer-checked-only:` and `inside-peer-indeterminate:` (FinCheckboxBase's icons), `checkbox-box-size` (24 − Space-S), `helper-text-offset` (Space-XXS ÷ 2), `sidenav-tree-lines`. **Verification** (main 7b7cfa8 against the branch, every brand × theme, with the comparison's standard switches: `--ignore-props '^--(?!fin-)'`, `--normalize-shadows`, `--skip-hidden`): the whole catalogue identical except FinCountrySelector's button (every story that has one) and the known Logo "Sizes" noise; the batch's stories identical in hover, pressed and keyboard focus except the same button and the list rows with a checkbox; a11y 475 / 475 in every brand × theme; 848 unit tests. **Differences, both of a kind accepted in stage 3a:** `background-position: 0px 0px` → `0% 0%` on FinCountrySelector's button (the old `background: none` also reset the position; no background image); and FinCheckboxBase's box in list rows, focused, `outline-width: 0px` → `3px` with `outline-style: none` on both (the row draws the ring). |
+| 8 Nov 2026 | 0.2 | **Styling refactor, stage 3c: molecules, approved by design and merged into `main`** (§3.11). 15 components converted (FinAvatarGroup, FinBarWithText, FinCheckbox, FinHeaderNotificationButton, FinInputChip, FinPageIndicator, FinPagination, FinProfileImage, FinSegmentedButton, FinSideNavItem, FinSpinnerWithText, FinTableCell, FinTableHeaderCell, FinTextBox, FinTooltip), their `.module.css` deleted; FinButton, FinBadge, FinAssistChip and FinFilterChip had no CSS of their own (FinChipGroup isn't built). No API or behaviour change. The theme gained `basis-*` (size numbers). New in `tailwind.css`: `w-grid-6` (FinBarWithText, FinSpinnerWithText), `page-indicator-hit-margins`, `profile-image-size`, `sidenav-minimized-height`, `underline-from-font`, `font-weight-inherit` / `font-inherit` (FinTableHeaderCell), `tooltip-place` (one `inset` declaration, with the `--tooltip-gap` / `--tooltip-edge` FinTooltip.tsx reads), `tooltip-max-w`, `tooltip-rich-w` and the `hidden-attr:` variant. **`data-part` hook:** `data-part="body"` on FinDialog's body; its test found the body by a class containing "body", which FinTextBox's `fin:font-body-medium` now matched. **Found and fixed during verification:** FinTable's sticky header rule (`th:is(.stickyEnd, …)`, unlayered) now beat FinTableHeaderCell's Grey fill, which is in `@layer fin` (on `main` the Grey fill won by specificity): the ⋮ header cell turned bg-primary in tables with a Grey header. The rule now skips `[data-type="grey"]` until FinTable is converted (3e; temporary, §10 #114). **Verification** (main 01ba5ec, re-shot, against the branch, every brand × theme, standard switches): the whole catalogue identical except `background-position` on FinPagination's arrows, FinTableHeaderCell's sort button and FinInputChip's ✕, the known Logo "Sizes" noise and the Tailwind utilities page (it gained the 19 `basis-*` rows); the batch's stories and their direct users (141) identical in hover, pressed and keyboard focus except the same three buttons and two focus steps that also differ between two shots of `main` (Table Bordered's ⋮ cell, Table Playground's last Tab); a11y 475 / 475 in every brand × theme; 848 unit tests. **Difference, of the kind accepted in stage 3a:** `background-position: 0px 0px` → `0% 0%` (the old `background: none` also reset the position; no background image). |
+| 8 Nov 2026 | 0.2 | **Styling refactor, stage 3d: organisms, fields, approved by design and merged into `main`** (9 Nov 2026; §3.11). 7 components converted (FinInputBase, FinTextArea, FinPasswordField, FinSearchField, FinDateField, FinSelectField, FinFileUpload), their `.module.css` deleted; FinTextField had no CSS of its own. No API or behaviour change, no theme change, no `data-part` needed. New in `tailwind.css` (rule 9): the field state variants `field-focused:`, `field-filled:`, `field-complete:`, `field-hover:` and `field-mask-idle:` (the base's `:has()` state rules; markers: the named groups `fin:group/field-root`, `field-box`, `field-content`, `field-accessory` and the peer `fin:peer/field-value`), `select-open:` (FinSelectField's chevron), `field-outline-box` / `field-ring-box` / `field-halo-box` and `field-label-place` (the fieldset geometry), `divider-color-default` / `-strong` / `-error` / `-disabled`, `textarea-rows`, `search-plain` (the native search input's parts) and `upload-padding`. **Intentional fix, approved by design (8 Nov 2026): the country menu's search field has 16px inline start padding** (Figma's FinSearchField Small) instead of 8px on `main`. On `main`, FinInputBase's Mobile number rule (`.root[data-variant="mobile-number"] .content`) was a descendant selector, so it also reached the FinSearchField nested in the country menu's popover and narrowed its padding; the utilities apply to their own element only, so the leak is gone. **Converted inside unconverted** (check again in 3e): FinSearchField in FinTableToolbar, where the toolbar's unlayered `.search` (width 343) always beats the field's `fin:w-full` (same result as on `main`); FinSearchField in FinTableColumnFilter and FinMenu (no `className` passed, nothing overlaps). FinInputBase passes `className` to the converted FinCountrySelector, FinDivider and FinHelperText (all in `@layer fin`): no overlapping property except FinDivider's `fin:m-none` against the label's `mt-m`, which the higher-specificity variant wins, as on `main`. **Verification** (main 5b087d3 against the branch 036673c, every brand × theme, switches `--ignore-props '^--(?!fin-)'` (Tailwind's own `--tw-*` variables), `--normalize-shadows` (equal shadows written differently) and `--skip-hidden` (elements not drawn), as approved in 3b): the whole catalogue (2850 shots) identical in pixels except the country menu story; the batch's stories and their direct users (93 stories, 558 shots: the fields, CountrySelector, TableToolbar, TableColumnFilter, Dialog, Side sheet, Label / Helper text, Table) identical in hover, pressed and keyboard focus except the country menu and Table Bordered's focus step (known noise, `main` ≠ `main` in 3c); a property-by-property probe of hover / press / focus on both builds (186 / 186, Finspace Light and Sampath Dark) found no other real difference. **Invisible differences, of the kinds accepted earlier:** `outline-width` / `outline-color` on buttons and inputs where `outline-style` is `none` (Tailwind's `outline-none`); `background-position: 0px 0px` → `0% 0%` with no background image; the visually hidden labels gain `margin: -1px; padding: 0; border: 0` from Tailwind's `sr-only` (reported as "element only in b", a wording quirk of `visual.ts` for elements skipped on both sides); the Logo "Sizes" story is known noise (`main` ≠ `main`). After deleting the modules: the Storybook build's CSS identical to the verified build (116 / 116 files), a11y 475 / 475 in every brand × theme, 848 unit tests, `lint`, `lint:css`, `typecheck`, `build`, `build-storybook` pass. |
+| 9 Nov 2026 | 0.2 | **Styling refactor, stage 3e-1: the table family, FinMenu and the other parents of converted components, approved by design and merged into `main`** (9 Nov 2026; §3.11). Before the merge, the whole repo was checked for the focus-ring bug found in 3e-2 (`outline-none` and a `focus-visible:outline-*` width on the same element): no 3e-1 or earlier component has it. Stage 3e is split in two (design's brief, 9 Nov 2026): **3e-1** (this) FinTable, FinTableRow, FinTableHeaderRow, FinTableToolbar, FinTableColumnFilter, FinTableFooter, FinTableRowActions, FinMenu, FinButtonDock, FinEmptyState, FinNotificationBanner (11; the last three hold converted FinButton / FinTextBox / FinIconContainer); **3e-2** FinAppShell, FinDialog, FinHeader, FinSideNav, FinSideSheet, FinSnackbar (and FinSnackbarRegion), FinStepper, FinListItem, FinListStandard, FinListCheckbox, FinListRadio, FinListItemFilled, FinSkeleton, FinStatCard. The 11 `.module.css` are deleted. No API or behaviour change, no theme change. **`data-part` hook:** `data-part="banner"` on FinNotificationBanner; Sampath's two accepted banner contrast exceptions (§10 #87, #97) found the banner by its CSS Module class (`[class*="_banner_"]`), so the a11y check failed in Sampath Light until they used the hook. The `--fin-table-row-bg` / `--fin-table-row-line` contract is unchanged (FinTableRow sets both, FinTable's fixed cells read the fill). **§10 #114 closed:** the FinTable Grey-header `:not()` went with FinTable's CSS Module. New in `tailwind.css` (rule 9): **`placement:`**, a variant that doubles a class's specificity, for a parent's class that must beat the converted child's own value of the same property now that both are in `@layer fin` (on `main` the parent's unlayered CSS Module won): FinTableToolbar's search width (`placement:w-343` over FinSearchField's full width) and FinButtonDock's `fill` (`placement:dock-fill` over FinButtonBase's `flex-none`); FinTable's `table-grid`, `table-min-w`, `table-select-column`, `table-actions-column`, `table-narrow-w`, `table-actions-w`, `table-column-w`, `table-sticky-after-select`, `table-sticky-fill` and the fixed column's shadow (`table-scrolled:` / `table-scrolled-both:` variants reading the scroll area's `data-hidden-*`, with `table-sticky-shadow-start` / `-end`); FinTableRow's `table-row-line`, `table-row-hover`, `table-row-selected`, `table-row-selected-hover` (one per state, picked in TSX); FinTableRowActions' `menu-open-idle:` (open, unless hovered or pressed, as before); FinMenu's `menu-place`, `menu-max-h`, `menu-max-h-limit`, `menu-min-w-trigger`, `menu-w-trigger`, `menu-w-custom`; FinButtonDock's `dock-fill`; FinEmptyState's `empty-state-column` and `empty-state-w`. **Found and fixed during verification:** FinMenu's header and footer lines first used `border-subtle`, which colours all four sides; `main` coloured only the drawn one. The undrawn sides have no border, so nothing showed, but the computed colours differed; now `border-b-subtle` / `border-t-subtle`, identical to `main`. **Converted inside unconverted** (check again in 3e-2): FinButtonDock in FinSideSheet and FinMenu in FinSideNav (no `className` passed, nothing overlaps); FinListStandard rows (3e-2) inside FinMenu (separate elements). **Verification** (main 552ed8f, the merged 3d commit, whose Storybook build is byte-identical to 3d's verified branch build apart from a timestamp, so 3d's branch snapshots are the baseline, as the brief allows; every brand × theme; switches `--ignore-props '^--(?!fin-)'`, `--normalize-shadows`, `--skip-hidden`, as approved in 3b): the whole catalogue (2850 shots) identical in pixels except the Logo "Sizes" story (known noise, `main` ≠ `main`); after the menu fix, every story whose computed styles differ (145) explained in one combo each: only the invisible kinds below; a check of every differing element path found none missing on either side, and the 281 behind "element only in b" visually hidden on both sides. The batch's stories and their direct users (117 stories, 702 shots: the table stories, Menu, Button dock, Empty state, Notification banner, Dialog, Side sheet, Side nav, Select and Text fields, Country selector, Row count dropdown, the page states) identical in pixels in hover, pressed and keyboard focus; a property-by-property probe of those states on both builds (234 runs, Finspace Light and Sampath Dark) found no other difference once its shadows are compared as `--normalize-shadows` does (the 3d probe script didn't normalise them; Tailwind's shadow is the same shadow behind four empty layers). **Invisible differences, of the kinds accepted earlier:** `background-position: 0px 0px` → `0% 0%` with no background image (the column filter button); `outline-width` / `outline-color` where `outline-style` is `none` (FinMenu's focusable lists, `outline-none`); FinTable's loading status now Tailwind's `sr-only` (margin / padding / border of a visually hidden element). After deleting the modules and adding the hook: a11y 475 / 475 in every brand × theme, 848 unit tests, `lint`, `lint:css`, `typecheck`, `build`, `build-storybook` pass; the shadow's scroll condition moved from the utility's selector into the `table-scrolled*` variants for Stylelint, and the table stories re-shot after that (48 stories, 288 shots with states) are identical to the verified ones at rest; a few keyboard-focus steps of Table Bordered, Playground and Members hashed differently, and a property-by-property probe of those stories' states on the two builds found no difference (focus-timing noise, as known from 3c). |

@@ -1,0 +1,16 @@
+/* Layout for the FinTableHeaderCell stories only (not part of the component). */
+
+.table {
+  border-collapse: collapse;
+}
+
+/* A fixed-width column (160), to show a long title ending in "…". */
+.fixed {
+  table-layout: fixed;
+  width: calc(var(--fin-size-80) * 2);
+}
+
+/* Room below the header for the filter menu. */
+.stage {
+  min-height: calc(var(--fin-size-120) * 4);
+}

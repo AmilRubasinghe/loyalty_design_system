@@ -1,0 +1,8 @@
+node_modules/
+dist/
+storybook-static/
+*.tsbuildinfo
+*.log
+.DS_Store
+packages/ui/src/styles/generated/
+packages/ui/src/assets/generated/
